@@ -1,0 +1,478 @@
+[
+ {
+  "id": "doc-correggi",
+  "categoria": "documenti",
+  "domanda": "correggi gli errori di battitura",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "documento",
+   "titolo": "Piano marketing 2027",
+   "contenuto": "Piano marketing 2027\nIntroduzione\nQuesto piano descrive come aumentare la notorietà del marchio nel 2027 con un budget contenuto.\nObiettivi\nAumentare del 20% i contatti qualificati e lanciare due campagne stagionali.\nBudget\nIl budget totale è di 45.000 euro, di cui 30.000 per la pubblicità online.\nRischi\nIl rischio principale è l'aumento dei costi pubblicitari.\nConclusioni\nIl piano è sostenibile se i risultati vengono misurati ogni mese."
+  }
+ },
+ {
+  "id": "doc-aggiungi-sezione",
+  "categoria": "documenti",
+  "domanda": "aggiungi una sezione sui canali social dopo gli obiettivi",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "documento",
+   "titolo": "Piano marketing 2027",
+   "contenuto": "Piano marketing 2027\nIntroduzione\nQuesto piano descrive come aumentare la notorietà del marchio nel 2027 con un budget contenuto.\nObiettivi\nAumentare del 20% i contatti qualificati e lanciare due campagne stagionali.\nBudget\nIl budget totale è di 45.000 euro, di cui 30.000 per la pubblicità online.\nRischi\nIl rischio principale è l'aumento dei costi pubblicitari.\nConclusioni\nIl piano è sostenibile se i risultati vengono misurati ogni mese."
+  }
+ },
+ {
+  "id": "doc-traduci-parte",
+  "categoria": "documenti",
+  "domanda": "traduci in inglese il paragrafo sul budget",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "documento",
+   "titolo": "Piano marketing 2027",
+   "contenuto": "Piano marketing 2027\nIntroduzione\nQuesto piano descrive come aumentare la notorietà del marchio nel 2027 con un budget contenuto.\nObiettivi\nAumentare del 20% i contatti qualificati e lanciare due campagne stagionali.\nBudget\nIl budget totale è di 45.000 euro, di cui 30.000 per la pubblicità online.\nRischi\nIl rischio principale è l'aumento dei costi pubblicitari.\nConclusioni\nIl piano è sostenibile se i risultati vengono misurati ogni mese."
+  }
+ },
+ {
+  "id": "doc-tono",
+  "categoria": "documenti",
+  "domanda": "rendi più formale l'introduzione",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "documento",
+   "titolo": "Piano marketing 2027",
+   "contenuto": "Piano marketing 2027\nIntroduzione\nQuesto piano descrive come aumentare la notorietà del marchio nel 2027 con un budget contenuto.\nObiettivi\nAumentare del 20% i contatti qualificati e lanciare due campagne stagionali.\nBudget\nIl budget totale è di 45.000 euro, di cui 30.000 per la pubblicità online.\nRischi\nIl rischio principale è l'aumento dei costi pubblicitari.\nConclusioni\nIl piano è sostenibile se i risultati vengono misurati ogni mese."
+  }
+ },
+ {
+  "id": "doc-elimina-sezione",
+  "categoria": "documenti",
+  "domanda": "elimina la sezione Rischi",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "documento",
+   "titolo": "Piano marketing 2027",
+   "contenuto": "Piano marketing 2027\nIntroduzione\nQuesto piano descrive come aumentare la notorietà del marchio nel 2027 con un budget contenuto.\nObiettivi\nAumentare del 20% i contatti qualificati e lanciare due campagne stagionali.\nBudget\nIl budget totale è di 45.000 euro, di cui 30.000 per la pubblicità online.\nRischi\nIl rischio principale è l'aumento dei costi pubblicitari.\nConclusioni\nIl piano è sostenibile se i risultati vengono misurati ogni mese."
+  }
+ },
+ {
+  "id": "doc-titolo",
+  "categoria": "documenti",
+  "domanda": "cambia il titolo in «Piano di comunicazione 2027»",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "documento",
+   "titolo": "Piano marketing 2027",
+   "contenuto": "Piano marketing 2027\nIntroduzione\nQuesto piano descrive come aumentare la notorietà del marchio nel 2027 con un budget contenuto.\nObiettivi\nAumentare del 20% i contatti qualificati e lanciare due campagne stagionali.\nBudget\nIl budget totale è di 45.000 euro, di cui 30.000 per la pubblicità online.\nRischi\nIl rischio principale è l'aumento dei costi pubblicitari.\nConclusioni\nIl piano è sostenibile se i risultati vengono misurati ogni mese."
+  }
+ },
+ {
+  "id": "doc-grassetto",
+  "categoria": "documenti",
+  "domanda": "metti in grassetto i titoli delle sezioni",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "documento",
+   "titolo": "Piano marketing 2027",
+   "contenuto": "Piano marketing 2027\nIntroduzione\nQuesto piano descrive come aumentare la notorietà del marchio nel 2027 con un budget contenuto.\nObiettivi\nAumentare del 20% i contatti qualificati e lanciare due campagne stagionali.\nBudget\nIl budget totale è di 45.000 euro, di cui 30.000 per la pubblicità online.\nRischi\nIl rischio principale è l'aumento dei costi pubblicitari.\nConclusioni\nIl piano è sostenibile se i risultati vengono misurati ogni mese."
+  }
+ },
+ {
+  "id": "doc-domanda",
+  "categoria": "documenti",
+  "domanda": "cosa dice la sezione budget?",
+  "deve": [
+   "^PIANO (rispondi)\\b"
+  ],
+  "artefatto": {
+   "tipo": "documento",
+   "titolo": "Piano marketing 2027",
+   "contenuto": "Piano marketing 2027\nIntroduzione\nQuesto piano descrive come aumentare la notorietà del marchio nel 2027 con un budget contenuto.\nObiettivi\nAumentare del 20% i contatti qualificati e lanciare due campagne stagionali.\nBudget\nIl budget totale è di 45.000 euro, di cui 30.000 per la pubblicità online.\nRischi\nIl rischio principale è l'aumento dei costi pubblicitari.\nConclusioni\nIl piano è sostenibile se i risultati vengono misurati ogni mese."
+  }
+ },
+ {
+  "id": "doc-riassunto",
+  "categoria": "documenti",
+  "domanda": "riassumi questo documento in tre punti",
+  "deve": [
+   "^PIANO (rispondi)\\b"
+  ],
+  "artefatto": {
+   "tipo": "documento",
+   "titolo": "Piano marketing 2027",
+   "contenuto": "Piano marketing 2027\nIntroduzione\nQuesto piano descrive come aumentare la notorietà del marchio nel 2027 con un budget contenuto.\nObiettivi\nAumentare del 20% i contatti qualificati e lanciare due campagne stagionali.\nBudget\nIl budget totale è di 45.000 euro, di cui 30.000 per la pubblicità online.\nRischi\nIl rischio principale è l'aumento dei costi pubblicitari.\nConclusioni\nIl piano è sostenibile se i risultati vengono misurati ogni mese."
+  }
+ },
+ {
+  "id": "doc-nuovo",
+  "categoria": "documenti",
+  "domanda": "crea un nuovo documento sul lancio del prodotto",
+  "deve": [
+   "^PIANO (crea_documento)\\b"
+  ],
+  "artefatto": {
+   "tipo": "documento",
+   "titolo": "Piano marketing 2027",
+   "contenuto": "Piano marketing 2027\nIntroduzione\nQuesto piano descrive come aumentare la notorietà del marchio nel 2027 con un budget contenuto.\nObiettivi\nAumentare del 20% i contatti qualificati e lanciare due campagne stagionali.\nBudget\nIl budget totale è di 45.000 euro, di cui 30.000 per la pubblicità online.\nRischi\nIl rischio principale è l'aumento dei costi pubblicitari.\nConclusioni\nIl piano è sostenibile se i risultati vengono misurati ogni mese."
+  }
+ },
+ {
+  "id": "doc-email",
+  "categoria": "documenti",
+  "domanda": "manda questo documento a Marco per email",
+  "deve": [
+   "^PIANO (scrivi_email)\\b"
+  ],
+  "artefatto": {
+   "tipo": "documento",
+   "titolo": "Piano marketing 2027",
+   "contenuto": "Piano marketing 2027\nIntroduzione\nQuesto piano descrive come aumentare la notorietà del marchio nel 2027 con un budget contenuto.\nObiettivi\nAumentare del 20% i contatti qualificati e lanciare due campagne stagionali.\nBudget\nIl budget totale è di 45.000 euro, di cui 30.000 per la pubblicità online.\nRischi\nIl rischio principale è l'aumento dei costi pubblicitari.\nConclusioni\nIl piano è sostenibile se i risultati vengono misurati ogni mese."
+  }
+ },
+ {
+  "id": "foglio-riga",
+  "categoria": "documenti",
+  "domanda": "aggiungi una riga per l'assicurazione da 45 euro a ottobre",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "foglio",
+   "titolo": "Budget viaggio Lisbona",
+   "contenuto": "Foglio «Foglio 1»:\nVoce | Ottobre | Novembre | Totale\nVolo | 180 | 0 | 180\nHotel | 420 | 0 | 420\nCibo | 150 | 60 | 210\nTotale | 750 | 60 | 810"
+  }
+ },
+ {
+  "id": "foglio-domanda",
+  "categoria": "documenti",
+  "domanda": "qual è il totale di novembre?",
+  "deve": [
+   "^PIANO (rispondi)\\b"
+  ],
+  "artefatto": {
+   "tipo": "foglio",
+   "titolo": "Budget viaggio Lisbona",
+   "contenuto": "Foglio «Foglio 1»:\nVoce | Ottobre | Novembre | Totale\nVolo | 180 | 0 | 180\nHotel | 420 | 0 | 420\nCibo | 150 | 60 | 210\nTotale | 750 | 60 | 810"
+  }
+ },
+ {
+  "id": "foglio-grafico",
+  "categoria": "documenti",
+  "domanda": "crea un grafico a torta delle spese",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "foglio",
+   "titolo": "Budget viaggio Lisbona",
+   "contenuto": "Foglio «Foglio 1»:\nVoce | Ottobre | Novembre | Totale\nVolo | 180 | 0 | 180\nHotel | 420 | 0 | 420\nCibo | 150 | 60 | 210\nTotale | 750 | 60 | 810"
+  }
+ },
+ {
+  "id": "foglio-elimina",
+  "categoria": "documenti",
+  "domanda": "elimina la riga del cibo",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "foglio",
+   "titolo": "Budget viaggio Lisbona",
+   "contenuto": "Foglio «Foglio 1»:\nVoce | Ottobre | Novembre | Totale\nVolo | 180 | 0 | 180\nHotel | 420 | 0 | 420\nCibo | 150 | 60 | 210\nTotale | 750 | 60 | 810"
+  }
+ },
+ {
+  "id": "foglio-modifica",
+  "categoria": "documenti",
+  "domanda": "raddoppia la spesa dell'hotel",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "foglio",
+   "titolo": "Budget viaggio Lisbona",
+   "contenuto": "Foglio «Foglio 1»:\nVoce | Ottobre | Novembre | Totale\nVolo | 180 | 0 | 180\nHotel | 420 | 0 | 420\nCibo | 150 | 60 | 210\nTotale | 750 | 60 | 810"
+  }
+ },
+ {
+  "id": "slide-elimina",
+  "categoria": "documenti",
+  "domanda": "elimina la slide 3",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "presentazione",
+   "titolo": "Lancio prodotto",
+   "contenuto": "1. Lancio prodotto\n2. Il problema\n3. La soluzione\n4. Mercato\n5. Prossimi passi"
+  }
+ },
+ {
+  "id": "slide-titolo",
+  "categoria": "documenti",
+  "domanda": "cambia il titolo della slide 2 in «Perché ora»",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "presentazione",
+   "titolo": "Lancio prodotto",
+   "contenuto": "1. Lancio prodotto\n2. Il problema\n3. La soluzione\n4. Mercato\n5. Prossimi passi"
+  }
+ },
+ {
+  "id": "slide-aggiungi",
+  "categoria": "documenti",
+  "domanda": "aggiungi una slide sui costi dopo quella sul mercato",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "presentazione",
+   "titolo": "Lancio prodotto",
+   "contenuto": "1. Lancio prodotto\n2. Il problema\n3. La soluzione\n4. Mercato\n5. Prossimi passi"
+  }
+ },
+ {
+  "id": "slide-domanda",
+  "categoria": "documenti",
+  "domanda": "di cosa parla la presentazione?",
+  "deve": [
+   "^PIANO (rispondi)\\b"
+  ],
+  "artefatto": {
+   "tipo": "presentazione",
+   "titolo": "Lancio prodotto",
+   "contenuto": "1. Lancio prodotto\n2. Il problema\n3. La soluzione\n4. Mercato\n5. Prossimi passi"
+  }
+ },
+ {
+  "id": "cal-sposta",
+  "categoria": "app",
+  "domanda": "sposta la riunione con Marco di domani alle 16",
+  "deve": [
+   "^PIANO (modifica_evento)\\b"
+  ]
+ },
+ {
+  "id": "cal-rinomina",
+  "categoria": "app",
+  "domanda": "rinomina l'evento di domani alle 10 in «Call con il cliente»",
+  "deve": [
+   "^PIANO (modifica_evento)\\b"
+  ]
+ },
+ {
+  "id": "prom-elimina",
+  "categoria": "app",
+  "domanda": "cancella il promemoria del dentista",
+  "deve": [
+   "^PIANO (elimina_promemoria)\\b"
+  ]
+ },
+ {
+  "id": "prom-scadenza",
+  "categoria": "app",
+  "domanda": "sposta la scadenza del promemoria bollette a venerdì",
+  "deve": [
+   "^PIANO (modifica_promemoria)\\b"
+  ]
+ },
+ {
+  "id": "nota-aggiungi",
+  "categoria": "app",
+  "domanda": "aggiungi il latte alla nota della spesa",
+  "deve": [
+   "^PIANO (modifica_nota)\\b"
+  ]
+ },
+ {
+  "id": "mail-rispondi",
+  "categoria": "app",
+  "domanda": "rispondi a Mario che va bene per giovedì",
+  "deve": [
+   "^PIANO (rispondi_email)\\b"
+  ]
+ },
+ {
+  "id": "mail-inoltra",
+  "categoria": "app",
+  "domanda": "inoltra a Giulia l'ultima email di Mario",
+  "deve": [
+   "^PIANO (inoltra_email)\\b"
+  ]
+ },
+ {
+  "id": "cal-anticipa",
+  "categoria": "app",
+  "domanda": "anticipa di mezz'ora la call con Luca",
+  "deve": [
+   "^PIANO (modifica_evento)\\b"
+  ]
+ },
+ {
+  "id": "cal-rimanda",
+  "categoria": "app",
+  "domanda": "rimanda la cena con Sara a venerdì",
+  "deve": [
+   "^PIANO (modifica_evento)\\b"
+  ]
+ },
+ {
+  "id": "cal-luogo",
+  "categoria": "app",
+  "domanda": "cambia il luogo della riunione di domani in sala B",
+  "deve": [
+   "^PIANO (modifica_evento)\\b"
+  ]
+ },
+ {
+  "id": "cal-allunga",
+  "categoria": "app",
+  "domanda": "allunga di mezz'ora la riunione budget",
+  "deve": [
+   "^PIANO (modifica_evento)\\b"
+  ]
+ },
+ {
+  "id": "cal-elimina",
+  "categoria": "app",
+  "domanda": "cancella la riunione con Marco di domani",
+  "deve": [
+   "^PIANO (elimina_evento)\\b"
+  ]
+ },
+ {
+  "id": "prom-senza-scadenza",
+  "categoria": "app",
+  "domanda": "togli la scadenza al promemoria bollette",
+  "deve": [
+   "^PIANO (modifica_promemoria)\\b"
+  ]
+ },
+ {
+  "id": "prom-importante",
+  "categoria": "app",
+  "domanda": "segna come importante il promemoria palestra",
+  "deve": [
+   "^PIANO (modifica_promemoria)\\b"
+  ]
+ },
+ {
+  "id": "prom-elimina-2",
+  "categoria": "app",
+  "domanda": "elimina il promemoria pagare l'affitto",
+  "deve": [
+   "^PIANO (elimina_promemoria)\\b"
+  ]
+ },
+ {
+  "id": "prom-completa",
+  "categoria": "app",
+  "domanda": "segna come fatto il promemoria bollette",
+  "deve": [
+   "^PIANO (completa_promemoria)\\b"
+  ]
+ },
+ {
+  "id": "nota-scrivi",
+  "categoria": "app",
+  "domanda": "scrivi nella nota lavoro che domani c'è sciopero",
+  "deve": [
+   "^PIANO (modifica_nota)\\b"
+  ]
+ },
+ {
+  "id": "nota-elenco",
+  "categoria": "app",
+  "domanda": "aggiungi alla nota spesa: uova, pane e caffè",
+  "deve": [
+   "^PIANO (modifica_nota)\\b"
+  ]
+ },
+ {
+  "id": "mail-rispondi-oggetto",
+  "categoria": "app",
+  "domanda": "rispondi all'email sulla fattura dicendo che la pago domani",
+  "deve": [
+   "^PIANO (rispondi_email)\\b"
+  ]
+ },
+ {
+  "id": "mail-inoltra-2",
+  "categoria": "app",
+  "domanda": "inoltra l'ultima email di Mario a Giulia",
+  "deve": [
+   "^PIANO (inoltra_email)\\b"
+  ]
+ },
+ {
+  "id": "no-domanda",
+  "categoria": "app",
+  "domanda": "rispondi a questa domanda: quanto fa 12 per 7?",
+  "deve": [
+   "^PIANO (rispondi)\\b"
+  ]
+ },
+ {
+  "id": "no-crea-promemoria",
+  "categoria": "app",
+  "domanda": "ricordami di pagare le bollette venerdì",
+  "deve": [
+   "^PIANO (crea_promemoria)\\b"
+  ]
+ },
+ {
+  "id": "no-crea-nota",
+  "categoria": "app",
+  "domanda": "crea una nota con la lista della spesa: latte e uova",
+  "deve": [
+   "^PIANO (crea_nota)\\b"
+  ]
+ },
+ {
+  "id": "no-crea-evento",
+  "categoria": "app",
+  "domanda": "fissa una riunione con Marco domani alle 16",
+  "deve": [
+   "^PIANO (crea_evento)\\b"
+  ]
+ },
+ {
+  "id": "no-agenda",
+  "categoria": "app",
+  "domanda": "cosa ho domani?",
+  "deve": [
+   "^PIANO (agenda)\\b"
+  ]
+ },
+ {
+  "id": "no-whatsapp",
+  "categoria": "app",
+  "domanda": "rispondi a Marco su iMessage che arrivo tra dieci minuti",
+  "deve": [
+   "^PIANO (invia_messaggio)\\b"
+  ]
+ },
+ {
+  "id": "no-nuova-email",
+  "categoria": "app",
+  "domanda": "scrivi un'email a Giulia per il preventivo",
+  "deve": [
+   "^PIANO (scrivi_email)\\b"
+  ]
+ }
+]

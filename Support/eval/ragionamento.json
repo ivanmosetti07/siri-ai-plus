@@ -1,0 +1,18 @@
+[
+  {"id": "rag-eta", "categoria": "logica", "domanda": "Luca ha il doppio degli anni di Marco. Tra 5 anni la somma delle loro età sarà 40. Quanti anni ha Marco oggi?", "deve": ["\\b10\\b"]},
+  {"id": "rag-mattone", "categoria": "logica", "domanda": "Un mattone pesa 1 kg più mezzo mattone. Quanto pesa un mattone?", "deve": ["\\b2\\s*(kg|chil)|due chil"]},
+  {"id": "rag-macchine", "categoria": "logica", "domanda": "Se 5 macchine fanno 5 pezzi in 5 minuti, quanto tempo impiegano 100 macchine per fare 100 pezzi?", "deve": ["\\b5 minuti|cinque minuti"], "vieta": ["100 minuti"]},
+  {"id": "rag-sorelle", "categoria": "logica", "domanda": "Maria ha 3 fratelli maschi e ogni fratello ha 2 sorelle. Quante sorelle ha Maria?", "deve": ["\\b(una|1) sorella\\b"], "vieta": ["maria ha (2|due) sorelle"]},
+  {"id": "rag-tappo", "categoria": "logica", "domanda": "Una bottiglia con il tappo costa 1,10 €. La bottiglia costa 1 € più del tappo. Quanto costa il tappo?", "deve": ["0[,.]05|5 centesimi|cinque centesimi"], "vieta": ["tappo costa 0[,.]10|tappo costa 10 centesimi"]},
+  {"id": "rag-ordine", "categoria": "logica", "domanda": "Anna è più alta di Bea, Bea è più alta di Carla e Dora è più bassa di Carla. Chi è la seconda più bassa?", "deve": ["carla"]},
+  {"id": "rag-lumaca", "categoria": "logica", "domanda": "Una lumaca sale un muro di 10 metri: di giorno sale 3 metri e di notte scivola giù di 2. In quanti giorni arriva in cima?", "deve": ["\\b8\\b|\\botto\\b"]},
+  {"id": "rag-condizioni", "categoria": "logica", "domanda": "Posso andare in palestra lunedì, mercoledì o venerdì. Lunedì ho una cena di lavoro e venerdì è previsto un temporale, ma voglio andarci in bici. Quale giorno mi conviene?", "deve": ["mercoled"]},
+  {"id": "rag-orario", "categoria": "tempo", "domanda": "Ho una riunione alle 9:00 che dura 90 minuti, poi 20 minuti di pausa e poi una call di 45 minuti. A che ora finisco?", "deve": ["11[:.]35"]},
+  {"id": "rag-giorno", "categoria": "tempo", "domanda": "Se oggi fosse mercoledì, che giorno della settimana sarebbe tra 10 giorni?", "deve": ["sabato"]},
+  {"id": "rag-scadenza", "categoria": "tempo", "domanda": "Una bolletta scade il 5 del mese e va pagata 3 giorni lavorativi prima. Se il 5 è un lunedì, entro che giorno della settimana devo pagarla?", "deve": ["mercoled"]},
+  {"id": "rag-resto", "categoria": "conti", "domanda": "Ho 20 euro. Compro 3 quaderni da 2,50 € e 2 penne da 1,20 €. Quanto mi resta?", "deve": ["10[,.]10?\\b"]},
+  {"id": "rag-sconto-doppio", "categoria": "conti", "domanda": "Un giubbotto costa 200 euro. Prima c'è uno sconto del 20% e poi un altro 10% sul prezzo già scontato. Quanto pago?", "deve": ["\\b144\\b"]},
+  {"id": "rag-velocita", "categoria": "conti", "domanda": "Un'auto percorre 180 km in 2 ore e 15 minuti. Qual è la sua velocità media?", "deve": ["\\b80\\s*(km|chilometri)"]},
+  {"id": "rag-probabilita", "categoria": "conti", "domanda": "In una scatola ci sono 3 mele rosse e 5 verdi. Se ne prendo 2 a caso, qual è la probabilità che siano entrambe rosse?", "deve": ["3/28|10[,.]7|0[,.]107"]},
+  {"id": "rag-piastrelle", "categoria": "conti", "domanda": "Una stanza misura 4 metri per 3,5. Le piastrelle sono quadrate di 50 cm di lato e se ne compra il 10% in più per gli scarti. Quante piastrelle compro?", "deve": ["\\b62\\b"]}
+]

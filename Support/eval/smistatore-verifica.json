@@ -1,0 +1,12 @@
+[
+  {"id": "sv-corriere", "categoria": "parafrasi", "domanda": "Il corriere si è fatto vivo?", "deve": ["^PIANO (mail_leggi|messaggi)\\b"]},
+  {"id": "sv-assicurazione", "categoria": "parafrasi", "domanda": "Devo ancora pagare l'assicurazione della macchina entro fine mese, tienimelo presente", "deve": ["^PIANO (crea_promemoria|ricorda)\\b"]},
+  {"id": "sv-entrate", "categoria": "parafrasi", "domanda": "Mi hanno risposto dall'Agenzia delle Entrate?", "deve": ["^PIANO (mail_leggi|messaggi)\\b"]},
+  {"id": "sv-commercialista", "categoria": "parafrasi", "domanda": "Ci sono novità dal commercialista?", "deve": ["^PIANO (mail_leggi|messaggi)\\b"]},
+  {"id": "sv-cancello", "categoria": "parafrasi", "domanda": "Annotati che il codice del cancello è 4512", "deve": ["^PIANO (ricorda|crea_nota)\\b"]},
+  {"id": "sv-cercato", "categoria": "parafrasi", "domanda": "Chi mi ha cercato oggi?", "deve": ["^PIANO (messaggi|mail_leggi)\\b"]},
+  {"id": "sv-bonifico", "categoria": "parafrasi", "domanda": "Il bonifico del cliente Rossi è arrivato?", "deve": ["^PIANO (mail_leggi|messaggi)\\b"]},
+  {"id": "sv-irpef", "categoria": "niente strumenti", "domanda": "Che differenza c'è tra IRPEF e IRES?", "deve": ["^PIANO (rispondi|cerca_web)\\b"]},
+  {"id": "sv-cena", "categoria": "niente strumenti", "domanda": "Dammi un'idea per una cena romantica a casa", "deve": ["^PIANO (rispondi)\\b"]},
+  {"id": "sv-storia", "categoria": "niente strumenti", "domanda": "Perché è caduto l'Impero romano d'Occidente?", "deve": ["^PIANO (rispondi)\\b"]}
+]

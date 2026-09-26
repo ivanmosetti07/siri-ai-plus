@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>it</string>
+    <key>CFBundleExecutable</key>
+    <string>SiriAIPlus</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.ivanmosetti.siriaiplus</string>
+    <key>CFBundleName</key>
+    <string>Siri AI+</string>
+    <key>CFBundleDisplayName</key>
+    <string>Siri AI+</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>2.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>27.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.productivity</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>Siri AI+ legge e crea eventi nel tuo calendario su tua richiesta.</string>
+    <key>NSCalendarsUsageDescription</key>
+    <string>Siri AI+ legge e crea eventi nel tuo calendario su tua richiesta.</string>
+    <key>NSRemindersFullAccessUsageDescription</key>
+    <string>Siri AI+ legge, crea e completa i tuoi promemoria su tua richiesta.</string>
+    <key>NSRemindersUsageDescription</key>
+    <string>Siri AI+ legge, crea e completa i tuoi promemoria su tua richiesta.</string>
+    <key>NSLocationUsageDescription</key>
+    <string>Siri AI+ usa la posizione del Mac (circa 1 km) per il meteo della Home, solo se lo attivi nelle Impostazioni.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Siri AI+ usa la posizione del Mac (circa 1 km) per il meteo della Home, solo se lo attivi nelle Impostazioni.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Siri AI+ usa il microfono per la dettatura delle richieste.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Siri AI+ trascrive la tua voce sul dispositivo per scrivere le richieste.</string>
+    <key>NSContactsUsageDescription</key>
+    <string>Siri AI+ usa i Contatti per trovare il numero o l'email delle persone a cui vuoi scrivere e per mostrare i nomi nei Messaggi.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Siri AI+ usa Note, Mail, Messaggi, Safari e Keynote per leggere e creare ciò che le chiedi: note, email, messaggi (solo dopo la tua conferma), pagine web e presentazioni.</string>
+</dict>
+</plist>

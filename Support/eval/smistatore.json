@@ -1,0 +1,14 @@
+[
+  {"id": "sm-amazon", "categoria": "parafrasi", "domanda": "Mi è arrivato qualcosa da Amazon?", "deve": ["^PIANO (mail_leggi|messaggi)\\b"]},
+  {"id": "sm-preventivo", "categoria": "parafrasi", "domanda": "Chi mi ha mandato il preventivo della cucina?", "deve": ["^PIANO (mail_leggi|messaggi)\\b"]},
+  {"id": "sm-whatsapp", "categoria": "parafrasi", "domanda": "Fammi vedere cosa mi ha mandato Giulia ieri sera", "deve": ["^PIANO (messaggi|mail_leggi)\\b"]},
+  {"id": "sm-contratto", "categoria": "parafrasi", "domanda": "Dove avevo messo il contratto dell'affitto?", "deve": ["^PIANO (file)\\b"]},
+  {"id": "sm-newsletter", "categoria": "parafrasi", "domanda": "Che dice l'ultima newsletter del Post?", "deve": ["^PIANO (mail_leggi|leggi_pagina|cerca_web)\\b"]},
+  {"id": "sm-due-righe", "categoria": "parafrasi", "domanda": "Butta giù due righe per Luca per dirgli che il pacco è partito e mandagliele", "deve": ["^PIANO (invia_messaggio|scrivi_email)\\b"]},
+  {"id": "sm-bozza-cliente", "categoria": "parafrasi", "domanda": "Prepara una bozza gentile per il cliente che si lamenta del ritardo nella consegna, da mandargli per posta elettronica", "deve": ["^PIANO (scrivi_email|rispondi_email)\\b"]},
+  {"id": "sm-bolletta", "categoria": "parafrasi", "domanda": "Fra tre giorni devo pagare la bolletta della luce, non farmelo scordare", "deve": ["^PIANO (crea_promemoria)\\b"]},
+  {"id": "sm-leonardo", "categoria": "niente strumenti", "domanda": "Chi era Leonardo da Vinci?", "deve": ["^PIANO (rispondi)\\b"]},
+  {"id": "sm-poesia", "categoria": "niente strumenti", "domanda": "Scrivimi una poesia breve sull'autunno", "deve": ["^PIANO (rispondi|crea_documento)\\b"]},
+  {"id": "sm-percentuale", "categoria": "niente strumenti", "domanda": "Quanto fa il 15% di 240?", "deve": ["^PIANO (rispondi)\\b"]},
+  {"id": "sm-consiglio", "categoria": "niente strumenti", "domanda": "Come posso organizzarmi meglio al lavoro quando ho troppe riunioni?", "deve": ["^PIANO (rispondi)\\b"]}
+]

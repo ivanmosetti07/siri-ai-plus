@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>com.ivanmosetti.siriaiplus.cli</string>
+    <key>CFBundleName</key>
+    <string>Siri AI+</string>
+    <key>CFBundleVersion</key>
+    <string>1.0</string>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>Siri AI+ legge e crea eventi nel tuo calendario su tua richiesta.</string>
+    <key>NSCalendarsUsageDescription</key>
+    <string>Siri AI+ legge e crea eventi nel tuo calendario su tua richiesta.</string>
+    <key>NSRemindersFullAccessUsageDescription</key>
+    <string>Siri AI+ legge, crea e completa i tuoi promemoria su tua richiesta.</string>
+    <key>NSRemindersUsageDescription</key>
+    <string>Siri AI+ legge, crea e completa i tuoi promemoria su tua richiesta.</string>
+</dict>
+</plist>

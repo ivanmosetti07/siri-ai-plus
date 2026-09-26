@@ -1,0 +1,116 @@
+[
+ {
+  "id": "prog-01",
+  "categoria": "progetto",
+  "progetto": true,
+  "domanda": "quali sono i miei obiettivi di questo trimestre?",
+  "deve": [
+   "12\\.?000|mrr",
+   "corso"
+  ],
+  "web": false
+ },
+ {
+  "id": "prog-02",
+  "categoria": "progetto",
+  "progetto": true,
+  "domanda": "cosa ho fatto oggi?",
+  "deve": [
+   "aruba"
+  ],
+  "web": false
+ },
+ {
+  "id": "prog-03",
+  "categoria": "progetto",
+  "progetto": true,
+  "domanda": "come va il cliente Rossi Moto?",
+  "deve": [
+   "pausa|preventivo"
+  ],
+  "web": false
+ },
+ {
+  "id": "prog-04",
+  "categoria": "progetto",
+  "progetto": true,
+  "domanda": "chi è Martina Verdi?",
+  "deve": [
+   "marketing|rossi moto"
+  ],
+  "web": false
+ },
+ {
+  "id": "prog-05",
+  "categoria": "progetto",
+  "progetto": true,
+  "domanda": "dove devo salvare un appunto grezzo nuovo?",
+  "deve": [
+   "inbox"
+  ],
+  "web": false
+ },
+ {
+  "id": "prog-06",
+  "categoria": "progetto",
+  "progetto": true,
+  "domanda": "quali sono le priorità di oggi?",
+  "deve": [
+   "preventivo|rossi moto",
+   "video|lezione"
+  ],
+  "web": false
+ },
+ {
+  "id": "prog-07",
+  "categoria": "progetto",
+  "progetto": true,
+  "domanda": "come devo chiamare il report di un cliente dell'agenzia?",
+  "deve": [
+   "report-"
+  ],
+  "web": false
+ },
+ {
+  "id": "prog-08",
+  "categoria": "progetto-app-aperta",
+  "progetto": true,
+  "domanda": "riassumi TASKS.md",
+  "schermo": {
+   "app": "Note",
+   "tipo": "nota",
+   "titolo": "Spesa",
+   "testo": "latte, uova, pane",
+   "riferimento": "x-coredata://nota/9"
+  },
+  "deve": [
+   "commercialista|preventivo"
+  ],
+  "vieta": [
+   "latte",
+   "uova"
+  ]
+ },
+ {
+  "id": "prog-09",
+  "categoria": "progetto-app-aperta",
+  "progetto": true,
+  "domanda": "come va il cliente Rossi Moto?",
+  "schermo": {
+   "app": "Mail",
+   "tipo": "email",
+   "titolo": "Offerta palestra",
+   "dettagli": "da Fit Club",
+   "testo": "Iscriviti ora con lo sconto del 30%.",
+   "riferimento": "77"
+  },
+  "deve": [
+   "pausa|preventivo"
+  ],
+  "vieta": [
+   "palestra",
+   "fit club"
+  ],
+  "web": false
+ }
+]

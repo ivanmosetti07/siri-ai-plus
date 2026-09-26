@@ -1,0 +1,195 @@
+[
+ {
+  "id": "schr-01",
+  "domanda": "riassumi questa email",
+  "schermo": {
+   "app": "Mail",
+   "tipo": "email",
+   "titolo": "Fattura di marzo",
+   "dettagli": "da Mario Rossi <mario@esempio.it>, mar 22 set 18:04",
+   "testo": "Ciao Ivan, ti confermo l'appuntamento per rivedere la fattura di marzo: ci vediamo giovedì alle 15 in via Roma 3. Porta i documenti del fornitore. A presto, Mario Rossi",
+   "riferimento": "4242",
+   "nome": "Mario Rossi",
+   "email": "mario@esempio.it",
+   "data": "22 settembre 2026 18:04"
+  },
+  "deve": [
+   "giovedì",
+   "15",
+   "fattura"
+  ],
+  "esiti": [
+   "risposta"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "schr-02",
+  "domanda": "chi l'ha mandata?",
+  "schermo": {
+   "app": "Mail",
+   "tipo": "email",
+   "titolo": "Fattura di marzo",
+   "dettagli": "da Mario Rossi <mario@esempio.it>, mar 22 set 18:04",
+   "testo": "Ciao Ivan, ti confermo l'appuntamento per rivedere la fattura di marzo: ci vediamo giovedì alle 15 in via Roma 3. Porta i documenti del fornitore. A presto, Mario Rossi",
+   "riferimento": "4242",
+   "nome": "Mario Rossi",
+   "email": "mario@esempio.it",
+   "data": "22 settembre 2026 18:04"
+  },
+  "deve": [
+   "Mario"
+  ],
+  "esiti": [
+   "risposta"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "schr-03",
+  "domanda": "qual è il suo numero?",
+  "schermo": {
+   "app": "Contatti",
+   "tipo": "contatto",
+   "titolo": "Mario Rossi",
+   "dettagli": "Rossi Consulting",
+   "testo": "Azienda: Rossi Consulting\nTelefono (cellulare): +39 333 1234567\nEmail (lavoro): mario@esempio.it\nCompleanno: 12 marzo 1980",
+   "riferimento": "C1",
+   "nome": "Mario Rossi",
+   "telefono": "+39 333 1234567",
+   "email": "mario@esempio.it"
+  },
+  "deve": [
+   "333"
+  ],
+  "esiti": [
+   "risposta"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "schr-04",
+  "domanda": "quali cose da fare ci sono in questa registrazione?",
+  "schermo": {
+   "app": "Memo Vocali",
+   "tipo": "registrazione",
+   "titolo": "Idee per la settimana",
+   "dettagli": "mer 23 set 09:12, durata 1:24",
+   "riferimento": "vm:12",
+   "testo": "Allora questa settimana devo chiamare il commercialista per la dichiarazione, comprare il toner per la stampante e mandare il preventivo a Martina entro venerdì."
+  },
+  "deve": [
+   "commercialista",
+   "toner",
+   "preventivo"
+  ],
+  "esiti": [
+   "risposta"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "schr-05",
+  "domanda": "riassumi questa conversazione",
+  "schermo": {
+   "app": "Messaggi",
+   "tipo": "conversazione",
+   "titolo": "Giulia",
+   "dettagli": "+39 347 7654321",
+   "riferimento": "iMessage;-;+393477654321",
+   "nome": "Giulia",
+   "telefono": "+39 347 7654321",
+   "testo": "Giulia: Ciao! Sabato sera cena da noi alle 20?\nIo: Volentieri, porto il dolce\nGiulia: Perfetto, ricordati che Luca è allergico alle noci\nGiulia: Mi confermi entro domani?"
+  },
+  "deve": [
+   "sabato|cena",
+   "noci|allergic"
+  ],
+  "esiti": [
+   "risposta"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "schr-06",
+  "domanda": "quanto pago di affitto al mese?",
+  "schermo": {
+   "app": "File",
+   "tipo": "file",
+   "titolo": "Contratto affitto.pdf",
+   "dettagli": "Documento PDF, 120 KB",
+   "riferimento": "/Users/ivan/Documents/Contratto affitto.pdf",
+   "testo": "Contratto di locazione ad uso abitativo. Canone mensile: 850 euro, da pagare entro il giorno 5 di ogni mese. Durata: 4 anni più 4. Deposito cauzionale: 1.700 euro. Disdetta con preavviso di 6 mesi."
+  },
+  "deve": [
+   "850"
+  ],
+  "esiti": [
+   "risposta"
+  ],
+  "web": false,
+  "categoria": "schermo"
+ },
+ {
+  "id": "schr-07",
+  "domanda": "quali di queste email sono importanti?",
+  "schermo": {
+   "app": "Mail",
+   "tipo": "vista",
+   "titolo": "casella «Posta in arrivo»",
+   "dettagli": "5 email in elenco, 3 da leggere",
+   "parole": "email, mail, posta, messaggi",
+   "testo": "• Banca Intesa — Addebito rata mutuo (oggi)\n• Mario Rossi — Fattura di marzo (ieri)\nAmazon — Il tuo ordine è stato spedito (ieri)\n• Agenzia Entrate — Scadenza F24 il 30 settembre (lun)\nNewsletter Il Post — Le notizie di oggi (oggi)"
+  },
+  "deve": [
+   "mutuo|F24|Entrate|fattura"
+  ],
+  "vieta": [
+   "non (posso|riesco) (a )?(vedere|leggere|accedere)"
+  ],
+  "esiti": [
+   "risposta"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "schr-08",
+  "domanda": "rispondi che va bene e che porto i documenti",
+  "schermo": {
+   "app": "Mail",
+   "tipo": "email",
+   "titolo": "Fattura di marzo",
+   "dettagli": "da Mario Rossi <mario@esempio.it>, mar 22 set 18:04",
+   "testo": "Ciao Ivan, ti confermo l'appuntamento per rivedere la fattura di marzo: ci vediamo giovedì alle 15 in via Roma 3. Porta i documenti del fornitore. A presto, Mario Rossi",
+   "riferimento": "4242",
+   "nome": "Mario Rossi",
+   "email": "mario@esempio.it",
+   "data": "22 settembre 2026 18:04"
+  },
+  "esiti": [
+   "scheda:risposta-email"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "schr-09",
+  "domanda": "cosa devo fare per il lancio?",
+  "schermo": {
+   "app": "Note",
+   "tipo": "nota",
+   "titolo": "Lancio sito",
+   "dettagli": "cartella Lavoro",
+   "riferimento": "x-coredata://nota/7",
+   "testo": "Lancio sito\nCose da fare:\n- scrivere i testi della home entro venerdì\n- chiedere a Sara le foto del team\n- prenotare il fotografo per lunedì\nBudget: 1.500 euro"
+  },
+  "deve": [
+   "testi|home",
+   "foto|Sara",
+   "fotografo"
+  ],
+  "esiti": [
+   "risposta"
+  ],
+  "categoria": "schermo"
+ }
+]

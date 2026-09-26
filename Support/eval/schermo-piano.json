@@ -1,0 +1,367 @@
+[
+ {
+  "id": "sch-01",
+  "domanda": "rispondi che va bene",
+  "schermo": {
+   "app": "Mail",
+   "tipo": "email",
+   "titolo": "Fattura di marzo",
+   "dettagli": "da Mario Rossi <mario@esempio.it>, mar 22 set 18:04",
+   "testo": "Ciao Ivan, ti confermo l'appuntamento per rivedere la fattura di marzo: ci vediamo giovedì alle 15 in via Roma 3. Porta i documenti del fornitore. A presto, Mario Rossi",
+   "riferimento": "4242",
+   "nome": "Mario Rossi",
+   "email": "mario@esempio.it",
+   "data": "22 settembre 2026 18:04"
+  },
+  "deve": [
+   "^PIANO rispondi_email\\b"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "sch-02",
+  "domanda": "riassumi questa email",
+  "schermo": {
+   "app": "Mail",
+   "tipo": "email",
+   "titolo": "Fattura di marzo",
+   "dettagli": "da Mario Rossi <mario@esempio.it>, mar 22 set 18:04",
+   "testo": "Ciao Ivan, ti confermo l'appuntamento per rivedere la fattura di marzo: ci vediamo giovedì alle 15 in via Roma 3. Porta i documenti del fornitore. A presto, Mario Rossi",
+   "riferimento": "4242",
+   "nome": "Mario Rossi",
+   "email": "mario@esempio.it",
+   "data": "22 settembre 2026 18:04"
+  },
+  "deve": [
+   "^PIANO rispondi\\b"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "sch-03",
+  "domanda": "chi l'ha mandata?",
+  "schermo": {
+   "app": "Mail",
+   "tipo": "email",
+   "titolo": "Fattura di marzo",
+   "dettagli": "da Mario Rossi <mario@esempio.it>, mar 22 set 18:04",
+   "testo": "Ciao Ivan, ti confermo l'appuntamento per rivedere la fattura di marzo: ci vediamo giovedì alle 15 in via Roma 3. Porta i documenti del fornitore. A presto, Mario Rossi",
+   "riferimento": "4242",
+   "nome": "Mario Rossi",
+   "email": "mario@esempio.it",
+   "data": "22 settembre 2026 18:04"
+  },
+  "deve": [
+   "^PIANO rispondi\\b"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "sch-04",
+  "domanda": "crea un evento per l'appuntamento di questa email",
+  "schermo": {
+   "app": "Mail",
+   "tipo": "email",
+   "titolo": "Fattura di marzo",
+   "dettagli": "da Mario Rossi <mario@esempio.it>, mar 22 set 18:04",
+   "testo": "Ciao Ivan, ti confermo l'appuntamento per rivedere la fattura di marzo: ci vediamo giovedì alle 15 in via Roma 3. Porta i documenti del fornitore. A presto, Mario Rossi",
+   "riferimento": "4242",
+   "nome": "Mario Rossi",
+   "email": "mario@esempio.it",
+   "data": "22 settembre 2026 18:04"
+  },
+  "deve": [
+   "^PIANO crea_evento\\b",
+   "15"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "sch-05",
+  "domanda": "crea un promemoria da questa email",
+  "schermo": {
+   "app": "Mail",
+   "tipo": "email",
+   "titolo": "Fattura di marzo",
+   "dettagli": "da Mario Rossi <mario@esempio.it>, mar 22 set 18:04",
+   "testo": "Ciao Ivan, ti confermo l'appuntamento per rivedere la fattura di marzo: ci vediamo giovedì alle 15 in via Roma 3. Porta i documenti del fornitore. A presto, Mario Rossi",
+   "riferimento": "4242",
+   "nome": "Mario Rossi",
+   "email": "mario@esempio.it",
+   "data": "22 settembre 2026 18:04"
+  },
+  "deve": [
+   "^PIANO crea_promemoria\\b"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "sch-06",
+  "domanda": "che tempo fa domani a Roma?",
+  "schermo": {
+   "app": "Mail",
+   "tipo": "email",
+   "titolo": "Fattura di marzo",
+   "dettagli": "da Mario Rossi <mario@esempio.it>, mar 22 set 18:04",
+   "testo": "Ciao Ivan, ti confermo l'appuntamento per rivedere la fattura di marzo: ci vediamo giovedì alle 15 in via Roma 3. Porta i documenti del fornitore. A presto, Mario Rossi",
+   "riferimento": "4242",
+   "nome": "Mario Rossi",
+   "email": "mario@esempio.it",
+   "data": "22 settembre 2026 18:04"
+  },
+  "vieta": [
+   "rispondi_email",
+   "mail_leggi"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "sch-07",
+  "domanda": "inoltrala a Giulia",
+  "schermo": {
+   "app": "Mail",
+   "tipo": "email",
+   "titolo": "Fattura di marzo",
+   "dettagli": "da Mario Rossi <mario@esempio.it>, mar 22 set 18:04",
+   "testo": "Ciao Ivan, ti confermo l'appuntamento per rivedere la fattura di marzo: ci vediamo giovedì alle 15 in via Roma 3. Porta i documenti del fornitore. A presto, Mario Rossi",
+   "riferimento": "4242",
+   "nome": "Mario Rossi",
+   "email": "mario@esempio.it",
+   "data": "22 settembre 2026 18:04"
+  },
+  "deve": [
+   "^PIANO inoltra_email\\b"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "sch-08",
+  "domanda": "aggiungi il latte qui",
+  "schermo": {
+   "app": "Note",
+   "tipo": "nota",
+   "titolo": "Lancio sito",
+   "dettagli": "cartella Lavoro",
+   "riferimento": "x-coredata://nota/7",
+   "testo": "Lancio sito\nCose da fare:\n- scrivere i testi della home entro venerdì\n- chiedere a Sara le foto del team\n- prenotare il fotografo per lunedì\nBudget: 1.500 euro"
+  },
+  "deve": [
+   "^PIANO modifica_nota\\b",
+   "scelta=x-coredata://nota/7"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "sch-09",
+  "domanda": "riassumi questa nota",
+  "schermo": {
+   "app": "Note",
+   "tipo": "nota",
+   "titolo": "Lancio sito",
+   "dettagli": "cartella Lavoro",
+   "riferimento": "x-coredata://nota/7",
+   "testo": "Lancio sito\nCose da fare:\n- scrivere i testi della home entro venerdì\n- chiedere a Sara le foto del team\n- prenotare il fotografo per lunedì\nBudget: 1.500 euro"
+  },
+  "deve": [
+   "^PIANO rispondi\\b"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "sch-10",
+  "domanda": "crea un documento da questa nota",
+  "schermo": {
+   "app": "Note",
+   "tipo": "nota",
+   "titolo": "Lancio sito",
+   "dettagli": "cartella Lavoro",
+   "riferimento": "x-coredata://nota/7",
+   "testo": "Lancio sito\nCose da fare:\n- scrivere i testi della home entro venerdì\n- chiedere a Sara le foto del team\n- prenotare il fotografo per lunedì\nBudget: 1.500 euro"
+  },
+  "deve": [
+   "^PIANO crea_documento\\b"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "sch-11",
+  "domanda": "spostalo alle 16",
+  "schermo": {
+   "app": "Calendario",
+   "tipo": "evento",
+   "titolo": "Riunione con Marco",
+   "dettagli": "gio 24 set 10:00 – 11:00, Sala Blu",
+   "riferimento": "E1",
+   "inizio": "2026-09-24T10:00:00+02:00",
+   "fine": "2026-09-24T11:00:00+02:00",
+   "luogo": "Sala Blu"
+  },
+  "deve": [
+   "^PIANO modifica_evento\\b",
+   "scelta=E1\\|"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "sch-12",
+  "domanda": "cancella questo evento",
+  "schermo": {
+   "app": "Calendario",
+   "tipo": "evento",
+   "titolo": "Riunione con Marco",
+   "dettagli": "gio 24 set 10:00 – 11:00, Sala Blu",
+   "riferimento": "E1",
+   "inizio": "2026-09-24T10:00:00+02:00",
+   "fine": "2026-09-24T11:00:00+02:00",
+   "luogo": "Sala Blu"
+  },
+  "deve": [
+   "^PIANO elimina_evento\\b",
+   "scelta=E1\\|"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "sch-13",
+  "domanda": "completalo",
+  "schermo": {
+   "app": "Promemoria",
+   "tipo": "promemoria",
+   "titolo": "Pagare la bolletta della luce",
+   "dettagli": "lista Casa",
+   "riferimento": "R1",
+   "lista": "Casa"
+  },
+  "deve": [
+   "^PIANO completa_promemoria\\b",
+   "scelta=R1"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "sch-14",
+  "domanda": "mandagli un messaggio: arrivo alle 5",
+  "schermo": {
+   "app": "Contatti",
+   "tipo": "contatto",
+   "titolo": "Mario Rossi",
+   "dettagli": "Rossi Consulting",
+   "testo": "Azienda: Rossi Consulting\nTelefono (cellulare): +39 333 1234567\nEmail (lavoro): mario@esempio.it\nCompleanno: 12 marzo 1980",
+   "riferimento": "C1",
+   "nome": "Mario Rossi",
+   "telefono": "+39 333 1234567",
+   "email": "mario@esempio.it"
+  },
+  "deve": [
+   "^PIANO invia_messaggio\\b",
+   "destinatari=Mario Rossi"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "sch-15",
+  "domanda": "qual è il suo numero?",
+  "schermo": {
+   "app": "Contatti",
+   "tipo": "contatto",
+   "titolo": "Mario Rossi",
+   "dettagli": "Rossi Consulting",
+   "testo": "Azienda: Rossi Consulting\nTelefono (cellulare): +39 333 1234567\nEmail (lavoro): mario@esempio.it\nCompleanno: 12 marzo 1980",
+   "riferimento": "C1",
+   "nome": "Mario Rossi",
+   "telefono": "+39 333 1234567",
+   "email": "mario@esempio.it"
+  },
+  "deve": [
+   "^PIANO rispondi\\b"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "sch-16",
+  "domanda": "rispondi che arrivo tra 10 minuti",
+  "schermo": {
+   "app": "Messaggi",
+   "tipo": "conversazione",
+   "titolo": "Giulia",
+   "dettagli": "+39 347 7654321",
+   "riferimento": "iMessage;-;+393477654321",
+   "nome": "Giulia",
+   "telefono": "+39 347 7654321",
+   "testo": "Giulia: Ciao! Sabato sera cena da noi alle 20?\nIo: Volentieri, porto il dolce\nGiulia: Perfetto, ricordati che Luca è allergico alle noci\nGiulia: Mi confermi entro domani?"
+  },
+  "deve": [
+   "^PIANO invia_messaggio\\b",
+   "destinatari=Giulia"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "sch-17",
+  "domanda": "quali di queste email sono importanti?",
+  "schermo": {
+   "app": "Mail",
+   "tipo": "vista",
+   "titolo": "casella «Posta in arrivo»",
+   "dettagli": "5 email in elenco, 3 da leggere",
+   "parole": "email, mail, posta, messaggi",
+   "testo": "• Banca Intesa — Addebito rata mutuo (oggi)\n• Mario Rossi — Fattura di marzo (ieri)\nAmazon — Il tuo ordine è stato spedito (ieri)\n• Agenzia Entrate — Scadenza F24 il 30 settembre (lun)\nNewsletter Il Post — Le notizie di oggi (oggi)"
+  },
+  "deve": [
+   "^PIANO rispondi\\b"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "sch-18",
+  "domanda": "riassumi questo file",
+  "schermo": {
+   "app": "File",
+   "tipo": "file",
+   "titolo": "Contratto affitto.pdf",
+   "dettagli": "Documento PDF, 120 KB",
+   "riferimento": "/Users/ivan/Documents/Contratto affitto.pdf",
+   "testo": "Contratto di locazione ad uso abitativo. Canone mensile: 850 euro, da pagare entro il giorno 5 di ogni mese. Durata: 4 anni più 4. Deposito cauzionale: 1.700 euro. Disdetta con preavviso di 6 mesi."
+  },
+  "deve": [
+   "^PIANO rispondi\\b"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "sch-19",
+  "domanda": "crea una nota da questa registrazione",
+  "schermo": {
+   "app": "Memo Vocali",
+   "tipo": "registrazione",
+   "titolo": "Idee per la settimana",
+   "dettagli": "mer 23 set 09:12, durata 1:24",
+   "riferimento": "vm:12",
+   "testo": "Allora questa settimana devo chiamare il commercialista per la dichiarazione, comprare il toner per la stampante e mandare il preventivo a Martina entro venerdì."
+  },
+  "deve": [
+   "^PIANO crea_nota\\b"
+  ],
+  "categoria": "schermo"
+ },
+ {
+  "id": "sch-20",
+  "domanda": "scrivigli un'email per il preventivo",
+  "schermo": {
+   "app": "Contatti",
+   "tipo": "contatto",
+   "titolo": "Mario Rossi",
+   "dettagli": "Rossi Consulting",
+   "testo": "Azienda: Rossi Consulting\nTelefono (cellulare): +39 333 1234567\nEmail (lavoro): mario@esempio.it\nCompleanno: 12 marzo 1980",
+   "riferimento": "C1",
+   "nome": "Mario Rossi",
+   "telefono": "+39 333 1234567",
+   "email": "mario@esempio.it"
+  },
+  "deve": [
+   "^PIANO scrivi_email\\b",
+   "destinatari=mario@esempio.it"
+  ],
+  "categoria": "schermo"
+ }
+]

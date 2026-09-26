@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+
+# Build di Swift e Xcode
+.build/
+.swiftpm/
+xcuserdata/
+*.xcuserstate
+
+# Prodotti di build.sh (l'app pronta sta nelle Release di GitHub)
+/Siri AI+.app/
+/Siri AI+.zip
+/bin/
+
+# Resoconti delle valutazioni e copie locali
+/output/
+
+# Note di lavoro personali
+/PIANO.md
+
+# Python (solo per convertire rizzo-pii)
+__pycache__/
+*.pyc
