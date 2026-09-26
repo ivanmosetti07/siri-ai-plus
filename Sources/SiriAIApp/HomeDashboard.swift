@@ -687,7 +687,7 @@ struct HomeDashboard: View {
                        note: next.map { Dates.friendly($0, time: false) } ?? "nessuna", tint: .teal),
         ])
         if agents.isEmpty {
-            Button { state.editingAgent = AgentSpec(name: "", goal: "") } label: { Label("Nuovo Genius", systemImage: "plus") }
+            Button { state.startGeniusCreation() } label: { Label("Nuovo Genius", systemImage: "plus") }
                 .buttonStyle(.glass)
         }
     }

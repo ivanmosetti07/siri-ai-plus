@@ -138,7 +138,8 @@ struct ScheduleContent: View {
                 var day = Calendar.current.startOfDay(for: now)
                 for _ in 0..<7 {
                     if let dream = Calendar.current.date(bySettingHour: agent.dreamHour, minute: 0, second: 0, of: day), dream > now {
-                        items.append(Occurrence(date: dream, agent: agent, routineID: nil, text: String(localized: "Sogno: rilegge la giornata e si migliora"), isDream: true))
+                        items.append(Occurrence(date: dream, agent: agent, routineID: nil,
+                                                text: Language.t("Sogno: rilegge la giornata e si migliora", "Dream: reviews the day and improves"), isDream: true))
                     }
                     day = Calendar.current.date(byAdding: .day, value: 1, to: day)!
                 }
@@ -162,13 +163,13 @@ struct ScheduleContent: View {
         let pending = state.spaceAgents.reduce(0) { $0 + state.pendingApprovals(for: $1) }
         return GlassPanel {
             VStack(alignment: .leading, spacing: 14) {
-                PanelLabel(text: String(localized: "Tutto ciò che fanno da soli"), symbol: "calendar.badge.clock")
+                PanelLabel(text: Language.t("Tutto ciò che fanno da soli", "Everything they do on their own"), symbol: "calendar.badge.clock")
                 MetricsGrid(metrics: [
-                    DashMetric(label: String(localized: "Genius attivi"), value: "\(active.count)", note: String(localized: "su \(state.spaceAgents.count)"), tint: .purple),
-                    DashMetric(label: String(localized: "Programmazioni"), value: "\(routines.count)", note: "attive", tint: Color(red: 0.4, green: 0.7, blue: 1)),
-                    DashMetric(label: String(localized: "Prossima"), value: occurrences.first.map { $0.date.formatted(.dateTime.hour().minute()) } ?? "—",
-                               note: occurrences.first.map { Dates.friendly($0.date, time: false) } ?? String(localized: "niente in programma"), tint: .teal),
-                    DashMetric(label: String(localized: "Da approvare"), value: "\(pending)", note: pending == 0 ? String(localized: "niente in attesa") : String(localized: "nelle chat dei Genius"), tint: pending > 0 ? .orange : .secondary),
+                    DashMetric(label: Language.t("Genius attivi", "Active Genius"), value: "\(active.count)", note: Language.t("su \(state.spaceAgents.count)", "of \(state.spaceAgents.count)"), tint: .purple),
+                    DashMetric(label: Language.t("Programmazioni", "Schedules"), value: "\(routines.count)", note: Language.t("attive", "active"), tint: Color(red: 0.4, green: 0.7, blue: 1)),
+                    DashMetric(label: Language.t("Prossima", "Next"), value: occurrences.first.map { $0.date.formatted(.dateTime.hour().minute()) } ?? "—",
+                               note: occurrences.first.map { Dates.friendly($0.date, time: false) } ?? Language.t("niente in programma", "nothing scheduled"), tint: .teal),
+                    DashMetric(label: Language.t("Da approvare", "Approvals"), value: "\(pending)", note: pending == 0 ? Language.t("niente in attesa", "nothing pending") : Language.t("nelle chat dei Genius", "in Genius chats"), tint: pending > 0 ? .orange : .secondary),
                 ])
             }
         }
@@ -190,21 +191,24 @@ struct ScheduleContent: View {
         let waiting = state.spaceAgents.filter { state.pendingApprovals(for: $0) > 0 }
         if !waiting.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
-                Label("Da approvare", systemImage: "hand.raised.fill").font(DS.Fonts.section).foregroundStyle(.orange)
+                Label(Language.t("Da approvare", "Awaiting approval"), systemImage: "hand.raised.fill").font(DS.Fonts.section).foregroundStyle(.orange)
                 ForEach(waiting) { agent in
                     HStack(spacing: 12) {
                         AgentAvatar(agent: agent, size: 32)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(agent.displayName).font(DS.Fonts.bodyStrong)
-                            Text("\(state.pendingApprovals(for: agent)) azioni aspettano la tua conferma").font(DS.Fonts.caption).foregroundStyle(.secondary)
+                            Text(Language.t("\(state.pendingApprovals(for: agent)) azioni aspettano la tua conferma",
+                                            "\(state.pendingApprovals(for: agent)) actions await your approval")).font(DS.Fonts.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Button("Approva tutte") {
+                        Button(Language.t("Approva tutte", "Approve all")) {
                             let count = state.approveAll(for: agent.id)
-                            state.showToast(count == 0 ? String(localized: "Restano da confermare una per una (email, messaggi o connettori)") : String(localized: "\(count) azioni approvate"))
+                            state.showToast(count == 0 ? Language.t("Restano da confermare una per una (email, messaggi o connettori)", "The remaining actions need individual approval (email, messages, or connectors)")
+                                                       : Language.t("\(count) azioni approvate", "\(count) actions approved"))
                         }
-                        .help("Approva eventi, promemoria, note e file in attesa. Email, messaggi e connettori restano da confermare uno per uno.")
-                        Button("Rivedi") { state.openAgent(agent.id) }.buttonStyle(.borderedProminent).tint(.orange)
+                        .help(Language.t("Approva eventi, promemoria, note e file in attesa. Email, messaggi e connettori restano da confermare uno per uno.",
+                                         "Approve pending events, reminders, notes, and files. Email, messages, and connectors need individual approval."))
+                        Button(Language.t("Rivedi", "Review")) { state.openAgent(agent.id) }.buttonStyle(.borderedProminent).tint(.orange)
                     }
                     .padding(12)
                     .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -215,10 +219,11 @@ struct ScheduleContent: View {
 
     private var upcoming: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Prossimi 7 giorni").font(DS.Fonts.section)
+            Text(Language.t("Prossimi 7 giorni", "Next 7 days")).font(DS.Fonts.section)
             if occurrences.isEmpty {
-                EmptyHint(symbol: "calendar.badge.plus", text: String(localized: "Niente in programma. Crea un Genius con una programmazione per far lavorare Siri AI+ da sola."),
-                          action: (String(localized: "Nuovo Genius…"), { state.editingAgent = AgentSpec(name: "", goal: "") }))
+                EmptyHint(symbol: "calendar.badge.plus", text: Language.t("Niente in programma. Crea un Genius con una programmazione per far lavorare Siri AI+ da sola.",
+                                                                         "Nothing scheduled. Create a Genius with a schedule to let Siri AI+ work on its own."),
+                          action: (Language.t("Nuovo Genius…", "New Genius…"), { state.startGeniusCreation() }))
             } else {
                 let days = Dictionary(grouping: occurrences.prefix(60)) { Calendar.current.startOfDay(for: $0.date) }
                 VStack(alignment: .leading, spacing: 16) {
@@ -257,7 +262,7 @@ struct ScheduleContent: View {
             Spacer()
             if !item.isDream {
                 Button { state.runAgent(item.agent.id, routine: item.routineID) } label: { Image(systemName: "play.fill") }
-                    .buttonStyle(.borderless).iconHelp(String(localized: "Esegui ora")).disabled(state.runningAgents.contains(item.agent.id))
+                    .buttonStyle(.borderless).iconHelp(Language.t("Esegui ora", "Run now")).disabled(state.runningAgents.contains(item.agent.id))
             }
             Button { state.openAgent(item.agent.id) } label: { Image(systemName: "chevron.right") }.buttonStyle(.borderless)
         }
@@ -266,8 +271,8 @@ struct ScheduleContent: View {
     }
 
     private func dayTitle(_ day: Date) -> String {
-        if Calendar.current.isDateInToday(day) { return String(localized: "Oggi") }
-        if Calendar.current.isDateInTomorrow(day) { return String(localized: "Domani") }
+        if Calendar.current.isDateInToday(day) { return Language.t("Oggi", "Today") }
+        if Calendar.current.isDateInTomorrow(day) { return Language.t("Domani", "Tomorrow") }
         return day.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Dates.locale))
     }
 
@@ -275,7 +280,7 @@ struct ScheduleContent: View {
     private var allRoutines: some View {
         if !state.spaceAgents.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Genius e programmazioni").font(DS.Fonts.section)
+                Text(Language.t("Genius e programmazioni", "Genius and schedules")).font(DS.Fonts.section)
                 ForEach(state.spaceAgents) { agent in
                     HStack(alignment: .top, spacing: 12) {
                         AgentAvatar(agent: agent, size: 36)
@@ -289,7 +294,7 @@ struct ScheduleContent: View {
                                 Toggle("", isOn: Binding(get: { agent.active }, set: { _ in state.toggleActive(agent.id) })).labelsHidden().toggleStyle(.switch).controlSize(.small)
                             }
                             if agent.routines.isEmpty {
-                                Text("Solo quando lo avvii").font(DS.Fonts.caption).foregroundStyle(.secondary)
+                                Text(Language.t("Solo quando lo avvii", "Only when you start it")).font(DS.Fonts.caption).foregroundStyle(.secondary)
                             }
                             ForEach(agent.routines) { routine in
                                 HStack(spacing: 8) {

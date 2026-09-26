@@ -367,7 +367,7 @@ struct SidebarView: View {
                     Button("Mostra meno") { visibleGeniusCount = geniusBatchSize }
                         .buttonStyle(.plain).foregroundStyle(.secondary)
                 }
-                Button { state.editingAgent = AgentSpec(name: "", goal: "") } label: {
+                Button { state.startGeniusCreation() } label: {
                     Label("Nuovo Genius", systemImage: "plus")
                 }
                 .buttonStyle(.plain).foregroundStyle(.secondary)

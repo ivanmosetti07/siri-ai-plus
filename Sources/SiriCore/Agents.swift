@@ -91,6 +91,8 @@ public struct AgentRoutine: Codable, Sendable, Equatable, Identifiable {
     public var id = UUID()
     public var schedule: AgentSchedule
     public var task: String = ""
+    /// Nil = il modello predefinito del Genius.
+    public var model: ModelSelection?
     public var enabled = true
     public var nextRun: Date?
     public var lastRun: Date?
@@ -188,6 +190,8 @@ public struct AgentSpec: Codable, Sendable, Equatable, Identifiable {
     /// Spazio in cui lavora (personale, lavoro): ne usa calendari, posta e connettori.
     public var space = "lavoro"
     public var goal: String
+    /// Modello del Genius, scelto durante la creazione; ogni routine può cambiarlo.
+    public var model: ModelSelection?
     public var instructions = ""
     public var symbol = "sparkles"
     public var color = "indigo"
@@ -227,6 +231,7 @@ public struct AgentSpec: Codable, Sendable, Equatable, Identifiable {
         avatarPath = try c.decodeIfPresent(String.self, forKey: .avatarPath)
         space = try c.decodeIfPresent(String.self, forKey: .space) ?? "lavoro"
         goal = try c.decode(String.self, forKey: .goal)
+        model = try c.decodeIfPresent(ModelSelection.self, forKey: .model)
         instructions = try c.decodeIfPresent(String.self, forKey: .instructions) ?? ""
         symbol = try c.decodeIfPresent(String.self, forKey: .symbol) ?? "sparkles"
         color = try c.decodeIfPresent(String.self, forKey: .color) ?? "indigo"
@@ -260,6 +265,7 @@ public struct AgentSpec: Codable, Sendable, Equatable, Identifiable {
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(id, forKey: .id); try c.encode(name, forKey: .name); try c.encode(goal, forKey: .goal)
+        try c.encodeIfPresent(model, forKey: .model)
         try c.encode(personName, forKey: .personName); try c.encodeIfPresent(avatarPath, forKey: .avatarPath); try c.encode(space, forKey: .space)
         try c.encode(instructions, forKey: .instructions); try c.encode(symbol, forKey: .symbol); try c.encode(color, forKey: .color)
         try c.encode(routines, forKey: .routines); try c.encode(folders, forKey: .folders); try c.encodeIfPresent(projectName, forKey: .projectName)
@@ -272,7 +278,7 @@ public struct AgentSpec: Codable, Sendable, Equatable, Identifiable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, personName, avatarPath, space, goal, instructions, symbol, color, routines, folders, projectName, allowWeb, allowApps, allowConnectors, active, created
+        case id, name, personName, avatarPath, space, goal, model, instructions, symbol, color, routines, folders, projectName, allowWeb, allowApps, allowConnectors, active, created
         case lastRun, runs, lastSummary, memory, log, history, dreamsEnabled, dreamHour, lastDream, dreams, heartbeat, autoApprove
         case schedule, nextRun   // solo per leggere i vecchi agenti
     }

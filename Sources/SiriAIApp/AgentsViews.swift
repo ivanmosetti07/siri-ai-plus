@@ -26,7 +26,8 @@ extension AgentSpec {
 
 /// Idee di partenza, come la galleria di Comandi rapidi.
 struct AgentTemplate: Identifiable {
-    let id = UUID()
+    var id: String { key }
+    let key: String
     let person: String
     let name: String
     let goal: String
@@ -36,17 +37,17 @@ struct AgentTemplate: Identifiable {
     var connectors = false
 
     static let all: [AgentTemplate] = [
-        AgentTemplate(person: String(localized: "Giulia"), name: String(localized: "Rassegna stampa"), goal: String(localized: "Cerca le notizie più importanti su intelligenza artificiale e marketing digitale e riassumile in 5 punti con le fonti."),
+        AgentTemplate(key: "giulia", person: "Giulia", name: Language.t("Rassegna stampa", "News briefing"), goal: Language.t("Cerca le notizie più importanti su intelligenza artificiale e marketing digitale e riassumile in 5 punti con le fonti.", "Find the most important AI and digital marketing news and summarize it in five points with sources."),
                       symbol: "newspaper.fill", color: "orange", schedule: AgentSchedule(kind: .giornaliero, hour: 8)),
-        AgentTemplate(person: String(localized: "Marco"), name: String(localized: "Posta in ordine"), goal: String(localized: "Leggi le email non lette, dimmi a quali devo rispondere e prepara le bozze delle risposte più urgenti."),
+        AgentTemplate(key: "marco", person: "Marco", name: Language.t("Posta in ordine", "Inbox in order"), goal: Language.t("Leggi le email non lette, dimmi a quali devo rispondere e prepara le bozze delle risposte più urgenti.", "Read unread emails, tell me which need a reply, and draft the most urgent responses."),
                       symbol: "envelope.fill", color: "blue", schedule: AgentSchedule(kind: .giornaliero, hour: 18)),
-        AgentTemplate(person: String(localized: "Sofia"), name: String(localized: "Settimana pronta"), goal: String(localized: "Guarda calendario e promemoria della settimana, segnala sovrapposizioni e prepara un piano con le priorità."),
+        AgentTemplate(key: "sofia", person: "Sofia", name: Language.t("Settimana pronta", "Week ahead"), goal: Language.t("Guarda calendario e promemoria della settimana, segnala sovrapposizioni e prepara un piano con le priorità.", "Review this week's calendar and reminders, flag conflicts, and prepare a plan with priorities."),
                       symbol: "calendar", color: "red", schedule: AgentSchedule(kind: .settimanale, hour: 9, weekday: 2)),
-        AgentTemplate(person: String(localized: "Luca"), name: String(localized: "Osservatore"), goal: String(localized: "Controlla le novità su un argomento che mi interessa e avvisami solo se cambia qualcosa di importante."),
+        AgentTemplate(key: "luca", person: "Luca", name: Language.t("Osservatore", "Watchlist"), goal: Language.t("Controlla le novità su un argomento che mi interessa e avvisami solo se cambia qualcosa di importante.", "Watch a topic I care about and alert me only when something important changes."),
                       symbol: "binoculars.fill", color: "teal", schedule: AgentSchedule(kind: .giornaliero, hour: 12)),
-        AgentTemplate(person: String(localized: "Elena"), name: String(localized: "Obiettivo"), goal: String(localized: "Aiutami a raggiungere un obiettivo: prepara un piano concreto, dividilo in passi e fallo avanzare un po' ogni giorno."),
+        AgentTemplate(key: "elena", person: "Elena", name: Language.t("Obiettivo", "Goal coach"), goal: Language.t("Aiutami a raggiungere un obiettivo: prepara un piano concreto, dividilo in passi e fallo avanzare un po' ogni giorno.", "Help me reach a goal: make a concrete plan, break it into steps, and move it forward every day."),
                       symbol: "target", color: "purple", schedule: AgentSchedule(kind: .giornaliero, hour: 9)),
-        AgentTemplate(person: String(localized: "Davide"), name: String(localized: "Priorità agenzia"), goal: String(localized: "Controlla su Agency OS i task in scadenza e i clienti che richiedono attenzione e dimmi le priorità di oggi."),
+        AgentTemplate(key: "davide", person: "Davide", name: Language.t("Priorità agenzia", "Agency priorities"), goal: Language.t("Controlla su Agency OS i task in scadenza e i clienti che richiedono attenzione e dimmi le priorità di oggi.", "Check Agency OS for due tasks and clients needing attention, then tell me today's priorities."),
                       symbol: "briefcase.fill", color: "indigo", schedule: AgentSchedule(kind: .giornaliero, hour: 8, minute: 30), connectors: true),
     ]
 
@@ -57,6 +58,8 @@ struct AgentTemplate: Identifiable {
         spec.color = color
         spec.routines = [AgentRoutine(schedule: schedule)]
         spec.allowConnectors = connectors
+        if let url = Bundle.main.resourceURL?.appending(path: "GeniusGenmoji/genmoji-\(key).genmoji"),
+           FileManager.default.fileExists(atPath: url.path) { spec.avatarPath = url.path }
         return spec
     }
 }
@@ -84,7 +87,7 @@ struct AgentTile: View {
                     } else if pending > 0 {
                         Text("\(pending)").font(.system(size: 11, weight: .bold)).foregroundStyle(agent.tint)
                             .frame(minWidth: 20, minHeight: 20).background(.white, in: Capsule())
-                            .help("\(pending) da approvare")
+                            .help(Language.t("\(pending) da approvare", "\(pending) awaiting approval"))
                     } else if !agent.active {
                         Image(systemName: "pause.circle.fill").foregroundStyle(.white.opacity(0.8))
                     }
@@ -94,7 +97,7 @@ struct AgentTile: View {
                 if !agent.personName.isEmpty {
                     Text(agent.name).font(.system(size: 11.5, weight: .semibold)).foregroundStyle(.white.opacity(0.9)).lineLimit(1)
                 }
-                Text(running ? String(localized: "Al lavoro…") : agent.active ? agent.scheduleLabel : String(localized: "In pausa"))
+                Text(running ? Language.t("Al lavoro…", "Working…") : agent.active ? agent.scheduleLabel : Language.t("In pausa", "Paused"))
                     .font(.system(size: 11.5, weight: .medium)).foregroundStyle(.white.opacity(0.85)).lineLimit(1)
             }
             .padding(14)
@@ -102,11 +105,11 @@ struct AgentTile: View {
         .frame(height: height)
         .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .contextMenu {
-            Button("Esegui ora") { state.runAgent(agent.id) }.disabled(running)
-            Button(agent.active ? String(localized: "Metti in pausa") : String(localized: "Riattiva")) { state.toggleActive(agent.id) }
-            Button("Modifica…") { state.editingAgent = agent }
+            Button(Language.t("Esegui ora", "Run now")) { state.runAgent(agent.id) }.disabled(running)
+            Button(agent.active ? Language.t("Metti in pausa", "Pause") : Language.t("Riattiva", "Resume")) { state.toggleActive(agent.id) }
+            Button(Language.t("Modifica…", "Edit…")) { state.editingAgent = agent }
             Divider()
-            Button("Elimina Genius", role: .destructive) { state.deleteAgent(agent.id) }
+            Button(Language.t("Elimina Genius", "Delete Genius"), role: .destructive) { state.deleteAgent(agent.id) }
         }
     }
 }
@@ -119,15 +122,15 @@ struct AgentsGallery: View {
     @Environment(AppState.self) private var state
     @State private var tab: String?
     @State private var description = ""
-    @State private var working = false
     private let columns = [GridItem(.adaptive(minimum: 200, maximum: 280), spacing: 14)]
 
     var body: some View {
         let selected = tab ?? initialTab
         GlassPage(maxWidth: 980) {
-            PageHeader(eyebrow: String(localized: "Lavorano per te"), title: String(localized: "Genius"),
-                       subtitle: String(localized: "Dai un obiettivo a ogni Genius: prepara un piano, lavora anche quando non ci sei e torna da te quando serve una conferma.")) {
-                Button { state.editingAgent = AgentSpec(name: "", goal: "") } label: { Label("Nuovo Genius", systemImage: "plus") }
+            PageHeader(eyebrow: Language.t("Lavorano per te", "Working for you"), title: "Genius",
+                       subtitle: Language.t("Dai un obiettivo a ogni Genius: prepara un piano, lavora anche quando non ci sei e torna da te quando serve una conferma.",
+                                            "Give each Genius a goal. It plans, works on schedule, and asks for approval when needed.")) {
+                Button { state.startGeniusCreation() } label: { Label(Language.t("Nuovo Genius", "New Genius"), systemImage: "plus") }
                     .buttonStyle(.glassProminent)
             }
             describeField
@@ -137,7 +140,8 @@ struct AgentsGallery: View {
                 case "programmazioni": ScheduleContent()
                 case "storico":
                     RunHistoryView(items: HistoryItem.items(for: state.spaceAgents, dreams: true), showAgent: true,
-                                   emptyText: String(localized: "Nessuna esecuzione finora. Qui trovi ogni lavoro fatto dai Genius, programmato o avviato da te, con il suo esito."))
+                                   emptyText: Language.t("Nessuna esecuzione finora. Qui trovi ogni lavoro fatto dai Genius, programmato o avviato da te, con il suo esito.",
+                                                         "No runs yet. Scheduled and manual Genius work will appear here with its outcome."))
                 default: agentsTab
                 }
             }
@@ -152,11 +156,11 @@ struct AgentsGallery: View {
         let since = Calendar.current.date(byAdding: .day, value: -6, to: Calendar.current.startOfDay(for: .now)) ?? .now
         let runs = state.spaceAgents.reduce(0) { $0 + $1.history.filter { $0.start >= since }.count }
         return [
-            GlassPill(id: "agenti", title: String(localized: "I tuoi Genius"), value: state.spaceAgents.isEmpty ? String(localized: "Nessuno") : String(localized: "\(state.spaceAgents.filter(\.active).count) attivi"),
+            GlassPill(id: "agenti", title: Language.t("I tuoi Genius", "Your Genius"), value: state.spaceAgents.isEmpty ? Language.t("Nessuno", "None") : Language.t("\(state.spaceAgents.filter(\.active).count) attivi", "\(state.spaceAgents.filter(\.active).count) active"),
                       symbol: "person.2.fill", colors: Hue.purple, badge: pending),
-            GlassPill(id: "programmazioni", title: String(localized: "Programmazioni"), value: next.map { String(localized: "Prossima \($0.formatted(.dateTime.hour().minute()))") } ?? String(localized: "Nessuna"),
+            GlassPill(id: "programmazioni", title: Language.t("Programmazioni", "Schedules"), value: next.map { Language.t("Prossima \($0.formatted(.dateTime.hour().minute()))", "Next \($0.formatted(.dateTime.hour().minute()))") } ?? Language.t("Nessuna", "None"),
                       symbol: "calendar.badge.clock", colors: Hue.orange),
-            GlassPill(id: "storico", title: String(localized: "Storico"), value: String(localized: "\(runs) in 7 giorni"), symbol: "clock.arrow.circlepath", colors: Hue.blue),
+            GlassPill(id: "storico", title: Language.t("Storico", "History"), value: Language.t("\(runs) in 7 giorni", "\(runs) in 7 days"), symbol: "clock.arrow.circlepath", colors: Hue.blue),
         ]
     }
 
@@ -164,14 +168,14 @@ struct AgentsGallery: View {
     private var describeField: some View {
         HStack(spacing: 10) {
             Image(systemName: "sparkles").font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.accentColor)
-            TextField("Descrivi un Genius: «ogni mattina alle 8 fammi la rassegna stampa sull'AI»", text: $description)
+            TextField(Language.t("Descrivi un Genius: «ogni mattina alle 8 fammi la rassegna stampa sull'AI»",
+                                 "Describe a Genius: ‘brief me on AI news every morning at 8’"), text: $description)
                 .textFieldStyle(.plain)
                 .font(.system(size: 14))
                 .onSubmit(create)
-            if working { ProgressView().controlSize(.small) }
-            Button("Crea", action: create)
+            Button(Language.t("Continua", "Continue"), action: create)
                 .buttonStyle(.glassProminent)
-                .disabled(description.trimmingCharacters(in: .whitespaces).isEmpty || working)
+                .disabled(description.trimmingCharacters(in: .whitespaces).isEmpty)
         }
         .padding(.leading, 16)
         .padding(.trailing, 8)
@@ -182,20 +186,21 @@ struct AgentsGallery: View {
     @ViewBuilder
     private var agentsTab: some View {
         if state.spaceAgents.isEmpty {
-            GlassEmptyState(symbol: "person.2.fill", title: String(localized: "Il tuo primo Genius"),
-                            message: String(localized: "Scegli un'idea qui sotto o descrivi cosa vuoi: il Genius lavora agli orari che decidi tu e chiede conferma prima di scrivere o inviare."),
-                            colors: Hue.purple, actionTitle: String(localized: "Nuovo Genius")) { state.editingAgent = AgentSpec(name: "", goal: "") }
+            GlassEmptyState(symbol: "person.2.fill", title: Language.t("Il tuo primo Genius", "Your first Genius"),
+                            message: Language.t("Scegli un'idea qui sotto o descrivi cosa vuoi: il Genius lavora agli orari che decidi tu e chiede conferma prima di scrivere o inviare.",
+                                                "Choose an idea below or describe the task. Your Genius works on your schedule and asks before writing or sending."),
+                            colors: Hue.purple, actionTitle: Language.t("Nuovo Genius", "New Genius")) { state.startGeniusCreation() }
         } else {
             VStack(alignment: .leading, spacing: 12) {
-                GroupTitle(text: String(localized: "I tuoi Genius"))
+                GroupTitle(text: Language.t("I tuoi Genius", "Your Genius"))
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 14) {
                     ForEach(state.spaceAgents) { agent in
                         Button { state.openAgent(agent.id) } label: { AgentTile(agent: agent) }.buttonStyle(.plain)
                     }
-                    Button { state.editingAgent = AgentSpec(name: "", goal: "") } label: {
+                    Button { state.startGeniusCreation() } label: {
                         VStack(spacing: 8) {
                             Image(systemName: "plus").font(.system(size: 22, weight: .semibold))
-                            Text("Nuovo Genius").font(.system(size: 14, weight: .semibold))
+                            Text(Language.t("Nuovo Genius", "New Genius")).font(.system(size: 14, weight: .semibold))
                         }
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity).frame(height: 134)
@@ -207,13 +212,12 @@ struct AgentsGallery: View {
             }
         }
         VStack(alignment: .leading, spacing: 12) {
-            GroupTitle(text: String(localized: "Idee per iniziare"))
+            GroupTitle(text: Language.t("Idee per iniziare", "Ideas to get started"))
             LazyVGrid(columns: columns, alignment: .leading, spacing: 14) {
                 ForEach(AgentTemplate.all) { template in
-                    Button { state.editingAgent = template.spec } label: {
+                    Button { state.startGeniusCreation(from: template.spec) } label: {
                         VStack(alignment: .leading, spacing: 8) {
-                            Image(systemName: template.symbol).font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
-                                .frame(width: 36, height: 36).background(template.spec.gradient, in: Circle())
+                            AgentAvatar(agent: template.spec, size: 46)
                             Text("\(template.person) - \(template.name)").font(.system(size: 14, weight: .semibold))
                             Text(template.goal).font(.system(size: 12.5)).foregroundStyle(.secondary).lineLimit(3).multilineTextAlignment(.leading)
                             Spacer(minLength: 0)
@@ -233,12 +237,8 @@ struct AgentsGallery: View {
     private func create() {
         let text = description.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
-        working = true
-        Task {
-            state.editingAgent = await state.draftAgent(text)
-            working = false
-            description = ""
-        }
+        state.startGeniusCreation(description: text)
+        description = ""
     }
 }
 
@@ -251,9 +251,9 @@ struct AgentDetailView: View {
     @State private var newMemory = ""
     /// Sezioni del dettaglio: elenco a sinistra, come nelle Impostazioni di sistema.
     private static let sections: [(tag: Int, label: String, symbol: String)] = [
-        (0, String(localized: "Attività"), "clock.arrow.circlepath"), (4, String(localized: "Programmazioni"), "calendar.badge.clock"),
-        (1, String(localized: "Cronologia"), "clock"), (8, String(localized: "Skill"), "wand.and.stars"), (5, String(localized: "Cartelle"), "folder"),
-        (6, String(localized: "Anima"), "heart.text.square"), (7, String(localized: "Sogni"), "moon.stars"), (2, String(localized: "Memoria"), "brain"), (3, String(localized: "Accessi"), "lock.shield"),
+        (0, Language.t("Attività", "Activity"), "clock.arrow.circlepath"), (4, Language.t("Programmazioni", "Schedules"), "calendar.badge.clock"),
+        (1, Language.t("Cronologia", "History"), "clock"), (8, "Skill", "wand.and.stars"), (5, Language.t("Cartelle", "Folders"), "folder"),
+        (6, Language.t("Anima", "Soul"), "heart.text.square"), (7, Language.t("Sogni", "Dreams"), "moon.stars"), (2, Language.t("Memoria", "Memory"), "brain"), (3, Language.t("Accessi", "Access"), "lock.shield"),
     ]
 
     var body: some View {
@@ -313,14 +313,16 @@ struct AgentDetailView: View {
                     case 0: activity(agent); lastWork(agent)
                     case 1:
                         RunHistoryView(items: HistoryItem.items(for: [agent], dreams: false),
-                                       emptyText: String(localized: "Nessuna esecuzione finora. Qui troverai i lavori programmati e quelli avviati da te."),
+                                       emptyText: Language.t("Nessuna esecuzione finora. Qui troverai i lavori programmati e quelli avviati da te.",
+                                                             "No runs yet. Scheduled and manual work will appear here."),
                                        initialFilter: .programmate)
                     case 2: memory(agent)
                     case 4:
                         RoutinesEditor(routines: Binding(get: { state.agent(agentID)?.routines ?? [] },
                                                          set: { value in state.updateAgent(agentID) { $0.routines = value; $0.reschedule() } }),
+                                       geniusModel: agent.model,
                                        run: { routine in state.runAgent(agentID, routine: routine) })
-                        Button { tab = 1 } label: { Label("Vedi cronologia", systemImage: "clock.arrow.circlepath") }
+                        Button { tab = 1 } label: { Label(Language.t("Vedi cronologia", "View history"), systemImage: "clock.arrow.circlepath") }
                             .buttonStyle(.link)
                     case 8: AgentSkillsView(agent: agent).id(agent.id)
                     case 5:
@@ -350,14 +352,14 @@ struct AgentDetailView: View {
                     }
                 }
             VStack(alignment: .leading, spacing: 6) {
-                Text((running ? String(localized: "Al lavoro") : agent.active ? String(localized: "Attivo") : String(localized: "In pausa")).uppercased() + " · " + (Space(rawValue: agent.space)?.label.uppercased() ?? ""))
+                Text((running ? Language.t("Al lavoro", "Working") : agent.active ? Language.t("Attivo", "Active") : Language.t("In pausa", "Paused")).uppercased() + " · " + (Space(rawValue: agent.space)?.label.uppercased() ?? ""))
                     .font(.system(size: 13, weight: .semibold)).tracking(0.5)
                     .foregroundStyle(running ? agent.tint : .secondary)
                 Text(agent.displayName).font(.system(size: 30, weight: .bold)).tracking(-0.4).lineLimit(2)
                 Text(agent.goal).font(.system(size: 14)).foregroundStyle(.secondary).lineLimit(3)
                 HStack(spacing: 8) {
-                    chip(agent.active ? agent.scheduleLabel : String(localized: "In pausa"), symbol: agent.active ? "clock" : "pause.circle")
-                    if let next = agent.nextRun, agent.active { chip(String(localized: "Prossima \(Dates.friendly(next))"), symbol: "arrow.forward.circle") }
+                    chip(agent.active ? agent.scheduleLabel : Language.t("In pausa", "Paused"), symbol: agent.active ? "clock" : "pause.circle")
+                    if let next = agent.nextRun, agent.active { chip(Language.t("Prossima \(Dates.friendly(next))", "Next \(Dates.friendly(next))"), symbol: "arrow.forward.circle") }
                     if let project = agent.projectName { chip(project, symbol: "folder") }
                 }
                 .padding(.top, 2)
@@ -366,18 +368,18 @@ struct AgentDetailView: View {
             VStack(alignment: .trailing, spacing: 8) {
                 if running {
                     Button(role: .destructive) { state.cancelAgent(agent.id) } label: {
-                        HStack(spacing: 6) { ProgressView().controlSize(.small); Text("Ferma") }
+                        HStack(spacing: 6) { ProgressView().controlSize(.small); Text(Language.t("Ferma", "Stop")) }
                     }
                     .buttonStyle(.glass)
-                    .help("Interrompe l'esecuzione: i passi già fatti restano")
+                    .help(Language.t("Interrompe l'esecuzione: i passi già fatti restano", "Stop this run. Completed steps remain saved."))
                 } else {
-                    Button { state.runAgent(agent.id) } label: { Label("Esegui ora", systemImage: "play.fill") }
+                    Button { state.runAgent(agent.id) } label: { Label(Language.t("Esegui ora", "Run now"), systemImage: "play.fill") }
                         .buttonStyle(.glassProminent)
                         .tint(agent.tint)
                 }
                 HStack(spacing: 6) {
-                    Button(agent.active ? String(localized: "Pausa") : String(localized: "Riattiva")) { state.toggleActive(agent.id) }
-                    Button("Modifica") { state.editingAgent = agent }
+                    Button(agent.active ? Language.t("Pausa", "Pause") : Language.t("Riattiva", "Resume")) { state.toggleActive(agent.id) }
+                    Button(Language.t("Modifica", "Edit")) { state.editingAgent = agent }
                 }
                 .buttonStyle(.glass)
             }
@@ -397,17 +399,18 @@ struct AgentDetailView: View {
     private func activity(_ agent: AgentSpec) -> some View {
         let pending = state.pendingApprovals(for: agent)
         if pending > 0 {
-            Label("\(pending) \(pending == 1 ? String(localized: "azione aspetta") : String(localized: "azioni aspettano")) la tua approvazione nella chat a destra.", systemImage: "hand.raised.fill")
+            Label(Language.t("\(pending) \(pending == 1 ? "azione aspetta" : "azioni aspettano") la tua approvazione nella chat a destra.",
+                             "\(pending) \(pending == 1 ? "action awaits" : "actions await") your approval in the chat on the right."), systemImage: "hand.raised.fill")
                 .font(DS.Fonts.body).foregroundStyle(.orange)
                 .padding(12).frame(maxWidth: .infinity, alignment: .leading)
                 .glassEffect(.regular.tint(.orange.opacity(0.25)), in: .rect(cornerRadius: 18))
         }
         VStack(alignment: .leading, spacing: 0) {
             if agent.active, let next = agent.nextRun {
-                timelineRow(symbol: "calendar.badge.clock", tint: .secondary, title: String(localized: "In programma"), text: String(localized: "Prossima esecuzione \(Dates.friendly(next))"), date: nil)
+                timelineRow(symbol: "calendar.badge.clock", tint: .secondary, title: Language.t("In programma", "Scheduled"), text: Language.t("Prossima esecuzione \(Dates.friendly(next))", "Next run \(Dates.friendly(next))"), date: nil)
             }
             if agent.log.isEmpty {
-                Text("Nessuna attività. Premi «Esegui ora» per farlo lavorare subito.").font(DS.Fonts.body).foregroundStyle(.secondary).padding(.vertical, 12)
+                Text(Language.t("Nessuna attività. Premi «Esegui ora» per farlo lavorare subito.", "No activity yet. Select Run now to start work.")).font(DS.Fonts.body).foregroundStyle(.secondary).padding(.vertical, 12)
             }
             ForEach(agent.log.reversed().prefix(80)) { event in
                 timelineRow(symbol: symbol(event.kind), tint: tint(event.kind, agent), title: title(event.kind), text: event.text, date: event.date)
@@ -437,14 +440,14 @@ struct AgentDetailView: View {
     private func lastWork(_ agent: AgentSpec) -> some View {
         if let summary = agent.lastSummary {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Risultato dell'ultima esecuzione").font(DS.Fonts.captionStrong).foregroundStyle(.secondary)
+                Text(Language.t("Risultato dell'ultima esecuzione", "Latest run result")).font(DS.Fonts.captionStrong).foregroundStyle(.secondary)
                 Text(MessageView.markdown(summary)).font(DS.Fonts.message).textSelection(.enabled)
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .glassCard(radius: 24)
         } else {
-            Text("Ancora nessun risultato.").font(DS.Fonts.body).foregroundStyle(.secondary)
+            Text(Language.t("Ancora nessun risultato.", "No result yet.")).font(DS.Fonts.body).foregroundStyle(.secondary)
         }
         if let plan = state.conversations.first(where: { $0.agentID == agent.id })?.messages.reversed().compactMap({ message -> TaskPlanCardModel? in
             if case .taskPlan(let card) = message.content { return card }
@@ -629,30 +632,34 @@ private struct AgentSkillsView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Skill di \(agent.personName.isEmpty ? agent.name : agent.personName)").font(DS.Fonts.section)
-                    Text("Procedure private di questo Genius, salvate nella sua cartella.")
+                    Text(Language.t("Skill di \(agent.personName.isEmpty ? agent.name : agent.personName)",
+                                    "Skills for \(agent.personName.isEmpty ? agent.name : agent.personName)")).font(DS.Fonts.section)
+                    Text(Language.t("Procedure private di questo Genius, salvate nella sua cartella.",
+                                    "Private procedures for this Genius, saved in its folder."))
                         .font(DS.Fonts.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 Menu {
-                    Button("Nuova skill") { createSkill() }
+                    Button(Language.t("Nuova skill", "New skill")) { createSkill() }
                     if !reusableSkills.isEmpty {
                         Divider()
                         ForEach(reusableSkills) { source in
-                            Button("Copia «\(source.name)»") { copySkill(source) }
+                            Button(Language.t("Copia «\(source.name)»", "Copy ‘\(source.name)’")) { copySkill(source) }
                         }
                     }
                 } label: {
-                    Label("Aggiungi skill", systemImage: "plus")
+                    Label(Language.t("Aggiungi skill", "Add skill"), systemImage: "plus")
                 }
                 .buttonStyle(.borderedProminent)
             }
-            Text("Si attivano quando il compito o un messaggio contiene il nome della skill o una parola in «cues». Le skill generali restano disponibili; una skill privata con lo stesso nome ha la precedenza.")
+            Text(Language.t("Si attivano quando il compito o un messaggio contiene il nome della skill o una parola in «cues». Le skill generali restano disponibili; una skill privata con lo stesso nome ha la precedenza.",
+                            "A skill activates when the task or a message contains its name or a cue. General skills remain available; a private skill with the same name takes priority."))
                 .font(DS.Fonts.caption).foregroundStyle(.secondary)
 
             if skills.isEmpty {
-                ContentUnavailableView("Nessuna skill dedicata", systemImage: "wand.and.stars",
-                                       description: Text("Crea una procedura o copia una skill esistente per questo Genius."))
+                ContentUnavailableView(Language.t("Nessuna skill dedicata", "No dedicated skills"), systemImage: "wand.and.stars",
+                                       description: Text(Language.t("Crea una procedura o copia una skill esistente per questo Genius.",
+                                                                    "Create a procedure or copy an existing skill for this Genius.")))
                     .frame(maxWidth: .infinity, minHeight: 260)
                     .glassCard(radius: 18)
             } else {
@@ -694,14 +701,14 @@ private struct AgentSkillsView: View {
                                 .frame(height: 280)
                                 .background(Color.surfaceSubtle, in: RoundedRectangle(cornerRadius: 10))
                             HStack {
-                                Button("Sposta nel Cestino", role: .destructive) { confirmDelete = true }
+                                Button(Language.t("Sposta nel Cestino", "Move to Trash"), role: .destructive) { confirmDelete = true }
                                 Spacer()
-                                Button("Salva") { saveSkill(skill) }
+                                Button(Language.t("Salva", "Save")) { saveSkill(skill) }
                                     .buttonStyle(.borderedProminent)
                                     .disabled(text == skill.text)
                             }
                         } else {
-                            ContentUnavailableView("Scegli una skill", systemImage: "wand.and.stars")
+                            ContentUnavailableView(Language.t("Scegli una skill", "Choose a skill"), systemImage: "wand.and.stars")
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -709,13 +716,13 @@ private struct AgentSkillsView: View {
                 .padding(14)
                 .glassCard(radius: 18)
             }
-            Button { showFolder() } label: { Label("Mostra cartella delle skill", systemImage: "folder") }
+            Button { showFolder() } label: { Label(Language.t("Mostra cartella delle skill", "Show skills folder"), systemImage: "folder") }
                 .buttonStyle(.link)
         }
         .onAppear { selectFirstIfNeeded() }
         .onChange(of: state.skillsRevision) { _, _ in selectFirstIfNeeded() }
-        .confirmationDialog("Spostare «\(selected?.name ?? "")» nel Cestino?", isPresented: $confirmDelete) {
-            Button("Sposta nel Cestino", role: .destructive) {
+        .confirmationDialog(Language.t("Spostare «\(selected?.name ?? "")» nel Cestino?", "Move ‘\(selected?.name ?? "")’ to Trash?"), isPresented: $confirmDelete) {
+            Button(Language.t("Sposta nel Cestino", "Move to Trash"), role: .destructive) {
                 guard let skill = selected else { return }
                 do {
                     try SkillStore.delete(skill)
@@ -723,7 +730,7 @@ private struct AgentSkillsView: View {
                     selection = nil
                     selectFirstIfNeeded()
                 } catch {
-                    state.showToast(String(localized: "Skill non eliminata: \(error.localizedDescription)"), symbol: "exclamationmark.triangle.fill")
+                    state.showToast(Language.t("Skill non eliminata: \(error.localizedDescription)", "Skill could not be deleted: \(error.localizedDescription)"), symbol: "exclamationmark.triangle.fill")
                 }
             }
         }
@@ -738,13 +745,13 @@ private struct AgentSkillsView: View {
 
     private func createSkill() {
         do {
-            let skill = try SkillStore.save(name: String(localized: "Nuova skill"), description: String(localized: "Cosa fa questa procedura"), cues: [],
-                                            body: "## Procedura\n1. Primo passo\n2. Secondo passo", agent: agent.id)
+            let skill = try SkillStore.save(name: Language.t("Nuova skill", "New skill"), description: Language.t("Cosa fa questa procedura", "What this procedure does"), cues: [],
+                                            body: Language.t("## Procedura\n1. Primo passo\n2. Secondo passo", "## Procedure\n1. First step\n2. Second step"), agent: agent.id)
             state.skillsRevision += 1
             selection = skill.id
             text = skill.text
         } catch {
-            state.showToast(String(localized: "Skill non creata: \(error.localizedDescription)"), symbol: "exclamationmark.triangle.fill")
+            state.showToast(Language.t("Skill non creata: \(error.localizedDescription)", "Skill could not be created: \(error.localizedDescription)"), symbol: "exclamationmark.triangle.fill")
         }
     }
 
@@ -754,9 +761,10 @@ private struct AgentSkillsView: View {
             state.skillsRevision += 1
             selection = skill.id
             text = skill.text
-            state.showToast(String(localized: "Skill «\(skill.name)» aggiunta a \(agent.personName.isEmpty ? agent.name : agent.personName)"), symbol: "wand.and.stars")
+            state.showToast(Language.t("Skill «\(skill.name)» aggiunta a \(agent.personName.isEmpty ? agent.name : agent.personName)",
+                                       "Skill ‘\(skill.name)’ added to \(agent.personName.isEmpty ? agent.name : agent.personName)"), symbol: "wand.and.stars")
         } catch {
-            state.showToast(String(localized: "Skill non aggiunta: \(error.localizedDescription)"), symbol: "exclamationmark.triangle.fill")
+            state.showToast(Language.t("Skill non aggiunta: \(error.localizedDescription)", "Skill could not be added: \(error.localizedDescription)"), symbol: "exclamationmark.triangle.fill")
         }
     }
 
@@ -764,9 +772,9 @@ private struct AgentSkillsView: View {
         do {
             try text.write(to: skill.url, atomically: true, encoding: .utf8)
             state.skillsRevision += 1
-            state.showToast(String(localized: "Skill salvata"), symbol: "wand.and.stars")
+            state.showToast(Language.t("Skill salvata", "Skill saved"), symbol: "wand.and.stars")
         } catch {
-            state.showToast(String(localized: "Skill non salvata: \(error.localizedDescription)"), symbol: "exclamationmark.triangle.fill")
+            state.showToast(Language.t("Skill non salvata: \(error.localizedDescription)", "Skill could not be saved: \(error.localizedDescription)"), symbol: "exclamationmark.triangle.fill")
         }
     }
 
@@ -792,39 +800,47 @@ struct AgentEditor: View {
             HStack(spacing: 12) {
                 AgentAvatar(agent: draft, size: 52)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(state.agent(draft.id) == nil ? String(localized: "Nuovo Genius") : String(localized: "Modifica \(draft.displayName)")).font(DS.Fonts.section)
-                    Text("Lavora da solo sull'obiettivo e ti chiede conferma prima delle azioni importanti.").font(DS.Fonts.caption).foregroundStyle(.secondary)
+                    Text(state.agent(draft.id) == nil ? Language.t("Nuovo Genius", "New Genius") : Language.t("Modifica \(draft.displayName)", "Edit \(draft.displayName)")).font(DS.Fonts.section)
+                    Text(Language.t("Lavora da solo sull'obiettivo e ti chiede conferma prima delle azioni importanti.",
+                                    "It works toward its goal and asks before important actions.")).font(DS.Fonts.caption).foregroundStyle(.secondary)
                 }
             }
             Form {
-                TextField("Nome", text: binding.personName, prompt: Text("Es. Giulia"))
-                TextField("Ruolo", text: binding.name, prompt: Text("Es. Rassegna stampa"))
-                TextField("Obiettivo", text: binding.goal, prompt: Text("Cosa deve fare ogni volta che lavora"), axis: .vertical).lineLimit(2...5)
-                TextField("Istruzioni (facoltative)", text: binding.instructions, prompt: Text("Tono, formato, cosa evitare…"), axis: .vertical).lineLimit(1...4)
-                Picker("Spazio", selection: binding.space) {
-                    Text("Personale").tag(Space.personale.rawValue)
-                    Text("Lavoro").tag(Space.lavoro.rawValue)
+                TextField(Language.t("Nome", "Name"), text: binding.personName, prompt: Text(Language.t("Es. Giulia", "E.g. Giulia")))
+                TextField(Language.t("Ruolo", "Role"), text: binding.name, prompt: Text(Language.t("Es. Rassegna stampa", "E.g. News briefing")))
+                TextField(Language.t("Obiettivo", "Goal"), text: binding.goal, prompt: Text(Language.t("Cosa deve fare ogni volta che lavora", "What should it do each time it works?")), axis: .vertical).lineLimit(2...5)
+                TextField(Language.t("Istruzioni (facoltative)", "Instructions (optional)"), text: binding.instructions, prompt: Text(Language.t("Tono, formato, cosa evitare…", "Tone, format, what to avoid…")), axis: .vertical).lineLimit(1...4)
+                Picker(Language.t("Spazio", "Space"), selection: binding.space) {
+                    Text(Language.t("Personale", "Personal")).tag(Space.personale.rawValue)
+                    Text(Language.t("Lavoro", "Work")).tag(Space.lavoro.rawValue)
                 }
-                Picker("Progetto", selection: binding.projectName) {
-                    Text("Nessuno").tag(String?.none)
+                Picker(Language.t("Progetto", "Project"), selection: binding.projectName) {
+                    Text(Language.t("Nessuno", "None")).tag(String?.none)
                     ForEach(state.sortedProjects) { Text($0.name).tag(Optional($0.name)) }
                 }
-                Toggle("Può cercare sul web", isOn: binding.allowWeb)
-                Toggle("Può usare i connettori", isOn: binding.allowConnectors)
-                Toggle("Approva da solo eventi, promemoria, note e file", isOn: binding.autoApprove)
-                Toggle("Controlla prima se c'è qualcosa da fare", isOn: binding.heartbeat)
+                HStack {
+                    Text(Language.t("Modello del Genius", "Genius model"))
+                    ModelPicker(current: draft.model ?? state.defaultSelection(for: Space(rawValue: draft.space) ?? .lavoro)) {
+                        draft.model = state.resolved($0)
+                    }
+                }
+                Toggle(Language.t("Può cercare sul web", "Can search the web"), isOn: binding.allowWeb)
+                Toggle(Language.t("Può usare i connettori", "Can use connectors"), isOn: binding.allowConnectors)
+                Toggle(Language.t("Approva da solo eventi, promemoria, note e file", "Automatically approve events, reminders, notes, and files"), isOn: binding.autoApprove)
+                Toggle(Language.t("Controlla prima se c'è qualcosa da fare", "Check whether there is work to do first"), isOn: binding.heartbeat)
             }
             .formStyle(.grouped)
             .frame(maxHeight: 330)
-            DisclosureGroup("Programmazioni (\(draft.routines.count))") {
-                RoutinesEditor(routines: binding.routines, run: nil).padding(.top, 6)
+            DisclosureGroup(Language.t("Programmazioni (\(draft.routines.count))", "Schedules (\(draft.routines.count))")) {
+                RoutinesEditor(routines: binding.routines, geniusModel: draft.model, run: nil).padding(.top, 6)
             }
-            DisclosureGroup("Cartelle collegate (\(draft.folders.count))") {
+            DisclosureGroup(Language.t("Cartelle collegate (\(draft.folders.count))", "Linked folders (\(draft.folders.count))")) {
                 FoldersEditor(folders: binding.folders).padding(.top, 6)
             }
             VStack(alignment: .leading, spacing: 8) {
-                Text("Icona dietro al Genmoji").font(DS.Fonts.captionStrong).foregroundStyle(.secondary)
-                Text("Il primo simbolo sceglie automaticamente l'icona dal lavoro del Genius. Il ritratto davanti viene generato con Image Playground di Apple.")
+                Text(Language.t("Icona dietro al Genmoji", "Icon behind the Genmoji")).font(DS.Fonts.captionStrong).foregroundStyle(.secondary)
+                Text(Language.t("Il primo simbolo sceglie automaticamente l'icona dal lavoro del Genius. Il ritratto davanti viene generato con Image Playground di Apple.",
+                                "The first symbol picks an icon from the Genius's work. The portrait is made with Apple's Image Playground."))
                     .font(DS.Fonts.caption).foregroundStyle(.secondary)
                 HStack(spacing: 8) {
                     ForEach(AgentSpec.colors, id: \.self) { color in
@@ -843,21 +859,21 @@ struct AgentEditor: View {
                             .background(draft.symbol == symbol ? AnyShapeStyle(draft.gradient) : AnyShapeStyle(Color.primary.opacity(0.06)),
                                         in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                             .onTapGesture { draft.symbol = symbol }
-                            .help(symbol == "sparkles" ? String(localized: "Automatica, in base al lavoro del Genius") : symbol)
+                            .help(symbol == "sparkles" ? Language.t("Automatica, in base al lavoro del Genius", "Automatic, based on the Genius's work") : symbol)
                     }
                 }
             }
             HStack {
                 if state.agent(draft.id) != nil {
-                    Button("Elimina", role: .destructive) { state.deleteAgent(draft.id); dismiss() }
+                    Button(Language.t("Elimina", "Delete"), role: .destructive) { state.deleteAgent(draft.id); dismiss() }
                 }
                 Spacer()
-                Button("Annulla") { dismiss() }
-                Button(state.agent(draft.id) == nil ? String(localized: "Crea Genius") : String(localized: "Salva")) {
+                Button(Language.t("Annulla", "Cancel")) { dismiss() }
+                Button(state.agent(draft.id) == nil ? Language.t("Continua nella chat", "Continue in chat") : Language.t("Salva", "Save")) {
                     let isNew = state.agent(draft.id) == nil
-                    state.saveAgent(draft)
                     dismiss()
-                    if isNew { state.openAgent(draft.id) }
+                    if isNew { state.startGeniusCreation(from: draft) }
+                    else { state.saveAgent(draft) }
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(draft.tint)
@@ -882,19 +898,18 @@ struct AgentDraftCard: View {
             HStack(spacing: 12) {
                 Label(model.spec.scheduleLabel, systemImage: "clock")
                 if model.spec.allowWeb { Label("Web", systemImage: "globe") }
-                if model.spec.allowConnectors { Label("Connettori", systemImage: "puzzlepiece.extension") }
+                if model.spec.allowConnectors { Label(Language.t("Connettori", "Connectors"), systemImage: "puzzlepiece.extension") }
                 if let project = model.spec.projectName { Label(project, systemImage: "folder") }
             }
             .font(DS.Fonts.caption).foregroundStyle(.secondary)
             HStack {
-                if model.created {
-                    Label("Genius creato", systemImage: "checkmark.circle.fill").foregroundStyle(.green).font(DS.Fonts.caption)
+                if model.created || state.agent(model.spec.id) != nil {
+                    Label(Language.t("Genius creato", "Genius created"), systemImage: "checkmark.circle.fill").foregroundStyle(.green).font(DS.Fonts.caption)
                     Spacer()
-                    Button("Apri") { state.openAgent(model.spec.id) }
+                    Button(Language.t("Apri", "Open")) { state.openAgent(model.spec.id) }
                 } else {
                     Spacer()
-                    Button("Modifica…") { state.editingAgent = model.spec }
-                    Button("Crea Genius") { state.createAgent(from: model) }
+                    Button(Language.t("Crea nella chat", "Create in chat")) { state.createAgent(from: model) }
                         .buttonStyle(.borderedProminent).tint(model.spec.tint)
                 }
             }
@@ -908,13 +923,16 @@ struct AgentDraftCard: View {
 
 /// Le programmazioni di un agente: ognuna ha orario e, se vuoi, un compito suo.
 struct RoutinesEditor: View {
+    @Environment(AppState.self) private var state
     @Binding var routines: [AgentRoutine]
+    var geniusModel: ModelSelection?
     var run: ((UUID) -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if routines.isEmpty {
-                Text("Nessuna programmazione: il Genius lavora solo quando premi «Esegui ora».").font(DS.Fonts.body).foregroundStyle(.secondary)
+                Text(Language.t("Nessuna programmazione: il Genius lavora solo quando premi «Esegui ora».",
+                                "No schedules yet. This Genius works only when you select Run now.")).font(DS.Fonts.body).foregroundStyle(.secondary)
             }
             ForEach($routines) { $routine in
                 VStack(alignment: .leading, spacing: 8) {
@@ -934,7 +952,10 @@ struct RoutinesEditor: View {
                         }
                         if routine.schedule.kind == .continuo {
                             Picker("", selection: Binding(get: { routine.schedule.interval }, set: { routine.schedule.intervalMinutes = $0 })) {
-                                ForEach([15, 30, 60, 120, 240], id: \.self) { Text($0 < 60 ? String(localized: "ogni \($0) min") : String(localized: "ogni \($0 / 60) h")).tag($0) }
+                                ForEach([15, 30, 60, 120, 240], id: \.self) {
+                                    Text($0 < 60 ? Language.t("ogni \($0) min", "every \($0) min")
+                                                 : Language.t("ogni \($0 / 60) h", "every \($0 / 60) h")).tag($0)
+                                }
                             }
                             .labelsHidden()
                             .frame(width: 110)
@@ -950,20 +971,29 @@ struct RoutinesEditor: View {
                         }
                         Spacer()
                         if let run {
-                            Button { run(routine.id) } label: { Image(systemName: "play.fill") }.buttonStyle(.borderless).iconHelp(String(localized: "Esegui ora questa programmazione"))
+                            Button { run(routine.id) } label: { Image(systemName: "play.fill") }.buttonStyle(.borderless).iconHelp(Language.t("Esegui ora questa programmazione", "Run this schedule now"))
                         }
                         Button(role: .destructive) { routines.removeAll { $0.id == routine.id } } label: { Image(systemName: "trash") }
                             .buttonStyle(.borderless)
-                            .iconHelp(String(localized: "Elimina questa programmazione"))
+                            .iconHelp(Language.t("Elimina questa programmazione", "Delete this schedule"))
                     }
-                    TextField("Compito (vuoto = obiettivo principale)", text: $routine.task, axis: .vertical)
+                    TextField(Language.t("Compito (vuoto = obiettivo principale)", "Task (leave blank for the main goal)"), text: $routine.task, axis: .vertical)
                         .textFieldStyle(.roundedBorder)
                         .lineLimit(1...3)
+                    HStack(spacing: 8) {
+                        Text(Language.t("Modello", "Model")).font(DS.Fonts.caption).foregroundStyle(.secondary)
+                        ModelPicker(current: routine.model ?? geniusModel ?? state.defaultSelection(for: state.space), compact: true) {
+                            routine.model = state.resolved($0)
+                        }
+                        if routine.model != nil {
+                            Button(Language.t("Usa quello del Genius", "Use the Genius model")) { routine.model = nil }.buttonStyle(.link).font(DS.Fonts.caption)
+                        }
+                    }
                     HStack(spacing: 14) {
                         if let next = routine.nextRun, routine.enabled {
-                            Label("Prossima: \(Dates.friendly(next))", systemImage: "arrow.forward.circle")
+                            Label(Language.t("Prossima: \(Dates.friendly(next))", "Next: \(Dates.friendly(next))"), systemImage: "arrow.forward.circle")
                         }
-                        Label(routine.lastRun.map { String(localized: "Ultima: \(Dates.friendly($0))") } ?? String(localized: "Mai eseguita"), systemImage: "clock.arrow.circlepath")
+                        Label(routine.lastRun.map { Language.t("Ultima: \(Dates.friendly($0))", "Last: \(Dates.friendly($0))") } ?? Language.t("Mai eseguita", "Never run"), systemImage: "clock.arrow.circlepath")
                     }
                     .font(DS.Fonts.caption).foregroundStyle(.secondary)
                 }
@@ -973,7 +1003,7 @@ struct RoutinesEditor: View {
             Button {
                 routines.append(AgentRoutine(schedule: AgentSchedule(kind: .giornaliero, hour: 9)))
             } label: {
-                Label("Aggiungi programmazione", systemImage: "plus")
+                Label(Language.t("Aggiungi programmazione", "Add schedule"), systemImage: "plus")
             }
         }
     }

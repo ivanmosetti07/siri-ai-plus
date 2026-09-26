@@ -86,11 +86,14 @@ I'm convinced that 70% of people can already do most of their everyday tasks wit
   - Live preview in the session's own Safari, showing console errors, with a "Fix" button.
   - Restore points, a diff review, and "Open in Xcode" for native apps.
 - 🤖 **Genius.**
-  - Give each Genius a name, a goal and a schedule. Find them in the sidebar alongside Projects, with a persistent chat on the right.
+  - Create a Genius through a step-by-step chat: describe its task and expected result, choose access, schedule, model, role and name, then review it before creation. Find each Genius in the sidebar alongside Projects, with a persistent chat on the right.
+  - Pick a model for each Genius during creation and override it for any individual schedule. Existing schedules can keep using the Genius model.
+  - The six suggested Genius come with distinct, native Apple Genmoji made in Image Playground; you can make a personal Genmoji for any Genius.
   - Create a personal Genmoji with Apple's Image Playground. Its role icon stays visible behind the Genmoji in the sidebar, chat and activity views; the icon can be selected or inferred from the Genius's work.
   - Create private skills for each Genius, or copy an existing skill into its Skill tab. They guide its chat and scheduled runs when the task matches.
   - They plan, use sub-agents, ask before important actions and keep a run history.
   - At night they "dream" to learn from their mistakes.
+- ⬇️ **In-app updates.** When online, Siri AI+ checks the latest published GitHub release on launch. A sidebar icon appears for a newer version; download the signed app, then restart to install it. Available in Italian and English.
 - 🧩 **MCP connectors.** Local or remote servers (with OAuth login), which you can import from Claude Desktop.
 - 🧠 **A harness built for small models.**
   - A sub-agent picks the right tools for every request.
@@ -127,6 +130,13 @@ I'm convinced that 70% of people can already do most of their everyday tasks wit
   </tr>
   <tr>
     <td colspan="2"><img src="docs/screenshots/genius-genmoji.png" alt="Apple Image Playground Genmoji for a Genius with its role icon behind it" width="100%"><br><sub><b>Apple Genmoji:</b> created in Image Playground, saved for the Genius and shown with its role icon</sub></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/genius-suggestions.png" alt="Six suggested Genius with native Apple Genmoji and their role icons" width="100%"><br><sub><b>Six Genius ideas:</b> each has a distinct Apple Genmoji made in Image Playground</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/genius-creation-chat.png" alt="Step-by-step Genius creation chat with model selection"><br><sub><b>Create through chat:</b> define the task, access, schedule and model one step at a time</sub></td>
+    <td><img src="docs/screenshots/genius-schedule-model.png" alt="A Genius schedule using a different model from its chat"><br><sub><b>A model for each schedule:</b> Giulia uses GPT-6 Sol in chat and Claude Opus for this routine</sub></td>
   </tr>
   <tr>
     <td><img src="docs/screenshots/home-dark.jpg" alt="Work space in dark mode"><br><sub><b>Spaces:</b> Personal, Work and Coding, each with its own look (here Work, in the rain)</sub></td>
@@ -334,11 +344,14 @@ Sono convinto che il 70% delle persone possa già fare la maggior parte delle at
   - Anteprima dal vivo nel Safari della sessione, con gli errori della console e il pulsante «Correggi».
   - Punti di ripristino, revisione delle modifiche e «Apri in Xcode» per le app native.
 - 🤖 **Genius.**
-  - Dai a ciascun Genius un nome, un obiettivo e degli orari. Li trovi nella barra laterale accanto ai Progetti, con una chat persistente a destra.
+  - Crea ogni Genius con una chat guidata: definisci compito e risultato, accessi, orari, modello, ruolo e nome; controlla il riepilogo prima di crearlo. Li trovi nella barra laterale accanto ai Progetti, con una chat persistente a destra.
+  - Scegli un modello durante la creazione e, se vuoi, un modello diverso per ciascuna programmazione. Le programmazioni esistenti possono usare quello del Genius.
+  - I sei Genius consigliati hanno Genmoji Apple distinti, creati in Image Playground; puoi generarne uno personale per qualunque Genius.
   - Crea un Genmoji personale con Image Playground di Apple. L'icona del ruolo resta visibile dietro al Genmoji nella barra laterale, nella chat e nelle attività; puoi sceglierla oppure farla ricavare dal lavoro del Genius.
   - Crea skill dedicate a ogni Genius, o copia quelle esistenti nella sua scheda Skill. Guidano la chat e le esecuzioni programmate quando il compito è pertinente.
   - Fanno un piano, usano i sub-agent, chiedono prima delle azioni importanti e conservano la cronologia delle esecuzioni.
   - Di notte «sognano» per imparare dagli errori.
+- ⬇️ **Aggiornamenti nell'app.** Quando sei online, Siri AI+ controlla all'apertura l'ultima release pubblicata su GitHub. Se c'è una versione nuova, compare un'icona nella barra laterale: scarica l'app firmata e riavviala per installarla. Disponibile in italiano e inglese.
 - 🧩 **Connettori MCP.** Server locali o remoti (con login OAuth), che puoi importare da Claude Desktop.
 - 🧠 **Un harness pensato per i modelli piccoli.**
   - Un sub-agent sceglie gli strumenti giusti per ogni richiesta.
@@ -375,6 +388,13 @@ Sono convinto che il 70% delle persone possa già fare la maggior parte delle at
   </tr>
   <tr>
     <td colspan="2"><img src="docs/screenshots/genius-genmoji.png" alt="Genmoji di Apple Image Playground per un Genius con l'icona del ruolo sullo sfondo" width="100%"><br><sub><b>Genmoji Apple:</b> creato in Image Playground, salvato per il Genius e mostrato con l'icona del suo ruolo</sub></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/genius-suggestions.png" alt="Sei Genius consigliati con Genmoji Apple nativi e icone dei ruoli" width="100%"><br><sub><b>Sei idee Genius:</b> ciascuna ha un Genmoji Apple distinto, creato in Image Playground</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/genius-creation-chat.png" alt="Chat di creazione Genius passo per passo con scelta del modello"><br><sub><b>Creazione in chat:</b> definisci compito, accessi, orari e modello un passo alla volta</sub></td>
+    <td><img src="docs/screenshots/genius-schedule-model.png" alt="Una programmazione Genius con un modello diverso dalla chat"><br><sub><b>Un modello per ogni programmazione:</b> Giulia usa GPT-6 Sol in chat e Claude Opus per questa routine</sub></td>
   </tr>
   <tr>
     <td><img src="docs/screenshots/home-dark.jpg" alt="Spazio Lavoro con l'aspetto scuro"><br><sub><b>Spazi:</b> Personale, Lavoro e Programmazione, ognuno con il suo stile (qui Lavoro, sotto la pioggia)</sub></td>

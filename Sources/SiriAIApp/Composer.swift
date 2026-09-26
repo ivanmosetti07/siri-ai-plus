@@ -156,7 +156,7 @@ extension Composer {
             Button { state.newArtifact(.numbers) } label: { Label("Nuovo foglio di calcolo", systemImage: "tablecells") }
             Button { state.newArtifact(.keynote) } label: { Label("Nuova presentazione", systemImage: "play.rectangle") }
             Divider()
-            Button { state.editingAgent = AgentSpec(name: "", goal: "") } label: { Label("Nuovo Genius…", systemImage: "person.badge.plus") }
+            Button { state.startGeniusCreation() } label: { Label("Nuovo Genius…", systemImage: "person.badge.plus") }
             if !connected.isEmpty {
                 Menu {
                     ForEach(connected) { server in

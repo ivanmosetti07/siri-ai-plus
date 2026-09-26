@@ -56,6 +56,10 @@ ditto "$BUILT_APP" "$APP"
 mkdir -p "$APP/Contents/Resources"
 [[ -f Support/AppIcon.icns ]] || swift Support/make_icon.swift Support/AppIcon.icns
 cp Support/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+cp Support/install_update.zsh "$APP/Contents/Resources/install_update.zsh"
+if [[ -d Support/GeniusGenmoji ]]; then
+  ditto Support/GeniusGenmoji "$APP/Contents/Resources/GeniusGenmoji"
+fi
 # La CLI dentro l'app: fa da ponte MCP perché ChatGPT e Gemini possano usare gli strumenti.
 mkdir -p "$APP/Contents/Helpers"
 cp "$STAGED_CLI" "$APP/Contents/Helpers/siriai"

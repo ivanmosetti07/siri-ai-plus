@@ -56,6 +56,28 @@ import Testing
         #expect(restored.occurrenceID == nil)
     }
 
+    @Test func geniusAndRoutineModelsSurviveRestart() throws {
+        var agent = AgentSpec(name: "Rassegna", goal: "Riassumi le notizie")
+        agent.model = ModelSelection(.chatgpt, model: "gpt-6-sol", effort: "high")
+        var routine = AgentRoutine(schedule: AgentSchedule(kind: .giornaliero))
+        routine.model = ModelSelection(.claude, model: "sonnet", effort: "medium")
+        agent.routines = [routine]
+
+        let saved = try JSONEncoder().encode(agent)
+        let restored = try JSONDecoder().decode(AgentSpec.self, from: saved)
+        #expect(restored.model == agent.model)
+        #expect(restored.routines.first?.model == routine.model)
+
+        var legacy = try #require(JSONSerialization.jsonObject(with: saved) as? [String: Any])
+        legacy.removeValue(forKey: "model")
+        var oldRoutines = try #require(legacy["routines"] as? [[String: Any]])
+        oldRoutines[0].removeValue(forKey: "model")
+        legacy["routines"] = oldRoutines
+        let oldAgent = try JSONDecoder().decode(AgentSpec.self, from: JSONSerialization.data(withJSONObject: legacy))
+        #expect(oldAgent.model == nil)
+        #expect(oldAgent.routines.first?.model == nil)
+    }
+
     @Test func failedClaimWriteIsReported() throws {
         let folder = FileManager.default.temporaryDirectory.appending(path: "agent-claim-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

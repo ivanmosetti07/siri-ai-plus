@@ -106,6 +106,7 @@ struct ShellView: View {
         .sheet(isPresented: $state.showCommandPalette) { CommandPalette() }
         .sheet(isPresented: $state.showChildSheet) { NewChildChatSheet() }
         .sheet(item: $state.editingAgent) { agent in AgentEditor(agent: agent) }
+        .sheet(item: $state.creatingGenius) { draft in GeniusCreationChat(initial: draft) }
         .sheet(item: $state.newCodeTemplate) { template in NewCodeProjectSheet(template: template) }
         .alert("La privacy è a rischio", isPresented: $state.askCloudConsent, presenting: state.pendingCloud) { cloud in
             Button("Usa \(cloud.provider.name)", role: .destructive) { state.apply(cloud) }

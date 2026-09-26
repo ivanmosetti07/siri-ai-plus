@@ -18,6 +18,7 @@ final class AppState {
         let assistant: Assistant
         var selection: ModelSelection
         var appleOnly = false
+        var allowedSources: Set<SourceKind>?
 
         init(conversation: Conversation, assistant: Assistant, selection: ModelSelection) {
             self.conversation = conversation
@@ -137,6 +138,8 @@ final class AppState {
     var runningAgents: Set<UUID> = []
     /// Versione più recente pubblicata su GitHub (simbolo di aggiornamento in fondo alla barra laterale); nil se è aggiornata.
     var availableUpdate: AppUpdate?
+    var updateDownloading = false
+    var updateError: String?
     @ObservationIgnored var updateTask: Task<Void, Never>?
     @ObservationIgnored private var agentTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var schedulerTask: Task<Void, Never>?
@@ -144,6 +147,8 @@ final class AppState {
     var projectFileToOpen: String?
     /// Agente da modificare nel foglio dell'editor (nuovo o esistente).
     var editingAgent: AgentSpec?
+    /// Bozza aperta nella chat guidata: ogni nuovo Genius nasce da qui.
+    var creatingGenius: AgentSpec?
     /// Sezione del dettaglio agente da aprire (es. 4 = Programmazioni).
     var agentTabRequest: Int?
     /// Richiesta di creazione del Genmoji nel dettaglio, una volta per Genius nella sessione.
@@ -2406,7 +2411,7 @@ final class AppState {
     /// Gli strumenti per un modello esterno: quelli dello smistatore più quelli che le parole della richiesta nominano
     /// (rete di sicurezza); il documento aperto al centro si può sempre modificare e il web si può sempre cercare.
     private func externalTools(for prompt: String, route: ToolRoute?) -> [ToolSpec] {
-        let all = ToolRegistry.tools(for: assistant.work, enabled: enabledSources)
+        let all = ToolRegistry.tools(for: assistant.work, enabled: Self.independentResponse?.allowedSources ?? enabledSources)
         guard let route else { return all }
         var tools = ToolRegistry.selecting(all, route: route, hints: assistant.toolHints(for: prompt))
         if assistant.work.artifactKind != nil, let edit = all.first(where: { $0.name == "modifica_aperto" }), !tools.contains(edit) { tools.append(edit) }
@@ -2483,7 +2488,7 @@ final class AppState {
     /// Esegue lo strumento chiesto dal modello: i dati tornano al modello, le bozze diventano schede da confermare.
     private func runExternalTool(_ name: String, arguments: JSONValue) async -> String {
         Agent.log("STRUMENTO: \(name) \(arguments.compactString.prefix(160))")
-        let result = await assistant.runTool(name, arguments: arguments, enabled: enabledSources, allowedMCP: { [mcp] in mcp.isAlwaysAllowed($0) }) { [weak self] status in
+        let result = await assistant.runTool(name, arguments: arguments, enabled: Self.independentResponse?.allowedSources ?? enabledSources, allowedMCP: { [mcp] in mcp.isAlwaysAllowed($0) }) { [weak self] status in
             self?.setThinking(status)
         }
         guard let outcome = result.outcome else { return result.text }
@@ -2677,7 +2682,7 @@ final class AppState {
         if chosen.provider == .gemma, await readyGemma(chosen) == nil { return (String(localized: "Errore: Gemma non è pronta."), nil) }
         // Anche ogni sub-agent riceve solo gli strumenti del suo passo, scelti dallo smistatore.
         let route = availabilityProblem == nil && assistant.routesTools
-            ? await assistant.routeExternalTools(for: step.instruction, tools: ToolRegistry.tools(for: assistant.work, enabled: enabledSources))
+            ? await assistant.routeExternalTools(for: step.instruction, tools: ToolRegistry.tools(for: assistant.work, enabled: Self.independentResponse?.allowedSources ?? enabledSources))
             : nil
         let tools = externalTools(for: step.instruction, route: route)
         let system = assistant.chatInstructions() + "\n\n" + Assistant.subAgentRule
@@ -2970,7 +2975,20 @@ final class AppState {
 
     func saveAgent(_ spec: AgentSpec) {
         var spec = spec
-        if agent(spec.id) == nil { spec.space = space == .codice ? Space.lavoro.rawValue : space.rawValue }
+        if agent(spec.id) == nil {
+            spec.space = space == .codice ? Space.lavoro.rawValue : space.rawValue
+            // Le immagini dei consigli sono nel bundle: ogni Genius ne conserva una copia propria.
+            if let path = spec.avatarPath,
+               let resources = Bundle.main.resourceURL?.standardizedFileURL.path,
+               URL(fileURLWithPath: path).standardizedFileURL.path.hasPrefix(resources + "/") {
+                let destination = Self.agentFolder(spec.id).appending(path: "genmoji-\(UUID().uuidString.prefix(6)).genmoji")
+                if (try? FileManager.default.copyItem(at: URL(fileURLWithPath: path), to: destination)) != nil {
+                    spec.avatarPath = destination.path
+                } else {
+                    spec.avatarPath = nil
+                }
+            }
+        }
         if spec.personName.trimmingCharacters(in: .whitespaces).isEmpty {
             spec.personName = AgentSpec.suggestedPersonName(for: spec.name, avoiding: agents.filter { $0.id != spec.id }.map(\.personName))
         }
@@ -2985,7 +3003,15 @@ final class AppState {
             requestNotifications()
         }
         conversation(for: spec).title = spec.displayName
+        if let model = spec.model { conversation(for: spec).model = resolved(model) }
         saveAgents()
+    }
+
+    /// Ogni punto di ingresso apre la stessa conversazione guidata.
+    func startGeniusCreation(from seed: AgentSpec? = nil, description: String = "") {
+        var draft = seed ?? AgentSpec(name: "", goal: description)
+        draft.space = space == .codice ? Space.lavoro.rawValue : space.rawValue
+        creatingGenius = draft
     }
 
     /// Configurazione proposta da una descrizione in linguaggio naturale.
@@ -2995,9 +3021,7 @@ final class AppState {
     }
 
     func createAgent(from card: AgentDraftCardModel) {
-        saveAgent(card.spec)
-        card.created = true
-        saveConversations()
+        startGeniusCreation(from: card.spec)
     }
 
     func deleteAgent(_ id: UUID) {
@@ -3226,14 +3250,34 @@ final class AppState {
         let worker = Assistant()
         worker.isSubAgent = true
         worker.work = work
+        let chosen = resolved(routine?.model ?? agent.model ?? defaultSelection(for: agentSpace))
+        let context = IndependentResponse(conversation: conversation, assistant: worker, selection: chosen)
+        context.allowedSources = enabled
+        let shield = privacyShield(for: conversation, provider: chosen.provider)
+        await Self.$independentResponse.withValue(context) {
+        await PrivacyShield.$current.withValue(shield) {
         var runID = claimedRunID ?? UUID()
         if claimedRunID == nil { updateAgent(id) { runID = $0.beginRun(trigger, routine: routine) } }
         /// Aggiorna la voce dello storico di questa esecuzione.
-        func track(_ change: (inout AgentRun) -> Void) { updateAgent(id) { $0.updateRun(runID, change) } }
+        @MainActor func track(_ change: (inout AgentRun) -> Void) { updateAgent(id) { $0.updateRun(runID, change) } }
         updateAgent(id) { $0.record(.avvio, String(localized: "Inizio dell'esecuzione n. \($0.runs + 1)") + (routine.map { " · \($0.schedule.label)" + ($0.task.isEmpty ? "" : ": \($0.task)") } ?? "")) }
         conversation.messages.append(Message(content: .notice(String(localized: "\(agent.displayName) al lavoro — \(Dates.friendly(.now))"))))
         do {
-            let plan = try await worker.makeTaskPlan(for: Assistant.agentRunPrompt(agent, task: routine?.task, soul: soul))
+            let prompt = Assistant.agentRunPrompt(agent, task: routine?.task, soul: soul)
+            let plan: TaskPlan
+            if chosen.provider == .apple {
+                plan = try await worker.makeTaskPlan(for: prompt)
+            } else {
+                let request = worker.taskPlanRequest(for: prompt)
+                let response = try await runExternal(chosen, system: request.system, history: [], prompt: request.prompt,
+                                                     tools: [], onText: { _ in }, onStatus: { _ in })
+                if let parsed = response.flatMap({ Assistant.parseTaskPlan($0, goal: prompt) }) {
+                    plan = parsed
+                } else {
+                    // Un piano malformato non impedisce al modello scelto di svolgere i passi.
+                    plan = try await worker.makeTaskPlan(for: prompt)
+                }
+            }
             updateAgent(id) { $0.record(.piano, plan.steps.map(\.title).joined(separator: " → ")) }
             let card = TaskPlanCardModel(plan, parallel: subAgentLimit)
             conversation.messages.append(Message(content: .taskPlan(card)))
@@ -3250,7 +3294,8 @@ final class AppState {
                 let workers = batch.map { index in
                     let step = card.plan.steps[index]
                     return Task { @MainActor () -> (Int, String, Outcome?) in
-                        let (text, outcome) = await self.runStepRetrying(step, previous: previous, work: work, enabled: enabled, into: conversation)
+                        let (text, outcome) = await self.runStepRetrying(step, previous: previous, work: work, enabled: enabled, into: conversation,
+                                                                        model: chosen.provider == .apple ? nil : chosen)
                         return (index, text, outcome)
                     }
                 }
@@ -3287,7 +3332,15 @@ final class AppState {
             card.running = false
             try Task.checkCancellation()
             if let finalIndex { card.plan.steps[finalIndex].status = "corso" }
-            let summary = try await worker.chat.respond(to: worker.taskSynthesisPrompt(card.plan), options: worker.responseOptions).content
+            let summary: String
+            if chosen.provider == .apple {
+                summary = try await worker.chat.respond(to: worker.taskSynthesisPrompt(card.plan), options: worker.responseOptions).content
+            } else {
+                let summaryStep = TaskPlan.Step(title: String(localized: "Riepilogo"), instruction: worker.taskSynthesisPrompt(card.plan), parallel: false)
+                let (text, _) = await runExternalStep(summaryStep, previous: "", chosen: chosen)
+                if Self.isErrorText(text) { throw NSError(domain: "Genius", code: 1, userInfo: [NSLocalizedDescriptionKey: text]) }
+                summary = text
+            }
             try Task.checkCancellation()
             if let finalIndex {
                 card.plan.steps[finalIndex].status = "fatto"
@@ -3325,6 +3378,9 @@ final class AppState {
             }
         }
         saveConversations()
+        if let report = shield?.takeReport() { conversation.messages.append(Message(content: .privacy(report))); saveConversations() }
+        }
+        }
     }
 
     // MARK: Sogni

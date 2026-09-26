@@ -54,8 +54,8 @@ struct ModelPicker: View {
             } close: { open = false }
             .environment(state)
         }
-        .help("Modello: \(state.label(for: chosen))")
-        .accessibilityLabel("Modello: \(state.label(for: chosen))")
+        .help(Language.t("Modello: \(state.label(for: chosen))", "Model: \(state.label(for: chosen))"))
+        .accessibilityLabel(Language.t("Modello: \(state.label(for: chosen))", "Model: \(state.label(for: chosen))"))
     }
 }
 
@@ -102,8 +102,8 @@ struct ModelPickerPanel: View {
         VStack(alignment: .leading, spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    group(String(localized: "Sul Mac · privati"), providers: local)
-                    group(String(localized: "Cloud · con il tuo abbonamento"), providers: cloud)
+                    group(Language.t("Sul Mac · privati", "On your Mac · private"), providers: local)
+                    group(Language.t("Cloud · con il tuo abbonamento", "Cloud · with your subscription"), providers: cloud)
                 }
                 .padding(14)
             }
@@ -114,8 +114,8 @@ struct ModelPickerPanel: View {
                 if showsTools {
                     Toggle(isOn: Binding(get: { state.externalTools }, set: { state.externalTools = $0 })) {
                         VStack(alignment: .leading, spacing: 1) {
-                            Text("Strumenti dell'app anche per gli altri modelli").font(DS.Fonts.callout)
-                            Text("Calendario, email, file, web e connettori: ciò che crea o invia resta da confermare.")
+                            Text(Language.t("Strumenti dell'app anche per gli altri modelli", "App tools for other models too")).font(DS.Fonts.callout)
+                            Text(Language.t("Calendario, email, file, web e connettori: ciò che crea o invia resta da confermare.", "Calendar, email, files, web, and connectors: you still approve anything they create or send."))
                                 .font(DS.Fonts.micro).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                         }
                     }
@@ -125,7 +125,7 @@ struct ModelPickerPanel: View {
                 Button {
                     close()
                     state.openSettings("modelli")
-                } label: { Label("Gestisci modelli…", systemImage: "slider.horizontal.3") }
+                } label: { Label(Language.t("Gestisci modelli…", "Manage models…"), systemImage: "slider.horizontal.3") }
                 .buttonStyle(.link)
                 .font(DS.Fonts.callout)
             }
@@ -172,7 +172,7 @@ struct ModelPickerPanel: View {
                     if selected {
                         Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.accentColor).font(.system(size: 15))
                     } else if problem != nil {
-                        Text("Configura").font(DS.Fonts.micro).foregroundStyle(Color.accentColor)
+                        Text(Language.t("Configura", "Set up")).font(DS.Fonts.micro).foregroundStyle(Color.accentColor)
                     }
                 }
                 .contentShape(Rectangle())
@@ -183,7 +183,7 @@ struct ModelPickerPanel: View {
         .padding(8)
         .background(selected ? Color.accentColor.opacity(0.09) : .clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(provider.name)\(selected ? String(localized: ", scelto") : "")")
+        .accessibilityLabel("\(provider.name)\(selected ? Language.t(", scelto", ", selected") : "")")
     }
 
     /// Versioni e ragionamento del modello scelto.
@@ -193,7 +193,7 @@ struct ModelPickerPanel: View {
         let version = options.first { $0.id == current.model }
         if options.count > 1 {
             VStack(alignment: .leading, spacing: 6) {
-                Text(provider == .gemma ? String(localized: "Versione scaricata") : String(localized: "Versione")).font(DS.Fonts.micro).foregroundStyle(.secondary)
+                Text(provider == .gemma ? Language.t("Versione scaricata", "Downloaded version") : Language.t("Versione", "Version")).font(DS.Fonts.micro).foregroundStyle(.secondary)
                 FlowLayout(spacing: 6) {
                     ForEach(options) { option in
                         let on = option.id == current.model
@@ -215,8 +215,8 @@ struct ModelPickerPanel: View {
         }
         if let version, !version.efforts.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                Text(provider == .gemma ? String(localized: "Ragionamento prima di rispondere") : String(localized: "Quanto ragiona")).font(DS.Fonts.micro).foregroundStyle(.secondary)
-                Picker("Ragionamento", selection: Binding(
+                Text(provider == .gemma ? Language.t("Ragionamento prima di rispondere", "Thinking before answering") : Language.t("Quanto ragiona", "Reasoning effort")).font(DS.Fonts.micro).foregroundStyle(.secondary)
+                Picker(Language.t("Ragionamento", "Reasoning"), selection: Binding(
                     get: { current.effort ?? version.defaultEffort ?? version.efforts[0] },
                     set: { choose(ModelSelection(provider, model: version.id, effort: $0), true) })) {
                     ForEach(version.efforts, id: \.self) { effort in
@@ -234,8 +234,8 @@ struct ModelPickerPanel: View {
 
     private func effortHint(_ provider: ResponseProvider) -> String {
         provider == .gemma
-            ? String(localized: "Acceso: risposte più accurate su problemi e codice, ma più lente.")
-            : String(localized: "Più ragionamento: risposte migliori su problemi difficili, ma più lente e con più consumo dell'abbonamento.")
+            ? Language.t("Acceso: risposte più accurate su problemi e codice, ma più lente.", "On: more accurate answers for problems and code, but slower.")
+            : Language.t("Più ragionamento: risposte migliori su problemi difficili, ma più lente e con più consumo dell'abbonamento.", "More reasoning helps with difficult problems, but takes longer and uses more of your subscription.")
     }
 }
 
@@ -255,7 +255,7 @@ extension AppState {
     /// Il ragionamento accanto al nome, solo quando c'è una scelta («Alto», «Ragiona» per Gemma).
     func effortBadge(for selection: ModelSelection) -> String? {
         let choice = resolved(selection)
-        if choice.provider == .gemma { return choice.effort == "on" ? String(localized: "Ragiona") : nil }
+        if choice.provider == .gemma { return choice.effort == "on" ? Language.t("Ragiona", "Thinking") : nil }
         return choice.effort.map(ModelCatalog.effortLabel)
     }
 
@@ -263,13 +263,14 @@ extension AppState {
     func pickerSubtitle(for provider: ResponseProvider, selection: ModelSelection?) -> String {
         let context = ContextBudget.of(provider).label
         switch provider {
-        case .apple: return String(localized: "\(AppleResponseModel.onDeviceSummary) · gratis, niente esce dal Mac")
+        case .apple: return Language.t("\(AppleResponseModel.onDeviceSummary) · gratis, niente esce dal Mac", "\(AppleResponseModel.onDeviceSummary) · free, stays on your Mac")
         case .gemma:
             let name = selection.flatMap { GemmaVariant.variant(resolved($0).model ?? "")?.label } ?? GemmaVariant.variant(gemmaModel)?.label ?? String(localized: "Gemma 4")
-            return String(localized: "\(name) · \(context) · sul Mac")
-        case .ds4: return String(localized: "\(context) · sul Mac")
+            return Language.t("\(name) · \(context) · sul Mac", "\(name) · \(context) · on your Mac")
+        case .ds4: return Language.t("\(context) · sul Mac", "\(context) · on your Mac")
         case .chatgpt, .claude:
-            let privacy = cloudPrivacy ? String(localized: "dati personali anonimizzati sul Mac") : String(localized: "dati in chiaro verso \(provider.company)")
+            let privacy = cloudPrivacy ? Language.t("dati personali anonimizzati sul Mac", "personal data anonymized on your Mac")
+                                       : Language.t("dati in chiaro verso \(provider.company)", "clear data sent to \(provider.company)")
             return "\(provider == .chatgpt ? "Codex" : "Claude Code") · \(context) · \(privacy)"
         }
     }
@@ -278,14 +279,14 @@ extension AppState {
     func pickerProblem(for provider: ResponseProvider) -> String? {
         switch provider {
         case .apple: return availabilityProblem
-        case .gemma: return models.downloadedVariants.isEmpty ? String(localized: "Da scaricare in Impostazioni › Modelli") : nil
-        case .ds4: return models.ds4Installed ? nil : String(localized: "Da installare in Impostazioni › Modelli")
+        case .gemma: return models.downloadedVariants.isEmpty ? Language.t("Da scaricare in Impostazioni › Modelli", "Download in Settings › Models") : nil
+        case .ds4: return models.ds4Installed ? nil : Language.t("Da installare in Impostazioni › Modelli", "Install in Settings › Models")
         case .chatgpt:
-            if !models.codexInstalled { return String(localized: "Serve Codex: installalo in Impostazioni › Modelli") }
-            return models.codexLoggedIn ? nil : String(localized: "Accedi con il tuo account ChatGPT in Impostazioni")
+            if !models.codexInstalled { return Language.t("Serve Codex: installalo in Impostazioni › Modelli", "Codex is needed: install it in Settings › Models") }
+            return models.codexLoggedIn ? nil : Language.t("Accedi con il tuo account ChatGPT in Impostazioni", "Sign in to your ChatGPT account in Settings")
         case .claude:
-            if !models.claudeInstalled { return String(localized: "Serve Claude Code: installalo in Impostazioni › Modelli") }
-            return models.claudeLoggedIn ? nil : String(localized: "Accedi con il tuo account Claude in Impostazioni")
+            if !models.claudeInstalled { return Language.t("Serve Claude Code: installalo in Impostazioni › Modelli", "Claude Code is needed: install it in Settings › Models") }
+            return models.claudeLoggedIn ? nil : Language.t("Accedi con il tuo account Claude in Impostazioni", "Sign in to your Claude account in Settings")
         }
     }
 }

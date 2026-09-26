@@ -25,19 +25,27 @@ struct RunHistoryView: View {
     enum Filter: String, CaseIterable, Identifiable {
         case tutte = "Tutte", programmate = "Programmate", manuali = "Avviate da te", problemi = "Con problemi"
         var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .tutte: Language.t("Tutte", "All")
+            case .programmate: Language.t("Programmate", "Scheduled")
+            case .manuali: Language.t("Avviate da te", "Started by you")
+            case .problemi: Language.t("Con problemi", "With problems")
+            }
+        }
     }
 
     @Environment(AppState.self) private var state
     let items: [HistoryItem]
     /// Mostra avatar e nome dell'agente (nella pagina Programmazioni, con più agenti).
     var showAgent = false
-    var emptyText = String(localized: "Nessuna esecuzione finora.")
+    var emptyText = Language.t("Nessuna esecuzione finora.", "No runs yet.")
     @State private var filter: Filter
     @State private var expanded = Set<UUID>()
     @State private var limit = 30
 
     init(items: [HistoryItem], showAgent: Bool = false,
-         emptyText: String = String(localized: "Nessuna esecuzione finora."), initialFilter: Filter = .tutte) {
+         emptyText: String = Language.t("Nessuna esecuzione finora.", "No runs yet."), initialFilter: Filter = .tutte) {
         self.items = items
         self.showAgent = showAgent
         self.emptyText = emptyText
@@ -59,11 +67,11 @@ struct RunHistoryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Storico delle esecuzioni").font(DS.Fonts.section)
+                Text(Language.t("Storico delle esecuzioni", "Run history")).font(DS.Fonts.section)
                 Spacer()
                 if !items.isEmpty {
-                    Picker("Mostra", selection: $filter) {
-                        ForEach(Filter.allCases) { Text(LocalizedStringKey($0.rawValue)).tag($0) }
+                    Picker(Language.t("Mostra", "Show"), selection: $filter) {
+                        ForEach(Filter.allCases) { Text($0.label).tag($0) }
                     }
                     .labelsHidden()
                     .fixedSize()
@@ -72,7 +80,7 @@ struct RunHistoryView: View {
             if items.isEmpty {
                 Text(emptyText).font(DS.Fonts.body).foregroundStyle(.secondary)
             } else if filtered.isEmpty {
-                Text("Nessuna esecuzione con questo filtro.").font(DS.Fonts.body).foregroundStyle(.secondary)
+                Text(Language.t("Nessuna esecuzione con questo filtro.", "No runs match this filter.")).font(DS.Fonts.body).foregroundStyle(.secondary)
             } else {
                 let shown = Array(filtered.prefix(limit))
                 let days = Dictionary(grouping: shown) { Calendar.current.startOfDay(for: $0.date) }
@@ -90,7 +98,7 @@ struct RunHistoryView: View {
                     }
                 }
                 if filtered.count > limit {
-                    Button("Mostra altre \(min(30, filtered.count - limit))") { limit += 30 }
+                    Button(Language.t("Mostra altre \(min(30, filtered.count - limit))", "Show \(min(30, filtered.count - limit)) more")) { limit += 30 }
                         .buttonStyle(.link)
                 }
             }
@@ -131,14 +139,14 @@ struct RunHistoryView: View {
             }
             .buttonStyle(.plain)
             .disabled(detail.isEmpty)
-            .accessibilityHint(open ? String(localized: "Nasconde il riepilogo") : String(localized: "Mostra il riepilogo"))
+            .accessibilityHint(open ? Language.t("Nasconde il riepilogo", "Hide summary") : Language.t("Mostra il riepilogo", "Show summary"))
             if open, !detail.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(MessageView.markdown(detail)).font(DS.Fonts.callout).textSelection(.enabled)
                     HStack {
-                        Button("Apri la chat del Genius") { state.openAgent(item.agent.id) }
+                        Button(Language.t("Apri la chat del Genius", "Open Genius chat")) { state.openAgent(item.agent.id) }
                         if let run = item.run, run.trigger != .manuale || run.routineID != nil, !state.runningAgents.contains(item.agent.id) {
-                            Button("Esegui di nuovo") { state.runAgent(item.agent.id, routine: run.routineID) }
+                            Button(Language.t("Esegui di nuovo", "Run again")) { state.runAgent(item.agent.id, routine: run.routineID) }
                         }
                     }
                     .controlSize(.small)
@@ -151,28 +159,30 @@ struct RunHistoryView: View {
     }
 
     private func title(_ item: HistoryItem) -> String {
-        if item.dream != nil { return String(localized: "Sogno") }
+        if item.dream != nil { return Language.t("Sogno", "Dream") }
         guard let run = item.run else { return "" }
-        return run.task.isEmpty ? (run.routineLabel ?? String(localized: "Obiettivo principale")) : run.task
+        return run.task.isEmpty ? (run.routineLabel ?? Language.t("Obiettivo principale", "Main goal")) : run.task
     }
 
     private func subtitle(_ item: HistoryItem) -> String {
         let who = showAgent ? "\(item.agent.displayName) · " : ""
         if let dream = item.dream {
-            return who + (dream.lessons.isEmpty ? String(localized: "Ha riletto la giornata") : String(localized: "\(dream.lessons.count) \(dream.lessons.count == 1 ? "lezione" : "lezioni") imparate"))
+            return who + (dream.lessons.isEmpty ? Language.t("Ha riletto la giornata", "Reviewed the day")
+                        : Language.t("\(dream.lessons.count) \(dream.lessons.count == 1 ? "lezione" : "lezioni") imparate",
+                                     "\(dream.lessons.count) \(dream.lessons.count == 1 ? "lesson" : "lessons") learned"))
         }
         guard let run = item.run else { return "" }
         var parts = [run.trigger.label]
         if let label = run.routineLabel, !run.task.isEmpty { parts.append(label) }
         if let duration = run.duration { parts.append(Self.duration(duration)) }
-        if run.steps > 0 { parts.append("\(run.steps) \(run.steps == 1 ? "passo" : "passi")") }
-        if run.approvals > 0 { parts.append(String(localized: "\(run.approvals) \(run.approvals == 1 ? "azione" : "azioni") in attesa")) }
-        if run.errors > 0 { parts.append("\(run.errors) \(run.errors == 1 ? "errore" : "errori")") }
+        if run.steps > 0 { parts.append(Language.t("\(run.steps) \(run.steps == 1 ? "passo" : "passi")", "\(run.steps) \(run.steps == 1 ? "step" : "steps")")) }
+        if run.approvals > 0 { parts.append(Language.t("\(run.approvals) \(run.approvals == 1 ? "azione" : "azioni") in attesa", "\(run.approvals) \(run.approvals == 1 ? "action" : "actions") pending")) }
+        if run.errors > 0 { parts.append(Language.t("\(run.errors) \(run.errors == 1 ? "errore" : "errori")", "\(run.errors) \(run.errors == 1 ? "error" : "errors")")) }
         return who + parts.joined(separator: " · ")
     }
 
     private func status(_ item: HistoryItem) -> String {
-        if item.dream != nil { return String(localized: "Sogno") }
+        if item.dream != nil { return Language.t("Sogno", "Dream") }
         if let run = item.run, run.outcome == .inCorso, !state.runningAgents.contains(item.agent.id) { return AgentRun.Outcome.interrotta.label }
         return item.run?.outcome.label ?? ""
     }
@@ -202,13 +212,13 @@ struct RunHistoryView: View {
     static func duration(_ seconds: TimeInterval) -> String {
         let total = Int(seconds.rounded())
         if total < 60 { return "\(max(total, 1)) s" }
-        if total < 3600 { return String(localized: "\(total / 60) min") + (total % 60 >= 10 && total < 600 ? " \(total % 60) s" : "") }
-        return String(localized: "\(total / 3600) h \((total % 3600) / 60) min")
+        if total < 3600 { return "\(total / 60) min" + (total % 60 >= 10 && total < 600 ? " \(total % 60) s" : "") }
+        return "\(total / 3600) h \((total % 3600) / 60) min"
     }
 
     static func dayTitle(_ day: Date) -> String {
-        if Calendar.current.isDateInToday(day) { return String(localized: "Oggi") }
-        if Calendar.current.isDateInYesterday(day) { return String(localized: "Ieri") }
+        if Calendar.current.isDateInToday(day) { return Language.t("Oggi", "Today") }
+        if Calendar.current.isDateInYesterday(day) { return Language.t("Ieri", "Yesterday") }
         return day.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Dates.locale))
     }
 }
