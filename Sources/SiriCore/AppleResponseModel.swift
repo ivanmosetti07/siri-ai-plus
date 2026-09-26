@@ -9,7 +9,7 @@ public enum AppleResponseModel: Sendable, Equatable {
 
     public var label: String {
         switch self {
-        case .onDevice: "Apple Intelligence sul Mac"
+        case .onDevice: Language.t("Apple Intelligence sul Mac", "Apple Intelligence on the Mac")
         case .privateCloud: "Apple Intelligence · Private Cloud Compute"
         }
     }
@@ -24,7 +24,9 @@ public enum AppleResponseModel: Sendable, Equatable {
     /// Il modello sul Mac come lo riporta il sistema («AFM 3 Core · 4.096 token»). La variante la sceglie macOS
     /// (AFM 3 Core Advanced solo sui Mac più potenti): le app non possono chiederne un'altra.
     public static var onDeviceSummary: String {
-        "\(Agent.model.variant.displayName) · \(Agent.model.contextSize.formatted(.number.locale(Locale(identifier: "it_IT")))) token"
+        Language.isEnglish
+            ? "\(Agent.model.variant.displayName) · \(Agent.model.contextSize.formatted(.number.locale(Language.en.locale))) tokens"
+            : "\(Agent.model.variant.displayName) · \(Agent.model.contextSize.formatted(.number.locale(Locale(identifier: "it_IT")))) token"
     }
 
     /// Selezione separata dai controlli di sistema, per poter verificare anche il ripiego.

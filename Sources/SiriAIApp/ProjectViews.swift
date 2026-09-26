@@ -15,9 +15,9 @@ struct ProjectView: View {
                 .padding(.top, 14)
                 .padding(.bottom, 16)
             if !project.exists {
-                GlassEmptyState(symbol: "exclamationmark.triangle.fill", title: "Cartella non trovata",
-                                message: "«\(project.folder.path)» non esiste più. Ricollegala o rimuovi il progetto: le chat restano finché non lo rimuovi.",
-                                colors: Hue.orange, actionTitle: "Rimuovi progetto") { state.removeProject(project) }
+                GlassEmptyState(symbol: "exclamationmark.triangle.fill", title: String(localized: "Cartella non trovata"),
+                                message: String(localized: "«\(project.folder.path)» non esiste più. Ricollegala o rimuovi il progetto: le chat restano finché non lo rimuovi."),
+                                colors: Hue.orange, actionTitle: String(localized: "Rimuovi progetto")) { state.removeProject(project) }
                     .padding(.horizontal, 32)
                 Spacer()
             } else {
@@ -49,14 +49,14 @@ struct ProjectView: View {
     /// Intestazione grande con il percorso della cartella, poi le pillole delle sezioni.
     private var header: some View {
         VStack(alignment: .leading, spacing: 16) {
-            PageHeader(eyebrow: "Progetto", title: project.name) {
+            PageHeader(eyebrow: String(localized: "Progetto"), title: project.name) {
                 Button {
                     state.togglePin(project)
                 } label: {
                     Image(systemName: project.pinned ? "pin.fill" : "pin")
                 }
                 .buttonStyle(.glass)
-                .iconHelp(project.pinned ? "Togli dai fissati" : "Fissa in alto")
+                .iconHelp(project.pinned ? String(localized: "Togli dai fissati") : String(localized: "Fissa in alto"))
                 Button {
                     state.newConversation(in: project)
                 } label: {
@@ -79,12 +79,12 @@ struct ProjectView: View {
             .help("Mostra nel Finder")
             .padding(.top, -6)
             GlassPills(items: [
-                GlassPill(id: "0", title: "Chat", symbol: "bubble.left.and.bubble.right.fill", colors: Hue.blue),
-                GlassPill(id: "1", title: "File", symbol: "doc.on.doc.fill", colors: Hue.teal),
-                GlassPill(id: "5", title: "Grafo", symbol: "brain", colors: Hue.purple),
-                GlassPill(id: "2", title: "Istruzioni", symbol: "text.book.closed.fill", colors: Hue.orange),
-                GlassPill(id: "3", title: "Memoria", symbol: "brain.head.profile", colors: Hue.purple),
-                GlassPill(id: "4", title: "Impostazioni", symbol: "slider.horizontal.3", colors: Hue.gray),
+                GlassPill(id: "0", title: String(localized: "Chat"), symbol: "bubble.left.and.bubble.right.fill", colors: Hue.blue),
+                GlassPill(id: "1", title: String(localized: "File"), symbol: "doc.on.doc.fill", colors: Hue.teal),
+                GlassPill(id: "5", title: String(localized: "Grafo"), symbol: "brain", colors: Hue.purple),
+                GlassPill(id: "2", title: String(localized: "Istruzioni"), symbol: "text.book.closed.fill", colors: Hue.orange),
+                GlassPill(id: "3", title: String(localized: "Memoria"), symbol: "brain.head.profile", colors: Hue.purple),
+                GlassPill(id: "4", title: String(localized: "Impostazioni"), symbol: "slider.horizontal.3", colors: Hue.gray),
             ], selection: Binding(get: { String(tab) }, set: { tab = Int($0) ?? 0 }))
         }
     }
@@ -99,9 +99,9 @@ struct ProjectTasks: View {
             VStack(alignment: .leading, spacing: 16) {
                 let tasks = state.tasks(for: project)
                 if tasks.allSatisfy({ $0.messages.isEmpty }) {
-                    GlassEmptyState(symbol: "bubble.left.and.bubble.right.fill", title: "Le chat del progetto",
-                                    message: "Ogni chat è dedicata a questo progetto: Siri AI+ usa AGENTS.md, la sua memoria e i suoi file. Scrivi a destra per iniziare.",
-                                    colors: Hue.blue, actionTitle: "Nuova chat") { state.newConversation(in: project) }
+                    GlassEmptyState(symbol: "bubble.left.and.bubble.right.fill", title: String(localized: "Le chat del progetto"),
+                                    message: String(localized: "Ogni chat è dedicata a questo progetto: Siri AI+ usa AGENTS.md, la sua memoria e i suoi file. Scrivi a destra per iniziare."),
+                                    colors: Hue.blue, actionTitle: String(localized: "Nuova chat")) { state.newConversation(in: project) }
                 }
                 ForEach(tasks) { task in
                     Button { state.select(task) } label: {
@@ -125,13 +125,13 @@ struct ProjectTasks: View {
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
-                        Button(task.pinned ? "Togli dai fissati" : "Fissa in alto") { state.togglePin(task) }
+                        Button(task.pinned ? String(localized: "Togli dai fissati") : String(localized: "Fissa in alto")) { state.togglePin(task) }
                         Button("Elimina task", role: .destructive) { state.delete(task) }
                     }
                 }
                 let artifacts = state.allArtifacts.filter { $0.projectID == project.id }
                 if !artifacts.isEmpty {
-                    GroupTitle(text: "Documenti del progetto").padding(.top, 8)
+                    GroupTitle(text: String(localized: "Documenti del progetto")).padding(.top, 8)
                     ForEach(artifacts) { ArtifactChip(artifact: $0) }
                 }
             }
@@ -176,15 +176,17 @@ struct CodeFilesView: View {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary).font(.system(size: 12))
                     TextField("Filtra i file", text: $filter).textFieldStyle(.plain)
                     Menu {
-                        Button("Nuova nota Markdown") { create("Nuova nota", ext: "md", content: "# Nuova nota\n\n") }
+                        Button("Nuova nota Markdown") { create(String(localized: "Nuova nota"), ext: "md", content: "# Nuova nota\n\n") }
                         Button("Nuova pagina HTML") {
-                            create("pagina", ext: "html", content: "<!doctype html>\n<html lang=\"it\">\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <title>Pagina</title>\n</head>\n<body>\n    <h1>Ciao!</h1>\n</body>\n</html>\n")
+                            create("pagina", ext: "html", content: (Language.system == .it
+                  ? "<!doctype html>\n<html lang=\"it\">\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <title>Pagina</title>\n</head>\n<body>\n    <h1>Ciao!</h1>\n</body>\n</html>\n"
+                  : "<!doctype html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <title>Page</title>\n</head>\n<body>\n    <h1>Hello!</h1>\n</body>\n</html>\n"))
                         }
                     } label: { Image(systemName: "plus") }
                     .menuIndicator(.hidden)
                     .fixedSize()
                     .disabled(!project.allowWrite)
-                    .iconHelp("Nuovo file")
+                    .iconHelp(String(localized: "Nuovo file"))
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -201,7 +203,7 @@ struct CodeFilesView: View {
                                     Button("Anteprima (Safari della sessione)") { state.openInBrowser(url) }
                                 }
                                 if !entry.isDirectory {
-                                    Button("Chiedi a Siri AI+ di riassumerlo") { state.send("Riassumi il file \(entry.path)") }
+                                    Button("Chiedi a Siri AI+ di riassumerlo") { state.send(String(localized: "Riassumi il file \(entry.path)")) }
                                 }
                             }
                     }
@@ -222,7 +224,7 @@ struct CodeFilesView: View {
                             Text(path).font(DS.Fonts.bodyStrong).lineLimit(1)
                             Spacer()
                             Button("Apri") { if let url = try? project.files.resolve(path) { NSWorkspace.shared.open(url) } }
-                            Button("Riassumi con Siri AI+") { state.send("Riassumi il file \(path)") }
+                            Button("Riassumi con Siri AI+") { state.send(String(localized: "Riassumi il file \(path)")) }
                         }
                         ScrollView {
                             Text(preview)
@@ -235,7 +237,7 @@ struct CodeFilesView: View {
                 }
             } else {
                 ContentUnavailableView("Scegli un file", systemImage: "doc.text.magnifyingglass",
-                                       description: Text("Lo vedi e lo modifichi qui; l'agente a destra lavora sugli stessi file."))
+                                       description: Text("Lo vedi e lo modifichi qui; Siri AI+ a destra lavora sugli stessi file."))
             }
         }
         .task(id: state.projectRevision) {
@@ -287,7 +289,7 @@ struct CodeFilesView: View {
             return
         }
         if !EditableFiles.extensions.contains((path as NSString).pathExtension.lowercased()) {
-            preview = (try? project.files.read(path, maxChars: 20_000)) ?? "Anteprima non disponibile per questo tipo di file."
+            preview = (try? project.files.read(path, maxChars: 20_000)) ?? String(localized: "Anteprima non disponibile per questo tipo di file.")
         }
     }
 
@@ -316,7 +318,7 @@ struct ProjectSettingsView: View {
                 }
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Connettori").font(DS.Fonts.section)
-                    Text("Scegli quali servizi collegati usare nelle chat e negli agenti di questo progetto. Gli altri restano disponibili fuori dal progetto.")
+                    Text("Scegli quali servizi collegati usare nelle chat e nei Genius di questo progetto. Gli altri restano disponibili fuori dal progetto.")
                         .font(DS.Fonts.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     if state.mcp.servers.isEmpty {
                         HStack {

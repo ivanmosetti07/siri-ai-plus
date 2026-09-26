@@ -11,12 +11,12 @@ enum PagesStyle: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .title: "Titolo"
-        case .subtitle: "Sottotitolo"
-        case .heading1: "Intestazione 1"
-        case .heading2: "Intestazione 2"
-        case .body: "Corpo"
-        case .caption: "Didascalia"
+        case .title: String(localized: "Titolo")
+        case .subtitle: String(localized: "Sottotitolo")
+        case .heading1: String(localized: "Intestazione 1")
+        case .heading2: String(localized: "Intestazione 2")
+        case .body: String(localized: "Corpo")
+        case .caption: String(localized: "Didascalia")
         }
     }
 
@@ -127,11 +127,11 @@ enum ArtifactFactory {
         var id: String { rawValue }
         var label: String {
             switch self {
-            case .docx: "Word (.docx)"
+            case .docx: String(localized: "Word (.docx)")
             case .rtf: "RTF"
             case .pdf: "PDF"
             case .csv: "CSV"
-            case .txt: "Testo semplice"
+            case .txt: String(localized: "Testo semplice")
             }
         }
     }
@@ -166,7 +166,7 @@ enum ArtifactFactory {
         }
         artifact.exportedURL = destination
         artifact.lastExport = .now
-        artifact.snapshot("Salvato come \(format.rawValue.uppercased())")
+        artifact.snapshot(String(localized: "Salvato come \(format.rawValue.uppercased())"))
         return destination
     }
 
@@ -176,7 +176,7 @@ enum ArtifactFactory {
             do {
                 try await buildKeynote(deck)
                 artifact.lastExport = .now
-                artifact.snapshot("Aperto in Keynote")
+                artifact.snapshot(String(localized: "Aperto in Keynote"))
                 return
             } catch {
                 // Senza permesso di automazione: ripiega sul PDF.
@@ -219,18 +219,18 @@ enum ArtifactFactory {
         func body(_ slide: Slide) -> String {
             slide.bodyText.split(separator: "\n").map { $0.hasPrefix("• ") ? String($0.dropFirst(2)) : String($0) }.joined(separator: "\n")
         }
-        var lines = ["tell application \"Keynote\"", "activate", "set doc to make new document", "tell doc"]
+        var lines = [String(localized: "tell application \"Keynote\""), "activate", String(localized: "set doc to make new document"), String(localized: "tell doc")]
         for (index, slide) in deck.slides.enumerated() {
-            lines.append(index == 0 ? "set s to slide 1" : "set s to make new slide at end of slides")
-            lines += ["try", "set object text of default title item of s to \(quote(slide.title))", "end try",
-                      "try", "set object text of default body item of s to \(quote(body(slide)))", "end try"]
+            lines.append(index == 0 ? String(localized: "set s to slide 1") : String(localized: "set s to make new slide at end of slides"))
+            lines += ["try", String(localized: "set object text of default title item of s to \(quote(slide.title))"), String(localized: "end try"),
+                      "try", String(localized: "set object text of default body item of s to \(quote(body(slide)))"), String(localized: "end try")]
         }
-        lines += ["end tell", "end tell"]
+        lines += [String(localized: "end tell"), String(localized: "end tell")]
         let source = lines.joined(separator: "\n")
         try await Task.detached {
             var error: NSDictionary?
             NSAppleScript(source: source)?.executeAndReturnError(&error)
-            if let error { throw NSError(domain: "Siri AI+.Keynote", code: 1, userInfo: error as? [String: Any]) }
+            if let error { throw NSError(domain: String(localized: "Siri AI+.Keynote"), code: 1, userInfo: error as? [String: Any]) }
         }.value
     }
 

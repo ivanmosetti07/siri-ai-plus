@@ -92,7 +92,7 @@ struct ArtifactEditor: View {
             Spacer(minLength: 8)
 
             Button { showVersions = true } label: { Image(systemName: "clock.arrow.circlepath") }
-                .iconHelp("Cronologia versioni")
+                .iconHelp(String(localized: "Cronologia versioni"))
                 .popover(isPresented: $showVersions) { versions }
 
             Menu {
@@ -102,16 +102,16 @@ struct ArtifactEditor: View {
             } label: { Image(systemName: "square.and.arrow.down") }
             .menuIndicator(.hidden)
             .fixedSize()
-            .iconHelp("Esporta")
+            .iconHelp(String(localized: "Esporta"))
 
             Button { share() } label: { Image(systemName: "square.and.arrow.up") }
-                .iconHelp("Condividi")
+                .iconHelp(String(localized: "Condividi"))
 
             Button("Salva") {
-                if let url = state.save(artifact) { notify("Salvato come \(url.lastPathComponent)") }
+                if let url = state.save(artifact) { notify(String(localized: "Salvato come \(url.lastPathComponent)")) }
             }
             .keyboardShortcut("s")
-            .help(state.projectFolder(for: artifact) == nil ? "Salva in Documenti/Siri AI+" : "Salva nella cartella del progetto")
+            .help(state.projectFolder(for: artifact) == nil ? String(localized: "Salva in Documenti/Siri AI+") : String(localized: "Salva nella cartella del progetto"))
 
             Button {
                 openInApp()
@@ -124,7 +124,7 @@ struct ArtifactEditor: View {
 
             Button { state.closeArtifact() } label: { Image(systemName: "xmark") }
                 .keyboardShortcut("w")
-                .iconHelp("Chiudi (⌘W)")
+                .iconHelp(String(localized: "Chiudi (⌘W)"))
         }
         .buttonStyle(.borderless)
         .padding(.horizontal, 16)
@@ -149,7 +149,7 @@ struct ArtifactEditor: View {
                 }
             }
             Divider()
-            Button("Salva questa versione") { artifact.snapshot("Versione manuale"); showVersions = false }
+            Button("Salva questa versione") { artifact.snapshot(String(localized: "Versione manuale")); showVersions = false }
                 .controlSize(.small)
         }
         .padding(14)
@@ -171,10 +171,10 @@ struct ArtifactEditor: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             _ = try ArtifactFactory.export(artifact, as: format, to: url)
-            state.log(icon: "artifact:\(artifact.kind.rawValue)", title: "\(artifact.kind.noun) esportat\(artifact.kind.ending)", detail: url.lastPathComponent, status: .done)
-            notify("Esportato come \(url.lastPathComponent)")
+            state.log(icon: "artifact:\(artifact.kind.rawValue)", title: String(localized: "\(artifact.kind.noun) esportat\(artifact.kind.ending)"), detail: url.lastPathComponent, status: .done)
+            notify(String(localized: "Esportato come \(url.lastPathComponent)"))
         } catch {
-            notify("Esportazione non riuscita: \(error.localizedDescription)")
+            notify(String(localized: "Esportazione non riuscita: \(error.localizedDescription)"))
         }
     }
 
@@ -186,7 +186,7 @@ struct ArtifactEditor: View {
         let picker = NSSharingServicePicker(items: [url])
         let point = view.convert(NSApp.keyWindow?.mouseLocationOutsideOfEventStream ?? .zero, from: nil)
         picker.show(relativeTo: CGRect(origin: point, size: CGSize(width: 1, height: 1)), of: view, preferredEdge: .minY)
-        state.log(icon: "artifact:\(artifact.kind.rawValue)", title: "Condivisione preparata", detail: url.lastPathComponent, status: .done)
+        state.log(icon: "artifact:\(artifact.kind.rawValue)", title: String(localized: "Condivisione preparata"), detail: url.lastPathComponent, status: .done)
     }
 
     private func openInApp() {
@@ -194,10 +194,10 @@ struct ArtifactEditor: View {
         Task {
             do {
                 try await ArtifactFactory.openInApp(artifact, folder: state.projectFolder(for: artifact))
-                state.log(icon: "artifact:\(artifact.kind.rawValue)", title: "Aperto in \(artifact.kind.app)", detail: artifact.title, status: .done)
-                notify(artifact.exportedURL.map { "Salvato come \($0.lastPathComponent) e aperto in \(artifact.kind.app)" } ?? "Aperto in \(artifact.kind.app)")
+                state.log(icon: "artifact:\(artifact.kind.rawValue)", title: String(localized: "Aperto in \(artifact.kind.app)"), detail: artifact.title, status: .done)
+                notify(artifact.exportedURL.map { String(localized: "Salvato come \($0.lastPathComponent) e aperto in \(artifact.kind.app)") } ?? String(localized: "Aperto in \(artifact.kind.app)"))
             } catch {
-                notify("Non riesco ad aprirlo in \(artifact.kind.app): \(error.localizedDescription)")
+                notify(String(localized: "Non riesco ad aprirlo in \(artifact.kind.app): \(error.localizedDescription)"))
             }
             working = false
         }

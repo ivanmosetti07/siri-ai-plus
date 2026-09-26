@@ -39,8 +39,8 @@ struct AgendaCard: View {
                     if agenda.reminders.isEmpty && agenda.overdue.isEmpty {
                         Text("Nessun promemoria in scadenza.").font(DS.Fonts.body).foregroundStyle(.secondary)
                     }
-                    ReminderGroup(title: agenda.showsEvents ? "Promemoria" : nil, items: agenda.reminders)
-                    ReminderGroup(title: "Arretrati", items: agenda.overdue, overdue: true)
+                    ReminderGroup(title: agenda.showsEvents ? String(localized: "Promemoria") : nil, items: agenda.reminders)
+                    ReminderGroup(title: String(localized: "Arretrati"), items: agenda.overdue, overdue: true)
                 }
                 HStack {
                     Spacer()
@@ -60,8 +60,8 @@ struct AgendaCard: View {
 
     private var subtitle: String {
         var parts: [String] = []
-        if agenda.showsEvents { parts.append(agenda.events.count == 1 ? "1 evento" : "\(agenda.events.count) eventi") }
-        if agenda.showsReminders { parts.append("\(agenda.reminders.count + agenda.overdue.count) promemoria") }
+        if agenda.showsEvents { parts.append(agenda.events.count == 1 ? String(localized: "1 evento") : String(localized: "\(agenda.events.count) eventi")) }
+        if agenda.showsReminders { parts.append(String(localized: "\(agenda.reminders.count + agenda.overdue.count) promemoria")) }
         return parts.joined(separator: " · ")
     }
 
@@ -83,7 +83,7 @@ struct AgendaCard: View {
 
         private var when: String {
             let day = showsDay ? event.start.formatted(dayFormat) + " · " : ""
-            return day + (event.isAllDay ? "Tutto il giorno" : "\(event.start.formatted(timeFormat)) – \(event.end.formatted(timeFormat))")
+            return day + (event.isAllDay ? String(localized: "Tutto il giorno") : "\(event.start.formatted(timeFormat)) – \(event.end.formatted(timeFormat))")
         }
     }
 
@@ -134,7 +134,7 @@ struct EventCard: View {
 
     var body: some View {
         Card(title: title, subtitle: subtitle, status: model.status,
-             statusLabel: model.edit != nil && model.status == .done ? "Modificato" : nil) {
+             statusLabel: model.edit != nil && model.status == .done ? String(localized: "Modificato") : nil) {
             Tile(.calendar)
         } content: {
             if model.status == .draft {
@@ -147,14 +147,14 @@ struct EventCard: View {
 
     private var title: String {
         if model.status == .done { return model.draft.title }
-        return model.edit == nil ? "Nuovo evento" : "Modifica evento"
+        return model.edit == nil ? String(localized: "Nuovo evento") : String(localized: "Modifica evento")
     }
 
     private var subtitle: String {
         if let edit = model.edit {
-            return model.status == .done ? "Aggiornato in «\(model.draft.calendar)»" : "Prima: «\(edit.before.title)», \(Self.when(edit.before))"
+            return model.status == .done ? String(localized: "Aggiornato in «\(model.draft.calendar)»") : String(localized: "Prima: «\(edit.before.title)», \(Self.when(edit.before))")
         }
-        return model.status == .done ? "Salvato in «\(model.draft.calendar)»" : "Calendario"
+        return model.status == .done ? String(localized: "Salvato in «\(model.draft.calendar)»") : String(localized: "Calendario")
     }
 
     private var editor: some View {
@@ -196,17 +196,17 @@ struct EventCard: View {
             .font(DS.Fonts.body)
             if let conflict = model.conflicts.first {
                 InlineBanner(symbol: "exclamationmark.triangle.fill", tint: .orange,
-                             text: "Si sovrappone a «\(conflict.title)» (\(conflict.start.formatted(timeFormat))–\(conflict.end.formatted(timeFormat)))\(model.conflicts.count > 1 ? " e ad altri \(model.conflicts.count - 1)" : "").") {
+                             text: String(localized: "Si sovrappone a «\(conflict.title)» (\(conflict.start.formatted(timeFormat))–\(conflict.end.formatted(timeFormat)))\(model.conflicts.count > 1 ? String(localized: " e ad altri \(model.conflicts.count - 1)") : "").")) {
                     Button("Sposta dopo") { withAnimation { model.moveAfterConflicts() } }.controlSize(.small)
                 }
             }
             if let edit = model.edit, edit.attendees > 0 {
-                Label(edit.attendees == 1 ? "L'evento ha un invitato: il calendario potrebbe avvisarlo del cambiamento."
-                                          : "L'evento ha \(edit.attendees) invitati: il calendario potrebbe avvisarli del cambiamento.",
+                Label(edit.attendees == 1 ? String(localized: "L'evento ha un invitato: il calendario potrebbe avvisarlo del cambiamento.")
+                                          : String(localized: "L'evento ha \(edit.attendees) invitati: il calendario potrebbe avvisarli del cambiamento."),
                       systemImage: "person.2")
                     .font(DS.Fonts.caption).foregroundStyle(.secondary)
             }
-            CardActions(primary: model.edit == nil ? "Salva evento" : "Salva modifiche",
+            CardActions(primary: model.edit == nil ? String(localized: "Salva evento") : String(localized: "Salva modifiche"),
                         primaryDisabled: model.draft.title.trimmingCharacters(in: .whitespaces).isEmpty || (model.edit.map { $0.before == model.draft } ?? false),
                         cancel: { model.status = .cancelled }) { state.save(model) }
         }
@@ -230,13 +230,13 @@ struct EventCard: View {
 
     private var when: String {
         let day = model.draft.start.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Dates.locale)).capitalized
-        return model.draft.isAllDay ? "\(day), tutto il giorno"
+        return model.draft.isAllDay ? String(localized: "\(day), tutto il giorno")
             : "\(day), \(model.draft.start.formatted(timeFormat)) – \(model.draft.end.formatted(timeFormat))"
     }
 
     static func when(_ draft: EventDraft) -> String {
         let day = draft.start.formatted(dayFormat)
-        return draft.isAllDay ? "\(day), tutto il giorno" : "\(day), \(draft.start.formatted(timeFormat))–\(draft.end.formatted(timeFormat))"
+        return draft.isAllDay ? String(localized: "\(day), tutto il giorno") : "\(day), \(draft.start.formatted(timeFormat))–\(draft.end.formatted(timeFormat))"
     }
 }
 
@@ -255,8 +255,8 @@ struct RemindersCard: View {
     @Bindable var model: RemindersCardModel
 
     var body: some View {
-        Card(title: model.edit != nil ? "Modifica promemoria" : model.drafts.count == 1 ? "Nuovo promemoria" : "Nuovi promemoria",
-             subtitle: subtitle, status: model.status, statusLabel: model.edit != nil && model.status == .done ? "Modificato" : nil) {
+        Card(title: model.edit != nil ? String(localized: "Modifica promemoria") : model.drafts.count == 1 ? String(localized: "Nuovo promemoria") : String(localized: "Nuovi promemoria"),
+             subtitle: subtitle, status: model.status, statusLabel: model.edit != nil && model.status == .done ? String(localized: "Modificato") : nil) {
             Tile(.reminders)
         } content: {
             VStack(alignment: .leading, spacing: 10) {
@@ -274,7 +274,7 @@ struct RemindersCard: View {
                         .fixedSize()
                         Spacer()
                         Button("Annulla") { model.status = .cancelled }
-                        Button(model.edit != nil ? "Salva modifiche" : model.includedCount == 1 ? "Aggiungi promemoria" : "Aggiungi \(model.includedCount) promemoria") {
+                        Button(model.edit != nil ? String(localized: "Salva modifiche") : model.includedCount == 1 ? String(localized: "Aggiungi promemoria") : String(localized: "Aggiungi \(model.includedCount) promemoria")) {
                             state.add(model)
                         }
                         .buttonStyle(.borderedProminent)
@@ -294,9 +294,9 @@ struct RemindersCard: View {
 
 extension RemindersCard {
     private var subtitle: String {
-        guard let edit = model.edit else { return "Lista «\(model.list)»" }
-        let due = edit.before.due.map { ", scadeva \(edit.before.dueHasTime ? $0.formatted(dayFormat) + " " + $0.formatted(timeFormat) : $0.formatted(dayFormat))" } ?? ""
-        return "Prima: «\(edit.before.title)»\(due) · lista \(edit.beforeList)"
+        guard let edit = model.edit else { return String(localized: "Lista «\(model.list)»") }
+        let due = edit.before.due.map { String(localized: ", scadeva \(edit.before.dueHasTime ? $0.formatted(dayFormat) + " " + $0.formatted(timeFormat) : $0.formatted(dayFormat))") } ?? ""
+        return String(localized: "Prima: «\(edit.before.title)»\(due) · lista \(edit.beforeList)")
     }
 }
 
@@ -313,7 +313,7 @@ struct ReminderDraftRow: View {
             }
             .buttonStyle(.plain)
             .disabled(!editable)
-            .accessibilityLabel(draft.included ? "Incluso" : "Escluso")
+            .accessibilityLabel(draft.included ? String(localized: "Incluso") : String(localized: "Escluso"))
 
             TextField("Promemoria", text: $draft.title)
                 .textFieldStyle(.plain)
@@ -339,7 +339,7 @@ struct ReminderDraftRow: View {
                     HStack {
                         Button("Nessuna data") { draft.due = nil; editingDate = false }
                         Spacer()
-                        Button("Fine") { editingDate = false }.keyboardShortcut(.defaultAction)
+                        Button(String(localized: "button.done", defaultValue: "Fine")) { editingDate = false }.keyboardShortcut(.defaultAction)
                     }
                 }
                 .padding(14)
@@ -358,7 +358,7 @@ struct ReminderDraftRow: View {
     }
 
     private var dueLabel: String {
-        guard let due = draft.due else { return "Nessuna data" }
+        guard let due = draft.due else { return String(localized: "Nessuna data") }
         return draft.dueHasTime ? due.formatted(dayFormat) + " " + due.formatted(timeFormat) : due.formatted(dayFormat)
     }
 }
@@ -375,7 +375,7 @@ struct ConfirmCard: View {
         } content: {
             if model.status == .awaiting {
                 CardActions(note: note,
-                            primary: model.isDestructive ? "Elimina" : "Completa", primaryRole: model.isDestructive ? .destructive : nil,
+                            primary: model.isDestructive ? String(localized: "Elimina") : String(localized: "Completa"), primaryRole: model.isDestructive ? .destructive : nil,
                             cancel: { model.status = .cancelled }) { state.perform(model) }
             } else if let error = model.error {
                 Text(error).font(DS.Fonts.caption).foregroundStyle(.red)
@@ -387,9 +387,9 @@ struct ConfirmCard: View {
 extension ConfirmCard {
     private var note: String {
         switch model.action.kind {
-        case .deleteEvent: "L'evento verrà rimosso dal calendario."
-        case .deleteReminder: "Il promemoria verrà eliminato."
-        case .completeReminder: "Il promemoria verrà segnato come fatto."
+        case .deleteEvent: String(localized: "L'evento verrà rimosso dal calendario.")
+        case .deleteReminder: String(localized: "Il promemoria verrà eliminato.")
+        case .completeReminder: String(localized: "Il promemoria verrà segnato come fatto.")
         }
     }
 }
@@ -401,8 +401,8 @@ struct MailCard: View {
     @Bindable var model: MailCardModel
 
     var body: some View {
-        Card(title: model.status == .opened || model.status == .done ? model.subject : model.reply != nil ? "Risposta \(Self.to(MailReader.senderName(model.recipients)))" : "Bozza email",
-             subtitle: model.status == .opened || model.status == .done ? "Bozza aperta in Mail: invia da lì" : model.reply != nil ? "Mail · nella stessa conversazione" : "Mail",
+        Card(title: model.status == .opened || model.status == .done ? model.subject : model.reply != nil ? String(localized: "Risposta \(Self.to(MailReader.senderName(model.recipients)))") : String(localized: "Bozza email"),
+             subtitle: model.status == .opened || model.status == .done ? String(localized: "Bozza aperta in Mail: invia da lì") : model.reply != nil ? String(localized: "Mail · nella stessa conversazione") : String(localized: "Mail"),
              status: model.status) {
             Tile(.mail)
         } content: {
@@ -413,7 +413,7 @@ struct MailCard: View {
                             FieldLabel("A")
                             // Nella risposta destinatario e oggetto li decide Mail (quelli dell'email ricevuta).
                             if model.reply != nil {
-                                Text(model.recipients + (model.reply?.replyAll == true ? " e tutti gli altri" : "")).lineLimit(1).foregroundStyle(.secondary)
+                                Text(model.recipients + (model.reply?.replyAll == true ? String(localized: " e tutti gli altri") : "")).lineLimit(1).foregroundStyle(.secondary)
                             } else {
                                 TextField("nome@esempio.it, …", text: $model.recipients).textFieldStyle(.plain)
                             }
@@ -454,14 +454,14 @@ struct MailCard: View {
                 }
                 if let error = model.error { Text(error).font(DS.Fonts.caption).foregroundStyle(.red) }
                 if model.status == .draft {
-                    CardActions(primary: model.reply != nil ? "Rispondi…" : "Invia…",
+                    CardActions(primary: model.reply != nil ? String(localized: "Rispondi…") : String(localized: "Invia…"),
                                 primaryDisabled: model.recipientList.isEmpty || model.subject.isEmpty || model.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                                 cancel: { model.status = .cancelled }) { withAnimation(DS.Motion.standard) { model.status = .awaiting } }
                 } else if model.status == .awaiting {
                     InlineBanner(symbol: "paperplane", tint: .orange,
                                  text: model.reply != nil
-                                    ? "Aprirò in Mail la risposta, nella stessa conversazione e con l'email originale citata. L'invio parte solo quando premi Invia in Mail."
-                                    : "Aprirò Mail con il messaggio per \(model.recipientList.joined(separator: ", ")). L'invio parte solo quando premi Invia in Mail.") {
+                                    ? String(localized: "Aprirò in Mail la risposta, nella stessa conversazione e con l'email originale citata. L'invio parte solo quando premi Invia in Mail.")
+                                    : String(localized: "Aprirò Mail con il messaggio per \(model.recipientList.joined(separator: ", ")). L'invio parte solo quando premi Invia in Mail.")) {
                         Button("Indietro") { withAnimation { model.status = .draft } }.controlSize(.small)
                         Button("Apri in Mail") { model.reply != nil ? state.openReply(model) : state.openInMail(model) }.buttonStyle(.borderedProminent).controlSize(.small)
                     }
@@ -475,7 +475,10 @@ struct MailCard: View {
 
 extension MailCard {
     /// "a Marco", "ad Alex".
-    static func to(_ name: String) -> String { name.lowercased().hasPrefix("a") ? "ad \(name)" : "a \(name)" }
+    static func to(_ name: String) -> String {
+        if Language.system == .en { return "to \(name)" }
+        return name.lowercased().hasPrefix("a") ? "ad \(name)" : "a \(name)"
+    }
 }
 
 // MARK: - 05 Piano e conferma
@@ -485,7 +488,7 @@ struct PlanCard: View {
     @Bindable var model: PlanCardModel
 
     var body: some View {
-        Card(title: "Piano proposto", subtitle: model.plan.summary, status: model.status,
+        Card(title: String(localized: "Piano proposto"), subtitle: model.plan.summary, status: model.status,
              ) {
             OrbView(state: model.status == .running ? .thinking : .idle, size: 26, animated: model.status == .running)
         } content: {
@@ -535,7 +538,7 @@ struct PlanStepRow: View {
                             .foregroundStyle(step.included ? Color.accentColor : .secondary)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(step.included ? "Incluso" : "Escluso")
+                    .accessibilityLabel(step.included ? String(localized: "Incluso") : String(localized: "Escluso"))
                 } else {
                     switch status {
                     case .running?: ProgressView().controlSize(.small)
@@ -596,7 +599,7 @@ struct ArtifactChip: View {
                         .font(DS.Fonts.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 12)
-                Text(isOpen ? "Aperto" : "Apri")
+                Text(isOpen ? String(localized: "Aperto") : String(localized: "Apri"))
                     .font(DS.Fonts.captionStrong)
                     .foregroundStyle(isOpen ? Color.secondary : artifact.kind.tint)
             }
@@ -651,25 +654,25 @@ struct UnavailableCard: View {
 
     private var title: String {
         switch model.kind {
-        case .comingSoon: "\(model.source.label) non è ancora collegabile"
-        case .notConnected: "Serve l'accesso a \(model.source.label)"
-        case .notSelected: "\(model.source.label) è esclusa da questa richiesta"
-        case .readOnly: "Accesso in sola lettura"
+        case .comingSoon: String(localized: "\(model.source.label) non è ancora collegabile")
+        case .notConnected: String(localized: "Serve l'accesso a \(model.source.label)")
+        case .notSelected: String(localized: "\(model.source.label) è esclusa da questa richiesta")
+        case .readOnly: String(localized: "Accesso in sola lettura")
         }
     }
 
     private var message: String {
         switch model.kind {
         case .comingSoon:
-            "Il collegamento a \(model.source.label) arriverà in una prossima versione. Oggi Siri AI+ lavora con Calendario, Promemoria, bozze Mail e documenti, fogli e presentazioni."
+            String(localized: "Il collegamento a \(model.source.label) arriverà in una prossima versione. Oggi Siri AI+ lavora con Calendario, Promemoria, bozze Mail e documenti, fogli e presentazioni.")
         case .notConnected:
             state.systemDenied(model.source)
-                ? "macOS ha negato l'accesso a \(model.source.label). Riattivalo in Privacy e sicurezza, poi torna qui."
-                : "Per rispondere devo poter \(model.source.readCapability.lowercased()). Le risposte possono usare Private Cloud Compute di Apple quando è disponibile."
+                ? String(localized: "macOS ha negato l'accesso a \(model.source.label). Riattivalo in Privacy e sicurezza, poi torna qui.")
+                : String(localized: "Per rispondere devo poter \(model.source.readCapability.lowercased()). Le risposte possono usare Private Cloud Compute di Apple quando è disponibile.")
         case .notSelected:
-            "Hai limitato la richiesta ad altre fonti, ma per rispondere mi serve anche \(model.source.label)."
+            String(localized: "Hai limitato la richiesta ad altre fonti, ma per rispondere mi serve anche \(model.source.label).")
         case .readOnly:
-            "Hai concesso a Siri AI+ solo la lettura di \(model.source.label). Per questa azione servono i permessi di modifica."
+            String(localized: "Hai concesso a Siri AI+ solo la lettura di \(model.source.label). Per questa azione servono i permessi di modifica.")
         }
     }
 }
@@ -698,8 +701,8 @@ struct ImageCard: View {
     }
 
     private var card: some View {
-        Card(title: "Immagine", subtitle: "Image Playground · \(ImageService.label(model.style))", status: model.status,
-             statusLabel: model.status == .running ? "Creazione…" : nil) {
+        Card(title: String(localized: "Immagine"), subtitle: String(localized: "Image Playground · \(ImageService.label(model.style))"), status: model.status,
+             statusLabel: model.status == .running ? String(localized: "Creazione…") : nil) {
             Image(systemName: "photo.fill")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.white)
@@ -711,7 +714,7 @@ struct ImageCard: View {
                 Text(model.prompt).font(DS.Fonts.body).foregroundStyle(.secondary).lineLimit(2)
                 if model.needsSheet {
                     InlineBanner(symbol: "sparkles", tint: .purple,
-                                 text: supportsImagePlayground ? "Su questo Mac le immagini si creano nel foglio di Image Playground: ho già preparato la descrizione." : "Image Playground non è disponibile su questo Mac.") {
+                                 text: supportsImagePlayground ? String(localized: "Su questo Mac le immagini si creano nel foglio di Image Playground: ho già preparato la descrizione.") : String(localized: "Image Playground non è disponibile su questo Mac.")) {
                         if supportsImagePlayground {
                             Button("Crea con Image Playground") { showSheet = true }.buttonStyle(.borderedProminent).controlSize(.small)
                         }
@@ -792,7 +795,7 @@ struct FilesCard: View {
     let paths: [String]
 
     var body: some View {
-        Card(title: "File del progetto", subtitle: state.currentProject?.name ?? "") {
+        Card(title: String(localized: "File del progetto"), subtitle: state.currentProject?.name ?? "") {
             Image(systemName: "folder.fill").font(.system(size: 18)).foregroundStyle(Color.accentColor).frame(width: 26)
         } content: {
             VStack(alignment: .leading, spacing: 4) {
@@ -813,7 +816,7 @@ struct FileWriteCard: View {
     @Bindable var model: FileWriteCardModel
     @State private var showPrevious = false
     var body: some View {
-        Card(title: model.draft.exists ? "Modifica file" : "Nuovo file", subtitle: model.draft.path, status: model.status,
+        Card(title: model.draft.exists ? String(localized: "Modifica file") : String(localized: "Nuovo file"), subtitle: model.draft.path, status: model.status,
              ) {
             Image(systemName: model.draft.exists ? "doc.badge.ellipsis" : "doc.badge.plus")
                 .font(.system(size: 16)).foregroundStyle(Color.accentColor).frame(width: 26)
@@ -843,8 +846,8 @@ struct FileWriteCard: View {
                         }
                         .font(DS.Fonts.caption)
                     }
-                    CardActions(note: model.draft.exists ? (model.draft.change == nil ? "Il file verrà sovrascritto con questo contenuto." : "Il resto del file resta invariato.") : "Il file verrà creato nella cartella del progetto.",
-                                primary: model.draft.exists ? "Salva modifiche" : "Crea file", cancel: { model.status = .cancelled }) { state.confirm(model) }
+                    CardActions(note: model.draft.exists ? (model.draft.change == nil ? String(localized: "Il file verrà sovrascritto con questo contenuto.") : String(localized: "Il resto del file resta invariato.")) : String(localized: "Il file verrà creato nella cartella del progetto."),
+                                primary: model.draft.exists ? String(localized: "Salva modifiche") : String(localized: "Crea file"), cancel: { model.status = .cancelled }) { state.confirm(model) }
                 } else if let error = model.error {
                     Text(error).font(DS.Fonts.caption).foregroundStyle(.red)
                 } else if model.status == .done {
@@ -872,8 +875,8 @@ struct FileOpCard: View {
     @Bindable var model: FileOpCardModel
 
     var body: some View {
-        Card(title: model.draft.title, subtitle: state.projects.first { $0.id == model.projectID }?.name ?? "Progetto", status: model.status,
-             statusLabel: model.status == .done ? "Fatto" : nil) {
+        Card(title: model.draft.title, subtitle: state.projects.first { $0.id == model.projectID }?.name ?? String(localized: "Progetto"), status: model.status,
+             statusLabel: model.status == .done ? String(localized: "Fatto") : nil) {
             Image(systemName: symbol).font(.system(size: 16)).foregroundStyle(model.draft.kind == .trash ? Color.red : Color.accentColor).frame(width: 26)
         } content: {
             VStack(alignment: .leading, spacing: 10) {
@@ -925,7 +928,7 @@ struct MCPCallCard: View {
     let model: MCPCallCardModel
 
     var body: some View {
-        Card(title: model.draft.tool.name, subtitle: "Connettore «\(model.draft.tool.serverName)»" + ((model.draft.steps ?? []).isEmpty ? "" : " · passo \((model.draft.steps ?? []).count + 1)"), status: model.status,
+        Card(title: model.draft.tool.name, subtitle: String(localized: "Connettore «\(model.draft.tool.serverName)»") + ((model.draft.steps ?? []).isEmpty ? "" : String(localized: " · passo \((model.draft.steps ?? []).count + 1)")), status: model.status,
              ) {
             Image(systemName: "puzzlepiece.extension.fill").font(.system(size: 15)).foregroundStyle(.purple).frame(width: 26)
         } content: {
@@ -940,7 +943,7 @@ struct MCPCallCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.surfaceSubtle, in: RoundedRectangle(cornerRadius: 8))
                 if model.status == .awaiting {
-                    CardActions(primary: "Esegui", cancel: { model.status = .cancelled }, secondary: {
+                    CardActions(primary: String(localized: "Esegui"), cancel: { model.status = .cancelled }, secondary: {
                         Button("Consenti sempre") { state.approve(model, always: true) }
                             .help("Non chiederò più conferma per questo strumento")
                     }) { state.approve(model, always: false) }

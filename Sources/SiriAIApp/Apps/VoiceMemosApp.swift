@@ -24,8 +24,8 @@ struct VoiceMemosAppView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            AppHeader(source: .voiceMemos, title: "Memo Vocali", subtitle: memos.count == 1 ? "1 registrazione" : "\(memos.count) registrazioni",
-                      search: $search, searchPrompt: "Cerca nelle registrazioni", onRefresh: { reload() }) {
+            AppHeader(source: .voiceMemos, title: String(localized: "Memo Vocali"), subtitle: memos.count == 1 ? String(localized: "1 registrazione") : String(localized: "\(memos.count) registrazioni"),
+                      search: $search, searchPrompt: String(localized: "Cerca nelle registrazioni"), onRefresh: { reload() }) {
                 Button { toggleRecording() } label: {
                     Image(systemName: recorder.isRecording ? "stop.circle.fill" : "record.circle.fill")
                         .font(.system(size: 20))
@@ -33,7 +33,7 @@ struct VoiceMemosAppView: View {
                         .frame(width: 28, height: 24)
                 }
                 .buttonStyle(.borderless)
-                .iconHelp(recorder.isRecording ? "Ferma la registrazione" : "Nuova registrazione")
+                .iconHelp(recorder.isRecording ? String(localized: "Ferma la registrazione") : String(localized: "Nuova registrazione"))
                 .disabled(!state.canWrite(.voiceMemos))
             }
             Divider()
@@ -45,9 +45,9 @@ struct VoiceMemosAppView: View {
                                onChanged: { renamedTo in reload(select: renamedTo) }, onDeleted: { selectedID = nil; reload() })
                         .id(memo.id)
                 } else {
-                    AppPlaceholder(symbol: "waveform", title: memos.isEmpty ? "Nessuna registrazione" : "Nessuna registrazione selezionata",
-                                   message: "Ascolta, trascrivi e riassumi i tuoi memo vocali, o registrane uno nuovo con il pulsante rosso.",
-                                   actionTitle: state.canWrite(.voiceMemos) ? "Registra" : nil, action: toggleRecording)
+                    AppPlaceholder(symbol: "waveform", title: memos.isEmpty ? String(localized: "Nessuna registrazione") : String(localized: "Nessuna registrazione selezionata"),
+                                   message: String(localized: "Ascolta, trascrivi e riassumi i tuoi memo vocali, o registrane uno nuovo con il pulsante rosso."),
+                                   actionTitle: state.canWrite(.voiceMemos) ? String(localized: "Registra") : nil, action: toggleRecording)
                 }
             }
         }
@@ -68,16 +68,16 @@ struct VoiceMemosAppView: View {
 
     private var memoList: some View {
         VStack(spacing: 0) {
-            ListHeading(title: "Tutte le registrazioni", count: "\(visible.count)")
+            ListHeading(title: String(localized: "Tutte le registrazioni"), count: "\(visible.count)")
             if !readable {
-                InlineBanner(symbol: "lock", tint: .orange, text: "Per vedere le registrazioni di Memo Vocali serve l'accesso completo al disco.") {
+                InlineBanner(symbol: "lock", tint: .orange, text: String(localized: "Per vedere le registrazioni di Memo Vocali serve l'accesso completo al disco.")) {
                     Button("Concedi") { PermissionCenter.openSettings(.fullDisk) }
                 }
                 .padding(.horizontal, 10)
                 .padding(.bottom, 6)
             }
             if visible.isEmpty {
-                AppPlaceholder(symbol: search.isEmpty ? "waveform" : "magnifyingglass", title: search.isEmpty ? "Nessuna registrazione" : "Nessun risultato")
+                AppPlaceholder(symbol: search.isEmpty ? "waveform" : "magnifyingglass", title: search.isEmpty ? String(localized: "Nessuna registrazione") : String(localized: "Nessun risultato"))
             } else {
                 List(selection: $selectedID) {
                     ForEach(groups, id: \.title) { group in
@@ -91,7 +91,7 @@ struct VoiceMemosAppView: View {
                                     }
                                     HStack {
                                         // Senza trascrizione il titolo è già la data.
-                                        Text(memo.preview == nil && !memo.isOwn ? "Senza trascrizione" : memo.date.listStamp)
+                                        Text(memo.preview == nil && !memo.isOwn ? String(localized: "Senza trascrizione") : memo.date.listStamp)
                                         Spacer()
                                         Text(memo.durationText).monospacedDigit()
                                     }
@@ -124,7 +124,7 @@ struct VoiceMemosAppView: View {
         var map: [String: [VoiceMemo]] = [:]
         let cal = Calendar.current
         for memo in visible {
-            let key = cal.isDateInToday(memo.date) ? "Oggi" : cal.isDateInYesterday(memo.date) ? "Ieri"
+            let key = cal.isDateInToday(memo.date) ? String(localized: "Oggi") : cal.isDateInYesterday(memo.date) ? String(localized: "Ieri")
                 : memo.date.formatted(.dateTime.month(.wide).year().locale(Dates.locale)).capitalized
             if map[key] == nil { order.append(key) }
             map[key, default: []].append(memo)
@@ -147,14 +147,14 @@ struct VoiceMemosAppView: View {
             do {
                 try await recorder.start()
             } catch {
-                state.appFailed(.voiceMemos, "Registrazione non avviata", error)
+                state.appFailed(.voiceMemos, String(localized: "Registrazione non avviata"), error)
             }
         }
     }
 
     private func finishRecording() {
         guard let url = recorder.stop() else { return }
-        state.appDone(.voiceMemos, "Registrazione salvata", detail: url.lastPathComponent)
+        state.appDone(.voiceMemos, String(localized: "Registrazione salvata"), detail: url.lastPathComponent)
         let id = "own:" + url.lastPathComponent
         justRecorded = id
         reload(select: id)
@@ -183,7 +183,7 @@ private struct RecordingBar: View {
                 Image(systemName: "stop.circle.fill").font(.system(size: 26)).foregroundStyle(.red)
             }
             .buttonStyle(.plain)
-            .iconHelp("Ferma e salva")
+            .iconHelp(String(localized: "Ferma e salva"))
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -222,10 +222,10 @@ private struct MemoDetail: View {
                             Text(memo.preview.map { VoiceMemosAppView.headline($0) } ?? memo.title).font(.system(size: 22, weight: .bold))
                         }
                         let dateIsTitle = !memo.isOwn && memo.preview == nil
-                        Text(dateIsTitle ? "Durata \(memo.durationText)"
-                             : "\(memo.date.formatted(.dateTime.weekday(.wide).day().month(.wide).year().hour().minute().locale(Dates.locale))) · \(memo.durationText)")
+                        Text(dateIsTitle ? String(localized: "Durata \(memo.durationText)")
+                             : String(localized: "\(memo.date.formatted(.dateTime.weekday(.wide).day().month(.wide).year().hour().minute().locale(Dates.locale))) · \(memo.durationText)"))
                             .font(.system(size: 13)).foregroundStyle(.secondary)
-                        Text(memo.isOwn ? "Registrata in Siri AI+" : "Da Memo Vocali").font(.system(size: 12)).foregroundStyle(.tertiary)
+                        Text(memo.isOwn ? String(localized: "Registrata in Siri AI+") : String(localized: "Da Memo Vocali")).font(.system(size: 12)).foregroundStyle(.tertiary)
                     }
                     playerControls
                     transcriptSection
@@ -237,13 +237,13 @@ private struct MemoDetail: View {
             InspectorFooter {
                 if memo.isOwn {
                     Button(role: .destructive) { confirmDelete = true } label: { Image(systemName: "trash") }
-                        .iconHelp("Sposta nel Cestino").disabled(!canWrite)
+                        .iconHelp(String(localized: "Sposta nel Cestino")).disabled(!canWrite)
                 }
                 Button { NSWorkspace.shared.activateFileViewerSelecting([memo.url]) } label: { Image(systemName: "folder") }
-                    .iconHelp("Mostra nel Finder")
+                    .iconHelp(String(localized: "Mostra nel Finder"))
                 if !memo.isOwn {
                     Button { SourceKind.voiceMemos.openSystemApp() } label: { Image(systemName: "arrow.up.forward.app") }
-                        .iconHelp("Apri Memo Vocali")
+                        .iconHelp(String(localized: "Apri Memo Vocali"))
                 }
             } trailing: {
                 Button { createNote() } label: { Label("Crea nota", systemImage: "note.text.badge.plus") }
@@ -267,9 +267,9 @@ private struct MemoDetail: View {
                 do {
                     player.stop()
                     try VoiceMemosStore.trash(memo)
-                    state.appDone(.voiceMemos, "Registrazione nel Cestino", detail: memo.title)
+                    state.appDone(.voiceMemos, String(localized: "Registrazione nel Cestino"), detail: memo.title)
                     onDeleted()
-                } catch { state.appFailed(.voiceMemos, "Registrazione non eliminata", error) }
+                } catch { state.appFailed(.voiceMemos, String(localized: "Registrazione non eliminata"), error) }
             }
         } message: {
             Text("Si recupera dal Cestino del Finder.")
@@ -294,16 +294,16 @@ private struct MemoDetail: View {
                     }
                 } label: { Text(String(format: "%.2g×", player.rate)).font(.system(size: 13, weight: .semibold)) }
                 .menuStyle(.button).menuIndicator(.hidden).buttonStyle(.borderless).fixedSize()
-                .iconHelp("Velocità")
+                .iconHelp(String(localized: "Velocità"))
                 Button { player.skip(-15) } label: { Image(systemName: "gobackward.15").font(.system(size: 20)) }
-                    .buttonStyle(.borderless).iconHelp("Indietro di 15 secondi")
+                    .buttonStyle(.borderless).iconHelp(String(localized: "Indietro di 15 secondi"))
                 Button { player.toggle() } label: {
                     Image(systemName: player.playing ? "pause.circle.fill" : "play.circle.fill").font(.system(size: 44))
                 }
                 .buttonStyle(.plain)
-                .iconHelp(player.playing ? "Pausa" : "Ascolta")
+                .iconHelp(player.playing ? String(localized: "Pausa") : String(localized: "Ascolta"))
                 Button { player.skip(15) } label: { Image(systemName: "goforward.15").font(.system(size: 20)) }
-                    .buttonStyle(.borderless).iconHelp("Avanti di 15 secondi")
+                    .buttonStyle(.borderless).iconHelp(String(localized: "Avanti di 15 secondi"))
                 Color.clear.frame(width: 30, height: 1)
             }
             .frame(maxWidth: .infinity)
@@ -321,9 +321,9 @@ private struct MemoDetail: View {
                     Button {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(transcript, forType: .string)
-                        state.showToast("Trascrizione copiata", symbol: "doc.on.doc")
+                        state.showToast(String(localized: "Trascrizione copiata"), symbol: "doc.on.doc")
                     } label: { Image(systemName: "doc.on.doc") }
-                    .buttonStyle(.borderless).iconHelp("Copia la trascrizione")
+                    .buttonStyle(.borderless).iconHelp(String(localized: "Copia la trascrizione"))
                 }
             }
             if let transcript {
@@ -336,7 +336,7 @@ private struct MemoDetail: View {
                 }
             } else {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(error ?? "Questa registrazione non ha ancora una trascrizione. La faccio sul Mac, senza inviare l'audio a nessuno.")
+                    Text(error ?? String(localized: "Questa registrazione non ha ancora una trascrizione. La faccio sul Mac, senza inviare l'audio a nessuno."))
                         .font(.system(size: 13)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     Button { Task { await transcribe() } } label: { Label("Trascrivi", systemImage: "text.bubble") }
                 }
@@ -352,12 +352,12 @@ private struct MemoDetail: View {
         defer { transcribing = false }
         do {
             let text = try await VoiceMemosStore.transcribe(memo.url)
-            guard !text.isEmpty else { error = "Non ho sentito parole in questa registrazione."; return }
+            guard !text.isEmpty else { error = String(localized: "Non ho sentito parole in questa registrazione."); return }
             VoiceMemosStore.saveTranscript(text, for: memo)
             transcript = text
             onChanged(nil)
         } catch {
-            self.error = "Trascrizione non riuscita: \(error.localizedDescription)"
+            self.error = String(localized: "Trascrizione non riuscita: \(error.localizedDescription)")
         }
     }
 
@@ -367,25 +367,25 @@ private struct MemoDetail: View {
         do {
             player.stop()
             let url = try VoiceMemosStore.rename(memo, to: clean)
-            state.appDone(.voiceMemos, "Registrazione rinominata", detail: clean)
+            state.appDone(.voiceMemos, String(localized: "Registrazione rinominata"), detail: clean)
             onChanged("own:" + url.lastPathComponent)
-        } catch { state.appFailed(.voiceMemos, "Registrazione non rinominata", error) }
+        } catch { state.appFailed(.voiceMemos, String(localized: "Registrazione non rinominata"), error) }
     }
 
     private func summarize() {
         guard let transcript else { return }
         let when = memo.date.formatted(.dateTime.day().month(.wide).hour().minute().locale(Dates.locale))
-        state.send("Riassumi questo memo vocale del \(when) e dimmi se c'è qualcosa da fare:\n\n«\(transcript.prefix(6000))»")
+        state.send(String(localized: "Riassumi questo memo vocale del \(when) e dimmi se c'è qualcosa da fare:\n\n«\(transcript.prefix(6000))»"))
     }
 
     private func createNote() {
         guard let transcript else { return }
-        let title = "Memo vocale del " + memo.date.formatted(.dateTime.day().month(.wide).year().locale(Dates.locale))
+        let title = String(localized: "Memo vocale del ") + memo.date.formatted(.dateTime.day().month(.wide).year().locale(Dates.locale))
         Task {
             do {
                 try await NotesStore.create(title: title, body: transcript, in: nil)
-                state.appDone(.notes, "Nota creata dalla trascrizione", detail: title)
-            } catch { state.appFailed(.notes, "Nota non creata", error) }
+                state.appDone(.notes, String(localized: "Nota creata dalla trascrizione"), detail: title)
+            } catch { state.appFailed(.notes, String(localized: "Nota non creata"), error) }
         }
     }
 }
@@ -456,7 +456,7 @@ final class MemoRecorder {
         // Il microfono lo chiede macOS la prima volta (poi lo ricorda).
         if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined { _ = await AVCaptureDevice.requestAccess(for: .audio) }
         guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
-            throw NSError(domain: AppInfo.name, code: 31, userInfo: [NSLocalizedDescriptionKey: "Siri AI+ non ha il permesso di usare il microfono: Impostazioni di Sistema › Privacy e sicurezza › Microfono."])
+            throw NSError(domain: AppInfo.name, code: 31, userInfo: [NSLocalizedDescriptionKey: String(localized: "Siri AI+ non ha il permesso di usare il microfono: Impostazioni di Sistema › Privacy e sicurezza › Microfono.")])
         }
         let url = VoiceMemosStore.newRecordingURL()
         let settings: [String: Any] = [AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 44_100, AVNumberOfChannelsKey: 1,
@@ -464,7 +464,7 @@ final class MemoRecorder {
         let recorder = try AVAudioRecorder(url: url, settings: settings)
         recorder.isMeteringEnabled = true
         guard recorder.record() else {
-            throw NSError(domain: AppInfo.name, code: 32, userInfo: [NSLocalizedDescriptionKey: "Il microfono non è disponibile."])
+            throw NSError(domain: AppInfo.name, code: 32, userInfo: [NSLocalizedDescriptionKey: String(localized: "Il microfono non è disponibile.")])
         }
         self.recorder = recorder
         isRecording = true

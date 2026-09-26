@@ -158,14 +158,14 @@ struct PagesEditor: View {
     @State private var aiWorking = false
     @State private var color = Color.black
     private static let aiActions: [(String, String)] = [
-        ("Riscrivi", "Riscrivi il testo in modo più chiaro e scorrevole"),
-        ("Abbrevia", "Accorcia il testo mantenendo i concetti chiave"),
-        ("Espandi", "Espandi il testo con dettagli utili e concreti"),
-        ("Correggi", "Correggi ortografia, grammatica e punteggiatura senza cambiare il contenuto"),
-        ("Tono formale", "Riscrivi con un tono professionale e formale"),
-        ("Tono amichevole", "Riscrivi con un tono cordiale e diretto"),
-        ("Traduci in inglese", "Traduci il testo in inglese"),
-        ("Elenco puntato", "Trasforma il testo in un elenco puntato sintetico, una riga per punto, con il simbolo •"),
+        (String(localized: "Riscrivi"), String(localized: "Riscrivi il testo in modo più chiaro e scorrevole")),
+        (String(localized: "Abbrevia"), String(localized: "Accorcia il testo mantenendo i concetti chiave")),
+        (String(localized: "Espandi"), String(localized: "Espandi il testo con dettagli utili e concreti")),
+        (String(localized: "Correggi"), String(localized: "Correggi ortografia, grammatica e punteggiatura senza cambiare il contenuto")),
+        (String(localized: "Tono formale"), String(localized: "Riscrivi con un tono professionale e formale")),
+        (String(localized: "Tono amichevole"), String(localized: "Riscrivi con un tono cordiale e diretto")),
+        (String(localized: "Traduci in inglese"), String(localized: "Traduci il testo in inglese")),
+        (String(localized: "Elenco puntato"), String(localized: "Trasforma il testo in un elenco puntato sintetico, una riga per punto, con il simbolo •")),
     ]
 
     var body: some View {
@@ -185,12 +185,12 @@ struct PagesEditor: View {
                 Toggle(isOn: Binding(get: { controller.isUnderlined }, set: { _ in controller.toggleUnderline() })) { Image(systemName: "underline") }
                     .toggleStyle(.button).help("Sottolineato (⌘U)").keyboardShortcut("u")
                 ToolbarDivider()
-                Button { controller.setSize(max(8, controller.fontSize - 1)) } label: { Image(systemName: "textformat.size.smaller") }.iconHelp("Riduci")
+                Button { controller.setSize(max(8, controller.fontSize - 1)) } label: { Image(systemName: "textformat.size.smaller") }.iconHelp(String(localized: "Riduci"))
                 Text("\(Int(controller.fontSize)) pt").font(DS.Fonts.caption).monospacedDigit().frame(width: 38)
-                Button { controller.setSize(min(96, controller.fontSize + 1)) } label: { Image(systemName: "textformat.size.larger") }.iconHelp("Ingrandisci")
+                Button { controller.setSize(min(96, controller.fontSize + 1)) } label: { Image(systemName: "textformat.size.larger") }.iconHelp(String(localized: "Ingrandisci"))
                 ColorPicker("Colore", selection: Binding(get: { color }, set: { color = $0; controller.setColor(NSColor($0)) }))
                     .labelsHidden()
-                    .iconHelp("Colore del testo selezionato")
+                    .iconHelp(String(localized: "Colore del testo selezionato"))
                 ToolbarDivider()
                 Picker("Allineamento", selection: Binding(get: { controller.alignment == .natural ? .left : controller.alignment }, set: { controller.setAlignment($0) })) {
                     Image(systemName: "text.alignleft").tag(NSTextAlignment.left)
@@ -201,7 +201,7 @@ struct PagesEditor: View {
                 .pickerStyle(.segmented)
                 .labelsHidden()
                 .fixedSize()
-                Button { controller.toggleBullets() } label: { Image(systemName: "list.bullet") }.iconHelp("Elenco puntato")
+                Button { controller.toggleBullets() } label: { Image(systemName: "list.bullet") }.iconHelp(String(localized: "Elenco puntato"))
                 ToolbarDivider()
                 Menu {
                     Button("Da file…") { chooseImage(controller) }
@@ -209,13 +209,13 @@ struct PagesEditor: View {
                 } label: { Image(systemName: "photo.badge.plus") }
                 .menuIndicator(.hidden)
                 .fixedSize()
-                .iconHelp("Inserisci immagine")
+                .iconHelp(String(localized: "Inserisci immagine"))
                 .popover(isPresented: $showImage) {
                     GenerateImagePopover { url in controller.insertImage(url); showImage = false }
                 }
                 Spacer()
                 Menu {
-                    Text(controller.hasSelection ? "Sul testo selezionato" : "Su tutto il documento")
+                    Text(controller.hasSelection ? String(localized: "Sul testo selezionato") : String(localized: "Su tutto il documento"))
                     ForEach(Self.aiActions, id: \.0) { action in
                         Button(action.0) { runAI(action.1, controller) }
                     }
@@ -260,7 +260,7 @@ struct PagesEditor: View {
         Task {
             if controller.hasSelection {
                 let text = controller.selectedText
-                artifact.snapshot("Prima di «\(instruction.prefix(30))»")
+                artifact.snapshot(String(localized: "Prima di «\(instruction.prefix(30))»"))
                 if !text.isEmpty, let result = try? await state.rewrite(text, instruction: instruction) { controller.replaceSelection(with: result) }
             } else {
                 // Tutto il documento: un paragrafo alla volta, titoli e formattazione restano (niente si tronca).

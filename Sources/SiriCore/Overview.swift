@@ -67,7 +67,7 @@ public enum Overview {
                 return EventItem(
                     id: identifier + "\($0.startDate.timeIntervalSince1970)",
                     identifier: identifier,
-                    title: $0.title ?? "(senza titolo)",
+                    title: $0.title ?? Language.t("(senza titolo)", "(untitled)"),
                     start: $0.startDate, end: $0.endDate, isAllDay: $0.isAllDay,
                     calendar: $0.calendar.title, color: RGB($0.calendar.cgColor),
                     location: $0.location?.isEmpty == false ? $0.location : nil
@@ -94,7 +94,7 @@ public enum Overview {
                 let items = (reminders ?? []).map { r in
                     ReminderItem(
                         id: r.calendarItemIdentifier,
-                        title: r.title ?? "(senza titolo)",
+                        title: r.title ?? Language.t("(senza titolo)", "(untitled)"),
                         list: r.calendar.title,
                         due: r.dueDateComponents.flatMap { Calendar.current.date(from: $0) },
                         dueHasTime: r.dueDateComponents?.hour != nil,

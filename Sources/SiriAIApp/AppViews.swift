@@ -18,7 +18,7 @@ extension SourceKind {
         }
     }
 
-    var systemAppName: String { self == .files ? "Finder" : label }
+    var systemAppName: String { self == .files ? String(localized: "Finder") : label }
 
     func openSystemApp() {
         if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: systemBundleID) {
@@ -98,8 +98,8 @@ struct ConnectAppView: View {
     let source: SourceKind
 
     var body: some View {
-        AppGate(source: source, title: "Collega \(source.label)",
-                message: "Per vedere e gestire \(source.label.lowercased()) da Siri AI+ serve il tuo consenso: \(source.readCapability.lowercased()). macOS lo chiede una volta sola e poi lo ricorda.") {
+        AppGate(source: source, title: String(localized: "Collega \(source.label)"),
+                message: String(localized: "Per vedere e gestire \(source.label.lowercased()) da Siri AI+ serve il tuo consenso: \(source.readCapability.lowercased()). macOS lo chiede una volta sola e poi lo ricorda.")) {
             if state.systemDenied(source) {
                 Button("Apri Impostazioni di Sistema") { state.openPrivacySettings(for: source) }.buttonStyle(.glassProminent)
             } else {
@@ -113,8 +113,8 @@ struct ComingSoonAppView: View {
     let source: SourceKind
 
     var body: some View {
-        AppGate(source: source, title: "\(source.label) arriva presto",
-                message: "Qui potrai \(source.readCapability.lowercased()) e chiedere a Siri AI+ di lavorarci. Nel frattempo puoi aprire l'app di sistema.") {
+        AppGate(source: source, title: String(localized: "\(source.label) arriva presto"),
+                message: String(localized: "Qui potrai \(source.readCapability.lowercased()) e chiedere a Siri AI+ di lavorarci. Nel frattempo puoi aprire l'app di sistema.")) {
             Button("Apri \(source.systemAppName)") { source.openSystemApp() }.buttonStyle(.glass)
         }
     }

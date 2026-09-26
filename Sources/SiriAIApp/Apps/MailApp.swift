@@ -28,9 +28,9 @@ struct MailAppView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            AppHeader(source: .mail, title: "Mail", subtitle: subtitle, search: $search, searchPrompt: "Cerca mittente, oggetto…",
+            AppHeader(source: .mail, title: String(localized: "Mail"), subtitle: subtitle, search: $search, searchPrompt: String(localized: "Cerca mittente, oggetto…"),
                       onSearch: { Task { await loadMessages() } }, onRefresh: { Task { await reloadAll() } }) {
-                AppIconButton(symbol: "square.and.pencil", help: "Nuova email", prominent: true) {
+                AppIconButton(symbol: "square.and.pencil", help: String(localized: "Nuova email"), prominent: true) {
                     composing = ComposeItem(composition: MailComposition(from: defaultSender))
                 }
                 .disabled(!state.canWrite(.mail))
@@ -38,15 +38,15 @@ struct MailAppView: View {
             Divider()
             if !fast {
                 InlineBanner(symbol: "bolt.horizontal.circle", tint: .orange,
-                             text: "Mail è lenta senza l'accesso completo al disco: con la tua posta servono anche minuti. Concedilo una volta e Siri AI+ legge l'indice di Mail all'istante.") {
+                             text: String(localized: "Mail è lenta senza l'accesso completo al disco: con la tua posta servono anche minuti. Concedilo una volta e Siri AI+ legge l'indice di Mail all'istante.")) {
                     Button("Apri Impostazioni") { PermissionCenter.openSettings(.fullDisk) }
                 }
                 .padding(10)
             }
             if let error, messages.isEmpty {
-                AccessNotice(symbol: "envelope.badge.shield.half.filled", title: "Mail non risponde", message: error,
-                             primary: ("Riprova", { Task { await reloadAll() } }),
-                             secondary: ("Permessi", { PermissionCenter.openSettings(.automation) }))
+                AccessNotice(symbol: "envelope.badge.shield.half.filled", title: String(localized: "Mail non risponde"), message: error,
+                             primary: (String(localized: "Riprova"), { Task { await reloadAll() } }),
+                             secondary: (String(localized: "Permessi"), { PermissionCenter.openSettings(.automation) }))
             } else {
                 AppColumns(sourcesWidth: 226, itemsWidth: 340) {
                     MailboxList(mailboxes: mailboxes, selection: $box)
@@ -60,8 +60,8 @@ struct MailAppView: View {
                                    onAction: { perform($0, on: message) })
                             .id(message.id)
                     } else {
-                        AppPlaceholder(symbol: "envelope.open", title: messages.isEmpty ? "Nessuna email" : "Nessuna email selezionata",
-                                       message: messages.isEmpty ? nil : "Scegli un'email da leggere. Da qui rispondi, inoltri, sposti o elimini.")
+                        AppPlaceholder(symbol: "envelope.open", title: messages.isEmpty ? String(localized: "Nessuna email") : String(localized: "Nessuna email selezionata"),
+                                       message: messages.isEmpty ? nil : String(localized: "Scegli un'email da leggere. Da qui rispondi, inoltri, sposti o elimini."))
                     }
                 }
             }
@@ -116,7 +116,7 @@ struct MailAppView: View {
 
     private var subtitle: String {
         let unread = mailboxes.first { $0.account == nil && $0.kind == .inbox }?.unread ?? 0
-        return unread == 0 ? "Nessuna email da leggere" : unread == 1 ? "1 email da leggere" : "\(unread) email da leggere"
+        return unread == 0 ? String(localized: "Nessuna email da leggere") : unread == 1 ? String(localized: "1 email da leggere") : String(localized: "\(unread) email da leggere")
     }
 
     private var defaultSender: String {
@@ -142,9 +142,9 @@ struct MailAppView: View {
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 18).padding(.bottom, 4)
             }
             if loading && messages.isEmpty {
-                ProgressView(fast ? "Carico…" : "Leggo la posta da Mail…").frame(maxWidth: .infinity, maxHeight: .infinity)
+                ProgressView(fast ? String(localized: "Carico…") : String(localized: "Leggo la posta da Mail…")).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if messages.isEmpty {
-                AppPlaceholder(symbol: search.isEmpty ? "tray" : "magnifyingglass", title: search.isEmpty ? "Nessuna email" : "Nessun risultato")
+                AppPlaceholder(symbol: search.isEmpty ? "tray" : "magnifyingglass", title: search.isEmpty ? String(localized: "Nessuna email") : String(localized: "Nessun risultato"))
             } else {
                 List(selection: $selectedID) {
                     ForEach(messages) { message in
@@ -170,8 +170,8 @@ struct MailAppView: View {
     }
 
     @ViewBuilder private func rowMenu(_ message: MailSummary) -> some View {
-        Button(message.read ? "Segna come non letta" : "Segna come letta") { perform(.read(!message.read), on: message) }
-        Button(message.flagged ? "Togli contrassegno" : "Contrassegna") { perform(.flag(!message.flagged), on: message) }
+        Button(message.read ? String(localized: "Segna come non letta") : String(localized: "Segna come letta")) { perform(.read(!message.read), on: message) }
+        Button(message.flagged ? String(localized: "Togli contrassegno") : String(localized: "Contrassegna")) { perform(.flag(!message.flagged), on: message) }
         MoveMenu(message: message, box: message.location ?? box, mailboxes: mailboxes) { perform(.move($0), on: message) }
         Divider()
         Button("Apri in Mail") { perform(.open, on: message) }
@@ -251,15 +251,15 @@ struct MailAppView: View {
             do {
                 try await MailStore.perform(action, on: message.id, in: target)
                 switch action {
-                case .delete: state.appDone(.mail, "Email spostata nel Cestino", detail: message.subject)
-                case .move(let destination): state.appDone(.mail, "Email spostata in «\(destination.displayName)»", detail: message.subject)
-                case .flag(true): state.showToast("Email contrassegnata", symbol: "flag.fill")
+                case .delete: state.appDone(.mail, String(localized: "Email spostata nel Cestino"), detail: message.subject)
+                case .move(let destination): state.appDone(.mail, String(localized: "Email spostata in «\(destination.displayName)»"), detail: message.subject)
+                case .flag(true): state.showToast(String(localized: "Email contrassegnata"), symbol: "flag.fill")
                 default: break
                 }
                 try? await Task.sleep(for: .seconds(1))
                 await refreshQuietly()
             } catch {
-                state.appFailed(.mail, "Azione non riuscita", error)
+                state.appFailed(.mail, String(localized: "Azione non riuscita"), error)
                 await loadMessages()
             }
         }
@@ -317,7 +317,7 @@ private struct MailboxMenu: View {
                 }
             } label: { Image(systemName: "sidebar.left") }
             .menuStyle(.button).menuIndicator(.hidden).buttonStyle(.borderless).fixedSize()
-            .iconHelp("Caselle")
+            .iconHelp(String(localized: "Caselle"))
         }
     }
 }
@@ -359,7 +359,7 @@ private struct MailRow: View {
                     if message.flagged { Image(systemName: "flag.fill").font(.system(size: 10)).foregroundStyle(.orange) }
                     Text(message.date.listStamp).font(.system(size: 11.5)).foregroundStyle(.secondary)
                 }
-                Text(message.subject.isEmpty ? "(senza oggetto)" : message.subject)
+                Text(message.subject.isEmpty ? String(localized: "(senza oggetto)") : message.subject)
                     .font(.system(size: 12.5, weight: message.read ? .regular : .semibold))
                     .lineLimit(1)
                 if !message.preview.isEmpty {
@@ -412,7 +412,7 @@ private struct MailReader: View {
                             }
                         }
                     }
-                    Text(summary.subject.isEmpty ? "(senza oggetto)" : summary.subject)
+                    Text(summary.subject.isEmpty ? String(localized: "(senza oggetto)") : summary.subject)
                         .font(.system(size: 20, weight: .bold))
                         .textSelection(.enabled)
                     if let attachments = header?.attachments ?? content?.attachments, !attachments.isEmpty {
@@ -477,27 +477,27 @@ private struct MailReader: View {
 
     private var toolbar: some View {
         HStack(spacing: 4) {
-            AppIconButton(symbol: "arrowshape.turn.up.left", help: "Rispondi") { if let content { onReply(content, false) } }
-            AppIconButton(symbol: "arrowshape.turn.up.left.2", help: "Rispondi a tutti") { if let content { onReply(content, true) } }
-            AppIconButton(symbol: "arrowshape.turn.up.right", help: "Inoltra") { if let content { onForward(content) } }
+            AppIconButton(symbol: "arrowshape.turn.up.left", help: String(localized: "Rispondi")) { if let content { onReply(content, false) } }
+            AppIconButton(symbol: "arrowshape.turn.up.left.2", help: String(localized: "Rispondi a tutti")) { if let content { onReply(content, true) } }
+            AppIconButton(symbol: "arrowshape.turn.up.right", help: String(localized: "Inoltra")) { if let content { onForward(content) } }
             Divider().frame(height: 18).padding(.horizontal, 4)
-            AppIconButton(symbol: summary.flagged ? "flag.slash" : "flag", help: summary.flagged ? "Togli contrassegno" : "Contrassegna") {
+            AppIconButton(symbol: summary.flagged ? "flag.slash" : "flag", help: summary.flagged ? String(localized: "Togli contrassegno") : String(localized: "Contrassegna")) {
                 onAction(.flag(!summary.flagged))
             }
-            AppIconButton(symbol: summary.read ? "envelope.badge" : "envelope.open", help: summary.read ? "Segna come non letta" : "Segna come letta") {
+            AppIconButton(symbol: summary.read ? "envelope.badge" : "envelope.open", help: summary.read ? String(localized: "Segna come non letta") : String(localized: "Segna come letta")) {
                 onAction(.read(!summary.read))
             }
             Menu {
                 MoveMenuItems(box: box, mailboxes: mailboxes) { onAction(.move($0)) }
             } label: { Image(systemName: "folder") }
             .menuStyle(.button).menuIndicator(.hidden).buttonStyle(.borderless).fixedSize()
-            .iconHelp("Sposta in")
-            AppIconButton(symbol: "trash", help: "Elimina", role: .destructive) { onAction(.delete) }
+            .iconHelp(String(localized: "Sposta in"))
+            AppIconButton(symbol: "trash", help: String(localized: "Elimina"), role: .destructive) { onAction(.delete) }
             Spacer()
-            AppIconButton(symbol: "sparkle", help: "Chiedi a Siri AI+ di questa email") {
-                state.send("Riassumi l'email «\(summary.subject)» di \(summary.senderName) e dimmi se devo rispondere")
+            AppIconButton(symbol: "sparkle", help: String(localized: "Chiedi a Siri AI+ di questa email")) {
+                state.send(String(localized: "Riassumi l'email «\(summary.subject)» di \(summary.senderName) e dimmi se devo rispondere"))
             }
-            AppIconButton(symbol: "arrow.up.forward.app", help: "Apri in Mail") { onAction(.open) }
+            AppIconButton(symbol: "arrow.up.forward.app", help: String(localized: "Apri in Mail")) { onAction(.open) }
         }
         .disabled(!canWrite)
         .padding(.horizontal, 12)
@@ -546,9 +546,9 @@ struct MailComposeView: View {
 
     private var title: String {
         switch composition.mode {
-        case .new: "Nuova email"
-        case .reply(_, _, let all): all ? "Rispondi a tutti" : "Rispondi"
-        case .forward: "Inoltra"
+        case .new: String(localized: "Nuova email")
+        case .reply(_, _, let all): all ? String(localized: "Rispondi a tutti") : String(localized: "Rispondi")
+        case .forward: String(localized: "Inoltra")
         }
     }
 
@@ -564,7 +564,7 @@ struct MailComposeView: View {
             Divider()
             VStack(spacing: 0) {
                 if !senders.isEmpty {
-                    field("Da") {
+                    field(String(localized: "Da")) {
                         Picker("", selection: $composition.from) {
                             ForEach(senders, id: \.self) { Text($0).tag($0) }
                         }
@@ -595,10 +595,10 @@ struct MailComposeView: View {
                     .background(Color.accentColor.opacity(0.06))
                 }
                 if showCc || !composition.cc.isEmpty || !composition.bcc.isEmpty {
-                    field("Cc") { TextField("", text: $composition.cc).textFieldStyle(.plain) }
-                    field("Ccn") { TextField("", text: $composition.bcc).textFieldStyle(.plain) }
+                    field(String(localized: "Cc")) { TextField("", text: $composition.cc).textFieldStyle(.plain) }
+                    field(String(localized: "Ccn")) { TextField("", text: $composition.bcc).textFieldStyle(.plain) }
                 }
-                field("Oggetto") { TextField("", text: $composition.subject).textFieldStyle(.plain).font(.system(size: 13, weight: .semibold)) }
+                field(String(localized: "Oggetto")) { TextField("", text: $composition.subject).textFieldStyle(.plain).font(.system(size: 13, weight: .semibold)) }
             }
             TextEditor(text: $composition.body)
                 .font(.system(size: 14))
@@ -685,7 +685,7 @@ struct MailComposeView: View {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
-        panel.prompt = "Allega"
+        panel.prompt = String(localized: "Allega")
         if panel.runModal() == .OK { composition.attachments += panel.urls }
     }
 
@@ -694,10 +694,10 @@ struct MailComposeView: View {
         Task {
             do {
                 try await MailStore.deliver(composition, send: send)
-                state.appDone(.mail, send ? "Email inviata" : "Email aperta in Mail", detail: composition.subject)
+                state.appDone(.mail, send ? String(localized: "Email inviata") : String(localized: "Email aperta in Mail"), detail: composition.subject)
                 onClose()
             } catch {
-                state.appFailed(.mail, send ? "Email non inviata" : "Email non aperta", error)
+                state.appFailed(.mail, send ? String(localized: "Email non inviata") : String(localized: "Email non aperta"), error)
             }
             sending = false
         }

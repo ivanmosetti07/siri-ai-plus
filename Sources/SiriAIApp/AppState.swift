@@ -135,6 +135,9 @@ final class AppState {
     /// Agenti: obiettivi su cui Siri AI+ lavora da sola, con orari, registro e approvazioni.
     var agents: [AgentSpec] = []
     var runningAgents: Set<UUID> = []
+    /// Versione più recente pubblicata su GitHub (simbolo di aggiornamento in fondo alla barra laterale); nil se è aggiornata.
+    var availableUpdate: AppUpdate?
+    @ObservationIgnored var updateTask: Task<Void, Never>?
     @ObservationIgnored private var agentTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var schedulerTask: Task<Void, Never>?
     /// File di progetto da aprire nell'editor (scheda File del progetto).
@@ -143,6 +146,9 @@ final class AppState {
     var editingAgent: AgentSpec?
     /// Sezione del dettaglio agente da aprire (es. 4 = Programmazioni).
     var agentTabRequest: Int?
+    /// Richiesta di creazione del Genmoji nel dettaglio, una volta per Genius nella sessione.
+    var genmojiRequestAgentID: UUID?
+    @ObservationIgnored private var genmojiPrompted: Set<UUID> = []
     /// Chat chiesta chattando, da aprire quando la risposta attuale è finita.
     private var pendingChat: (request: ChatRequest, project: ProjectModel?)?
     /// Colonna destra con Siri AI+ (sempre presente, si può comprimere).
@@ -329,7 +335,7 @@ final class AppState {
         contextUsage = 0
         storeRevision += 1
         Task { await refreshToday() }
-        log(icon: newSpace.symbol, title: "Spazio \(newSpace.label)", detail: "", status: .done)
+        log(icon: newSpace.symbol, title: String(localized: "Spazio \(newSpace.label)"), detail: "", status: .done)
     }
 
     private static func loadSpaces() -> [Space: SpaceSettings] {
@@ -452,10 +458,10 @@ final class AppState {
         case .apple, .ds4: choice.provider.name
         case .gemma: GemmaVariant.variant(choice.model ?? "")?.label ?? choice.provider.name
         case .chatgpt: option?.label ?? choice.model ?? choice.provider.name
-        case .claude: "Claude " + (option?.label ?? choice.model?.capitalized ?? "")
+        case .claude: String(localized: "Claude ") + (option?.label ?? choice.model?.capitalized ?? "")
         }
         // Gemma: il ragionamento si nomina solo quando è acceso.
-        if choice.provider == .gemma { return name + (choice.effort == "on" ? " · Ragionamento" : "") }
+        if choice.provider == .gemma { return name + (choice.effort == "on" ? String(localized: " · Ragionamento") : "") }
         return name + (choice.effort.map { " · " + ModelCatalog.effortLabel($0) } ?? "")
     }
 
@@ -478,7 +484,7 @@ final class AppState {
         spaceSettings[space, default: SpaceSettings()].effort = choice.effort
         saveSpaces()
         if current?.messages.isEmpty == false { saveConversations() }
-        log(icon: Self.symbol(for: choice.provider), title: "Modello per le risposte", detail: label(for: choice), status: .done)
+        log(icon: Self.symbol(for: choice.provider), title: String(localized: "Modello per le risposte"), detail: label(for: choice), status: .done)
         preparePrivacyEngine()
     }
 
@@ -606,6 +612,40 @@ final class AppState {
         }
         let args = CommandLine.arguments
         if phase == .app { await refreshAccess() }
+        // Dati isolati per le fotografie dell'interfaccia: nessun salvataggio o routine reale.
+        if let raw = AppTesting.value(after: "--demo-genius"), let requested = Int(raw) {
+            let count = min(max(requested, 0), 40)
+            Self.keepsRunning = false
+            let demoChat = Conversation()
+            demoChat.space = space.rawValue
+            conversations = [demoChat]
+            currentID = demoChat.id
+            projects = []
+            agents = (0..<count).map { index in
+                let template = AgentTemplate.all[index % AgentTemplate.all.count]
+                var spec = template.spec
+                spec.name += " \(index + 1)"
+                spec.space = space.rawValue
+                spec.created = .now.addingTimeInterval(-Double(index) * 3_600)
+                if index == 2 { spec.active = false }
+                spec.reschedule()
+                return spec
+            }
+            if count > 0 {
+                let conversation = conversation(for: agents[0])
+                let action = PendingAction(kind: .completeReminder(identifier: "genius-demo-only"),
+                                           title: String(localized: "Promemoria di esempio"), detail: String(localized: "Approvazione dimostrativa"))
+                conversation.messages.append(Message(content: .confirm(ConfirmCardModel(action))))
+            }
+            if count > 1 { runningAgents.insert(agents[1].id) }
+            if count > 0, AppPaths.isTestEnvironment, args.contains("--demo-skill") {
+                _ = try? SkillStore.save(name: String(localized: "Rassegna con fonti"), description: String(localized: "Cinque notizie con link e data"),
+                                         cues: [String(localized: "rassegna stampa"), "notizie"],
+                                         body: "## Procedura\n1. Cerca le novità del giorno.\n2. Verifica data e fonte di ogni notizia.\n3. Consegna cinque punti con i link.",
+                                         agent: agents[0].id)
+                skillsRevision += 1
+            }
+        }
         // Diagnostica: `--section calendar` apre direttamente un'app.
         if let index = args.firstIndex(of: "--section"), index + 1 < args.count, let source = SourceKind(rawValue: args[index + 1]) {
             section = .app(source)
@@ -614,8 +654,10 @@ final class AppState {
             switch args[index + 1] {
             case "browser": section = .browser
             case "agents": section = .agents
-            case "agent": if let first = agents.first { section = .agent(first.id) }
-            case "agent-schedule": if let first = agents.first { section = .agent(first.id); agentTabRequest = 4 }
+            case "agent": if let first = agents.first { openAgent(first.id) }
+            case "agent-schedule": if let first = agents.first { openAgent(first.id, tab: 4) }
+            case "agent-history": if let first = agents.first { openAgent(first.id, tab: 1) }
+            case "agent-skills": if let first = agents.first { openAgent(first.id, tab: 8) }
             case "schedule": section = .schedule
             case "activity": section = .activity
             case "connectors": section = .connectors
@@ -678,9 +720,9 @@ final class AppState {
             updateAgent(first.id) { spec in
                 let routine = spec.routines.first
                 let samples: [(Double, AgentRun.Trigger, AgentRun.Outcome, Int, Int, String)] = [
-                    (-3_600, .programmata, .daApprovare, 3, 2, "Due email chiedono una risposta: ho preparato le bozze per Marco e per lo studio."),
-                    (-90_000, .recupero, .completata, 4, 0, "Nessuna email urgente. Tre newsletter archiviate."),
-                    (-96_000, .manuale, .errore, 1, 0, "Mail non ha risposto in tempo."),
+                    (-3_600, .programmata, .daApprovare, 3, 2, String(localized: "Due email chiedono una risposta: ho preparato le bozze per Marco e per lo studio.")),
+                    (-90_000, .recupero, .completata, 4, 0, String(localized: "Nessuna email urgente. Tre newsletter archiviate.")),
+                    (-96_000, .manuale, .errore, 1, 0, String(localized: "Mail non ha risposto in tempo.")),
                     (-180_000, .programmata, .interrotta, 2, 0, ""),
                 ]
                 for (offset, trigger, outcome, steps, approvals, summary) in samples {
@@ -718,10 +760,16 @@ final class AppState {
         Task { await models.refresh() }
         preparePrivacyEngine()
         if persists, !AppPaths.isTestEnvironment { startAgentScheduler() }
+        // Aggiornamenti: l'ultima release su GitHub all'avvio e poi ogni 6 ore (senza rete si riprova dopo 15 minuti).
+        if persists, !AppPaths.isTestEnvironment { startUpdateChecks() }
+        // Diagnostica (solo con --ephemeral): `--update-demo 9.9` mostra il simbolo di aggiornamento senza chiedere a GitHub.
+        if let version = AppTesting.value(after: "--update-demo"), let page = URL(string: "https://github.com/\(UpdateChecker.repository)/releases") {
+            availableUpdate = AppUpdate(version: version, pageURL: page, downloadURL: page, notes: String(localized: "Versione di prova"))
+        }
         // Diagnostica: `--agent-test` fa lavorare un agente temporaneo, scrive il registro nel log ed esce.
         if args.contains("--agent-test") {
             var spec = AgentTemplate.all[0].spec
-            spec.name = "Test agente"
+            spec.name = String(localized: "Test agente")
             spec.routines = []
             if args.contains("--with-folder") {
                 // Cartella collegata in sola lettura con un file da leggere.
@@ -729,7 +777,7 @@ final class AppState {
                 try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
                 try? "# Riunione lancio\n\n- Budget approvato: 12.000 €\n- Data di lancio: 15 ottobre\n- Responsabile: Giulia\n- Rischio: fornitore in ritardo\n"
                     .write(to: folder.appending(path: "riunione.md"), atomically: true, encoding: .utf8)
-                spec.goal = "Leggi il file riunione.md nella cartella Appunti riunioni e riassumi decisioni e rischi."
+                spec.goal = String(localized: "Leggi il file riunione.md nella cartella Appunti riunioni e riassumi decisioni e rischi.")
                 spec.allowWeb = false
                 spec.folders = [AgentFolder(path: folder.path, writable: false)]
             }
@@ -744,7 +792,7 @@ final class AppState {
                     if let dream = agent(spec.id)?.dreams.last {
                         Agent.log("AGENTE SOGNO lezioni: \(dream.lessons) · istruzioni: \(dream.newInstructions.prefix(200))")
                     }
-                    let soulText = (try? String(contentsOf: Self.soulURL(spec.id), encoding: .utf8)) ?? "(nessun file)"
+                    let soulText = (try? String(contentsOf: Self.soulURL(spec.id), encoding: .utf8)) ?? String(localized: "(nessun file)")
                     Agent.log("AGENTE ANIMA (\(soulText.count) caratteri): \(soulText.suffix(400).replacingOccurrences(of: "\n", with: " ¶ "))")
                 }
                 for event in agent(spec.id)?.log ?? [] { Agent.log("AGENTE \(event.kind.rawValue): \(event.text.prefix(200))") }
@@ -767,7 +815,7 @@ final class AppState {
                 Agent.log("CODE MODELLO: \(codeEngineLabel(codeDefault))")
                 let parent = FileManager.default.temporaryDirectory.appending(path: "code-test-\(UUID().uuidString.prefix(6))")
                 try? FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
-                createCodeProject(template: .sito, name: "Prova", description: args[index + 2], parent: parent)
+                createCodeProject(template: .sito, name: String(localized: "Prova"), description: args[index + 2], parent: parent)
                 try? await Task.sleep(for: .seconds(1))
                 while codeSessions.contains(where: \.running) { try? await Task.sleep(for: .milliseconds(500)) }
                 if let session = codeSessions.last {
@@ -882,7 +930,7 @@ final class AppState {
         guard !entries.isEmpty else { return }
         let day = yesterday.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Dates.locale))
         let items = entries.prefix(6).map { "\($0.title.lowercased()) (\($0.detail.prefix(40)))" }.joined(separator: "; ")
-        MemoryStore.shared.add("Il \(day) hai fatto: \(items).", source: "attività")
+        MemoryStore.shared.add(String(localized: "Il \(day) hai fatto: \(items)."), source: String(localized: "attività"))
         memoryRevision += 1
     }
 
@@ -908,8 +956,8 @@ final class AppState {
         guard source.support != .comingSoon else { return }
         prefs[source, default: SourcePref(enabled: false, allowWrite: true)].enabled = enabled
         savePrefs()
-        log(icon: "source:\(source.rawValue)", title: enabled ? "\(source.label) collegato" : "\(source.label) scollegato",
-            detail: "Permessi", status: .done)
+        log(icon: "source:\(source.rawValue)", title: enabled ? String(localized: "\(source.label) collegato") : String(localized: "\(source.label) scollegato"),
+            detail: String(localized: "Permessi"), status: .done)
         if enabled && (source == .calendar || source == .reminders) {
             Task {
                 access = await Agent.requestAccess()
@@ -964,10 +1012,10 @@ final class AppState {
 
     func openPrivacySettings(for source: SourceKind) {
         let pane = switch source {
-        case .reminders: "Privacy_Reminders"
-        case .contacts: "Privacy_Contacts"
-        case .voiceMemos, .messages: "Privacy_AllFiles"
-        default: "Privacy_Calendars"
+        case .reminders: String(localized: "Privacy_Reminders")
+        case .contacts: String(localized: "Privacy_Contacts")
+        case .voiceMemos, .messages: String(localized: "Privacy_AllFiles")
+        default: String(localized: "Privacy_Calendars")
         }
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") {
             NSWorkspace.shared.open(url)
@@ -1005,7 +1053,7 @@ final class AppState {
     }
 
     var orbLabel: String {
-        if let current, respondingConversationIDs.contains(current.id) { return "Risposta in corso…" }
+        if let current, respondingConversationIDs.contains(current.id) { return String(localized: "Risposta in corso…") }
         return currentIsResponding && !statusText.isEmpty ? statusText : orb.label
     }
 
@@ -1035,7 +1083,7 @@ final class AppState {
             if existing.model?.provider != .apple { existing.model = ModelSelection(.apple); saveConversations() }
             return existing
         }
-        let conversation = Conversation(title: "Chat rapida")
+        let conversation = Conversation(title: String(localized: "Chat rapida"))
         conversation.kind = .quick
         conversation.space = quickSpace.rawValue
         conversation.model = ModelSelection(.apple)
@@ -1144,7 +1192,7 @@ final class AppState {
             if isResponding(in: conversation), independentTasks[conversation.id] == nil { return }
             if independentTasks[conversation.id] != nil {
                 queuedIndependentRequests[conversation.id, default: []].append((prompt, oneTimeSelection, files))
-                conversation.messages.append(Message(content: .notice("Richiesta in coda: verrà eseguita dopo la risposta attuale.")))
+                conversation.messages.append(Message(content: .notice(String(localized: "Richiesta in coda: verrà eseguita dopo la risposta attuale."))))
                 saveConversations()
                 return
             }
@@ -1153,7 +1201,7 @@ final class AppState {
             // Il tentativo cloud della chat rapida invia solo la richiesta mostrata nell'anteprima.
             if !cloudRetry { session.restore(Self.turns(of: conversation)) }
             session.inherited = conversation.inherited
-            if conversation.messages.isEmpty, conversation.title == "Nuova conversazione" { conversation.title = Self.title(from: prompt) }
+            if conversation.messages.isEmpty, conversation.hasDefaultTitle { conversation.title = Self.title(from: prompt) }
             conversation.messages.append(Message(content: .user(text: prompt, sources: [], attachments: files.map(\.name))))
             saveConversations()
             let chosen = resolved(oneTimeSelection ?? (conversation.kind == .quick
@@ -1164,7 +1212,7 @@ final class AppState {
         }
         if assistantConversationID != conversation.id { prepareAssistant(for: conversation) }
         // Il titolo viene dalla prima richiesta, ma non sostituisce quello scelto (chat figlie, chat create con un nome).
-        if conversation.messages.isEmpty, conversation.title == "Nuova conversazione" { conversation.title = Self.title(from: prompt) }
+        if conversation.messages.isEmpty, conversation.hasDefaultTitle { conversation.title = Self.title(from: prompt) }
         conversation.messages.append(Message(content: .user(text: prompt, sources: [], attachments: files.map(\.name))))
         saveConversations()
         run(prompt, sources: [], files: files, in: conversation, oneTimeSelection: oneTimeSelection)
@@ -1204,7 +1252,7 @@ final class AppState {
                     recordLastTurn(prompt)
                     if MemoryStore.shared.enabled, Assistant.mayContainMemory(prompt) {
                         for fact in await assistant.memoryWorthy(prompt) where MemoryStore.shared.add(fact, source: "chat") {
-                            conversation.messages.append(Message(content: .notice("Ricordato: «\(fact)».")))
+                            conversation.messages.append(Message(content: .notice(String(localized: "Ricordato: «\(fact)»."))))
                             memoryRevision += 1
                         }
                     }
@@ -1229,14 +1277,14 @@ final class AppState {
 
     /// I due testi mostrati nell'anteprima cloud. Non vengono allegati cronologia o strumenti.
     /// Nessuna cronologia, memoria, app, connettore, file o strumento viene passato alla CLI esterna.
-    static let quickCloudSystemPrompt = "Sei Siri AI+. Rispondi in italiano alla richiesta dell'utente. Non puoi accedere alle app o ai file del Mac."
+    static let quickCloudSystemPrompt = String(localized: "Sei Siri AI+. Rispondi in italiano alla richiesta dell'utente. Non puoi accedere alle app o ai file del Mac.")
 
     private func respondQuickCloud(_ prompt: String, selection: ModelSelection) async {
         let system = Self.quickCloudSystemPrompt
         let stream: AsyncThrowingStream<String, Error> = selection.provider == .chatgpt
             ? ExternalEngine.streamChatGPT(system: system, history: [], prompt: prompt, model: selection.model, effort: selection.effort)
             : ExternalEngine.streamClaude(system: system, history: [], prompt: prompt, model: selection.model, effort: selection.effort)
-        setThinking("\(selection.provider.name) sta rispondendo…")
+        setThinking(String(localized: "\(selection.provider.name) sta rispondendo…"))
         var answerID: UUID?
         do {
             for try await text in stream {
@@ -1250,10 +1298,10 @@ final class AppState {
                     answerID = message.id
                 }
             }
-            if Task.isCancelled { append(.notice("Risposta interrotta.")) }
-            else if answerID == nil { append(.notice("Il modello non ha restituito una risposta.")) }
+            if Task.isCancelled { append(.notice(String(localized: "Risposta interrotta."))) }
+            else if answerID == nil { append(.notice(String(localized: "Il modello non ha restituito una risposta."))) }
         } catch {
-            append(.notice(answerID == nil ? "Risposta non riuscita: \(error.localizedDescription)" : "Risposta parziale: \(error.localizedDescription)"))
+            append(.notice(answerID == nil ? String(localized: "Risposta non riuscita: \(error.localizedDescription)") : String(localized: "Risposta parziale: \(error.localizedDescription)")))
         }
     }
 
@@ -1270,7 +1318,7 @@ final class AppState {
                 if let last = turns.last, last.role == .assistant { turns[turns.count - 1].text += "\n" + text }
                 else { turns.append(ChatTurn(role: .assistant, text: text)) }
             case .chatLink(let link) where link.summary != nil:
-                turns.append(ChatTurn(role: .assistant, text: "Riepilogo della chat «\(link.title)»: \(link.summary ?? "")"))
+                turns.append(ChatTurn(role: .assistant, text: String(localized: "Riepilogo della chat «\(link.title)»: \(link.summary ?? "")")))
             default: break
             }
         }
@@ -1284,7 +1332,7 @@ final class AppState {
             if case .text(let text) = message.content { return text }
             return nil
         }.joined(separator: "\n")
-        assistant.record(user: prompt, reply: reply.isEmpty ? "(azione mostrata in una scheda)" : reply)
+        assistant.record(user: prompt, reply: reply.isEmpty ? String(localized: "(azione mostrata in una scheda)") : reply)
     }
 
     private func append(_ content: Message.Content) {
@@ -1316,7 +1364,7 @@ final class AppState {
         return visible.filter(\.pinned).sorted { $0.name < $1.name } + visible.filter { !$0.pinned }.sorted { $0.lastOpened > $1.lastOpened }
     }
 
-    /// Agenti dello spazio aperto (nelle Programmazioni tutti).
+    /// Genius dello spazio aperto; lo spazio Programmazione è dedicato al coding.
     var spaceAgents: [AgentSpec] {
         space == .codice ? [] : agents.filter { $0.space == space.rawValue }
     }
@@ -1330,7 +1378,7 @@ final class AppState {
         project.space = space.rawValue
         projects.append(project)
         saveProjects()
-        log(icon: "folder", title: "Progetto collegato", detail: folder.path, status: .done)
+        log(icon: "folder", title: String(localized: "Progetto collegato"), detail: folder.path, status: .done)
         openProject(project)
         newConversation(in: project)
     }
@@ -1378,16 +1426,33 @@ final class AppState {
         do {
             try text.write(to: url, atomically: true, encoding: .utf8)
             project.agentsSignature = nil
-            log(icon: "doc.text", title: "AGENTS.md aggiornato", detail: project.name, status: .done)
-            showToast("AGENTS.md salvato")
+            log(icon: "doc.text", title: String(localized: "AGENTS.md aggiornato"), detail: project.name, status: .done)
+            showToast(String(localized: "AGENTS.md salvato"))
             projectRevision += 1
         } catch {
-            log(icon: "doc.text", title: "AGENTS.md non salvato", detail: error.localizedDescription, status: .failed)
+            log(icon: "doc.text", title: String(localized: "AGENTS.md non salvato"), detail: error.localizedDescription, status: .failed)
         }
     }
 
     static func agentsTemplate(for name: String) -> String {
-        """
+        if Language.system == .en {
+            return """
+            # \(name)
+
+            ## Goal
+            Describe in two lines what this project is for.
+
+            ## How Siri AI+ should work
+            - Answer in English, concisely.
+            - Before changing a file, show me what changes.
+            - Save documents in the `documents/` folder.
+
+            ## Useful context
+            - People involved:
+            - Important deadlines:
+            """
+        }
+        return """
         # \(name)
 
         ## Obiettivo
@@ -1433,7 +1498,7 @@ final class AppState {
             // Gemma gira sul Mac: prima di scrivere il server dev'essere avviato.
             if chosen.provider == .gemma, let self {
                 guard let variant = GemmaVariant.variant(chosen.model ?? self.gemmaModel), variant.isDownloaded, await self.models.ensureGemma(variant) else {
-                    throw AppleAppError.script("Gemma non è pronta")
+                    throw AppleAppError.script(String(localized: "Gemma non è pronta"))
                 }
             }
             return try await base(instructions, request, partial)
@@ -1455,7 +1520,7 @@ final class AppState {
             let agents = agentsText(for: project)
             let signature = Self.signature(agents)
             if project.agentsSignature != signature {
-                setThinking("Leggo AGENTS.md…")
+                setThinking(String(localized: "Leggo AGENTS.md…"))
                 project.agentsDigest = agents.isEmpty ? nil : await assistant.condense(agents: agents)
                 project.agentsSignature = signature
                 saveProjects()
@@ -1466,7 +1531,7 @@ final class AppState {
             let memory = project.files.memoryText()
             let memorySignature = Self.signature(memory)
             if project.memorySignature != memorySignature {
-                setThinking("Leggo MEMORY.md…")
+                setThinking(String(localized: "Leggo MEMORY.md…"))
                 project.memoryDigest = memory.isEmpty ? nil : await assistant.condense(agents: memory)
                 project.memorySignature = memorySignature
                 saveProjects()
@@ -1493,7 +1558,7 @@ final class AppState {
                 if spreadsheet.sheets.indices.contains(index) {
                     work.openSheet = spreadsheet.sheets[index]
                     work.openSheetIndex = index
-                    work.artifactText = "Foglio «\(spreadsheet.sheets[index].name)»:\n" + spreadsheet.sheets[index].summary(maxRows: 60)
+                    work.artifactText = String(localized: "Foglio «\(spreadsheet.sheets[index].name)»:\n") + spreadsheet.sheets[index].summary(maxRows: 60)
                 }
             }
         }
@@ -1503,15 +1568,22 @@ final class AppState {
         work.projectNames = projects.map(\.name)
         work.spaceName = responseSpace.label
         work.spaceInstructions = settings(for: responseSpace).instructions
+        if let id = (Self.independentResponse?.conversation ?? out)?.agentID, let genius = agent(id) {
+            work.agentID = id
+            work.soul = soul(of: genius)
+            if let name = genius.projectName, let project = projects.first(where: { $0.name == name && $0.exists }) {
+                work.skillProjectRoot = project.folder
+            }
+        }
         if !quickResponse, section == .schedule || section == .agents {
             // Nella panoramica delle programmazioni la chat conosce agenti, orari e approvazioni.
-            let lines = agents.map { agent -> String in
+            let lines = spaceAgents.map { agent -> String in
                 let routines = agent.routines.filter(\.enabled).map { $0.schedule.label + ($0.task.isEmpty ? "" : " (\($0.task))") }.joined(separator: ", ")
-                let next = agent.nextRun.map { "prossima \(Dates.friendly($0))" } ?? "nessuna in programma"
-                return "- \(agent.displayName) [\(Space(rawValue: agent.space)?.label ?? "")]\(agent.active ? "" : " in pausa"): \(routines.isEmpty ? "solo manuale" : routines); \(next); sogna alle \(agent.dreamHour):00; da approvare \(pendingApprovals(for: agent))"
+                let next = agent.nextRun.map { String(localized: "prossima \(Dates.friendly($0))") } ?? String(localized: "nessuna in programma")
+                return String(localized: "- \(agent.displayName) [\(Space(rawValue: agent.space)?.label ?? "")]\(agent.active ? "" : String(localized: " in pausa")): \(routines.isEmpty ? String(localized: "solo manuale") : routines); \(next); sogna alle \(agent.dreamHour):00; da approvare \(pendingApprovals(for: agent))")
             }
             // Dati che cambiano spesso: vanno nella richiesta, non nelle istruzioni (altrimenti la sessione ripartirebbe a ogni turno).
-            work.turnNotes = "Agenti e programmazioni:\n" + (lines.isEmpty ? "nessun agente" : lines.joined(separator: "\n"))
+            work.turnNotes = String(localized: "Genius e programmazioni:\n") + (lines.isEmpty ? String(localized: "nessun Genius") : lines.joined(separator: "\n"))
         }
         let selectedAppleModel: AppleResponseModel = provider == .apple ? .preferred : .onDevice
         assistant.selectAppleResponseModel(selectedAppleModel)
@@ -1524,17 +1596,17 @@ final class AppState {
         work.webEnabled = webEnabled
         work.conversationID = out?.id.uuidString
         if !files.isEmpty {
-            var texts = files.filter { $0.imageURL == nil }.map { "Allegato «\($0.name)»:\n\($0.text.prefix(contextBudget.scaled(1200)))" }
+            var texts = files.filter { $0.imageURL == nil }.map { String(localized: "Allegato «\($0.name)»:\n\($0.text.prefix(contextBudget.scaled(1200)))") }
             let images = files.compactMap { file in file.imageURL.map { (name: file.name, url: $0) } }.prefix(4)
             // Descrizione delle immagini: serve ai modelli che non le vedono e alle azioni ("crea un evento da questa locandina").
             // Per le sole domande sull'immagine Apple Intelligence la guarda direttamente, senza passaggi in più.
             let acting = assistant.asksForAction(prompt)
             if provider != .apple || acting {
                 for image in images {
-                    setThinking("Guardo «\(image.name)»…")
+                    setThinking(String(localized: "Guardo «\(image.name)»…"))
                     guard let description = await assistant.describeImage(image.url) else { continue }
-                    texts.append("Immagine «\(image.name)» (descritta da Apple Intelligence):\n\(description)")
-                    assistant.remember("Immagine allegata «\(image.name)»: \(description)")
+                    texts.append(String(localized: "Immagine «\(image.name)» (descritta da Apple Intelligence):\n\(description)"))
+                    assistant.remember(String(localized: "Immagine allegata «\(image.name)»: \(description)"))
                 }
             }
             work.attachments = texts.isEmpty ? nil : texts.joined(separator: "\n\n")
@@ -1580,7 +1652,7 @@ final class AppState {
         let sources = Array(picked).sorted { $0.rawValue < $1.rawValue }
         let files = attachments
         // Il titolo viene dalla prima richiesta, ma non sostituisce quello scelto (chat figlie, chat create con un nome).
-        if conversation.messages.isEmpty, conversation.title == "Nuova conversazione" { conversation.title = Self.title(from: prompt) }
+        if conversation.messages.isEmpty, conversation.hasDefaultTitle { conversation.title = Self.title(from: prompt) }
         conversation.messages.append(Message(content: .user(text: prompt, sources: sources, attachments: files.map(\.name))))
         saveConversations()
         picked = []
@@ -1604,7 +1676,7 @@ final class AppState {
                      plan: Bool = false, oneTimeSelection: ModelSelection? = nil) {
         guard let conversation = target ?? current else { return }
         isResponding = true
-        statusText = "Capisco la richiesta…"
+        statusText = String(localized: "Capisco la richiesta…")
         responding = conversation
         // La chat tiene il modello con cui è cominciata (versione e ragionamento compresi); una chat affiancata ha il suo.
         let chosen = oneTimeSelection ?? selectionOverride ?? conversation.model ?? defaultSelection(for: space(of: conversation))
@@ -1615,40 +1687,49 @@ final class AppState {
             await syncWorkContext(files: files, prompt: prompt)
             assistant.updateScreen()
             guard !Task.isCancelled else { finishResponse(); return }
-            // Calendari, liste e posta dello spazio valgono per tutta la richiesta (anche per i sub-agent); con ChatGPT e
-            // Claude anche lo scudo della chat: tutto si anonimizza sul Mac prima di partire, e le risposte tornano leggibili.
-            let shield = privacyShield(for: conversation, provider: responseSelection?.provider ?? .apple)
-            await PrivacyShield.$current.withValue(shield) {
-                await SpaceScope.$task.withValue(scope) {
-                    await respond(to: prompt, sources: sources, files: files, plan: plan)
-                }
+            // Si risponde nella lingua in cui si scrive: vale per tutta la richiesta (regole, sub-agent, risposta, memoria).
+            await Language.$scoped.withValue(assistant.language(for: prompt)) {
+                await finishRun(prompt, conversation: conversation, sources: sources, files: files, plan: plan, scope: scope)
             }
-            conversation.messages.removeAll { if case .thinking = $0.content { true } else { false } }
-            if let report = shield?.takeReport() {
-                conversation.messages.append(Message(content: .privacy(report)))
-                Agent.log("ANONIMIZZAZIONE: \(report.total) dati verso \(report.destination) (\(report.summary))")
-            }
-            if shield != nil { scheduleEngineRelease() }
-            // Se nel frattempo è stata aperta un'altra chat, la sessione del modello non è più di questa conversazione.
-            let stillOpen = conversation.id == assistantConversationID && !Task.isCancelled
-            if stillOpen { recordLastTurn(prompt) }
-            // Preferenze dette in chat ("preferisco…", "d'ora in poi…"): si salvano nella memoria, con un avviso discreto.
-            if stillOpen, MemoryStore.shared.enabled, Assistant.mayContainMemory(prompt) {
-                for fact in await assistant.memoryWorthy(prompt) where MemoryStore.shared.add(fact, source: "chat") {
-                    conversation.messages.append(Message(content: .notice("Ricordato: «\(fact)». Puoi modificarlo in Attività › Memoria.")))
-                    memoryRevision += 1
-                }
-            }
-            if stillOpen, let pending = pendingChat {
-                pendingChat = nil
-                finishResponse()
-                openRequestedChat(pending.request, project: pending.project)
-                return
-            }
-            pendingChat = nil
-            if stillOpen { await PrivacyShield.$current.withValue(shield) { await compactIfNeeded() } }
-            finishResponse()
         }
+    }
+
+    /// Il resto di `run`, nella lingua della richiesta.
+    private func finishRun(_ prompt: String, conversation: Conversation, sources: Set<SourceKind>, files: [Attachment],
+                           plan: Bool, scope: SpaceScope) async {
+        // Calendari, liste e posta dello spazio valgono per tutta la richiesta (anche per i sub-agent); con ChatGPT e
+        // Claude anche lo scudo della chat: tutto si anonimizza sul Mac prima di partire, e le risposte tornano leggibili.
+        let shield = privacyShield(for: conversation, provider: responseSelection?.provider ?? .apple)
+        await PrivacyShield.$current.withValue(shield) {
+            await SpaceScope.$task.withValue(scope) {
+                await respond(to: prompt, sources: sources, files: files, plan: plan)
+            }
+        }
+        conversation.messages.removeAll { if case .thinking = $0.content { true } else { false } }
+        if let report = shield?.takeReport() {
+            conversation.messages.append(Message(content: .privacy(report)))
+            Agent.log("ANONIMIZZAZIONE: \(report.total) dati verso \(report.destination) (\(report.summary))")
+        }
+        if shield != nil { scheduleEngineRelease() }
+        // Se nel frattempo è stata aperta un'altra chat, la sessione del modello non è più di questa conversazione.
+        let stillOpen = conversation.id == assistantConversationID && !Task.isCancelled
+        if stillOpen { recordLastTurn(prompt) }
+        // Preferenze dette in chat ("preferisco…", "d'ora in poi…"): si salvano nella memoria, con un avviso discreto.
+        if stillOpen, MemoryStore.shared.enabled, Assistant.mayContainMemory(prompt) {
+            for fact in await assistant.memoryWorthy(prompt) where MemoryStore.shared.add(fact, source: "chat") {
+                conversation.messages.append(Message(content: .notice(String(localized: "Ricordato: «\(fact)». Puoi modificarlo in Attività › Memoria."))))
+                memoryRevision += 1
+            }
+        }
+        if stillOpen, let pending = pendingChat {
+            pendingChat = nil
+            finishResponse()
+            openRequestedChat(pending.request, project: pending.project)
+            return
+        }
+        pendingChat = nil
+        if stillOpen { await PrivacyShield.$current.withValue(shield) { await compactIfNeeded() } }
+        finishResponse()
     }
 
     private func finishResponse() {
@@ -1667,7 +1748,7 @@ final class AppState {
 
     /// Compattazione automatica quando la chat supera la soglia della finestra di contesto.
     private func compactIfNeeded() async {
-        statusText = "Controllo il contesto…"
+        statusText = String(localized: "Controllo il contesto…")
         // Con qualunque modello: gli scambi usciti dalla finestra che il modello riceve (la sua, più grande con Gemma, ChatGPT e
         // Claude) li riassume il sub-agent della compattazione; al modello arrivano il riassunto e gli ultimi scambi.
         // Con un modello esterno, se la conversazione arriva comunque alla soglia, restano solo gli ultimi scambi.
@@ -1682,9 +1763,9 @@ final class AppState {
                 if let project = currentProject { _ = try? project.files.remember(fact) } else { MemoryStore.shared.add(fact, source: "compattazione") }
             }
             if !result.facts.isEmpty { memoryRevision += 1; projectRevision += 1 }
-            log(icon: "rectangle.compress.vertical", title: "Riassunto della conversazione aggiornato",
-                detail: "\(current?.title ?? "") · \(result.exchanges) \(result.exchanges == 1 ? "scambio" : "scambi") · sub-agent"
-                    + (result.pieces > 1 ? " (\(result.pieces) pezzi in parallelo)" : ""), status: .done)
+            log(icon: "rectangle.compress.vertical", title: String(localized: "Riassunto della conversazione aggiornato"),
+                detail: String(localized: "\(current?.title ?? "") · \(result.exchanges) \(result.exchanges == 1 ? "scambio" : "scambi") · sub-agent")
+                    + (result.pieces > 1 ? String(localized: " (\(result.pieces) pezzi in parallelo)") : ""), status: .done)
         }
         // Con un modello esterno l'anello misura la sua finestra (aggiornato dopo ogni risposta).
         if provider == .apple { contextUsage = assistant.contextUsage } else if result != nil { updateExternalUsage(prompt: "", reply: "") }
@@ -1696,7 +1777,7 @@ final class AppState {
         isResponding = true
         Task {
             if let result = await assistant.compactIfNeeded(threshold: 0) {
-                append(.notice("Conversazione compattata: \(result.exchanges) \(result.exchanges == 1 ? "scambio" : "scambi") nel riassunto, contesto dal \(Int(result.before * 100))% al \(Int(result.after * 100))%."))
+                append(.notice(String(localized: "Conversazione compattata: \(result.exchanges) \(result.exchanges == 1 ? "scambio" : "scambi") nel riassunto, contesto dal \(Int(result.before * 100))% al \(Int(result.after * 100))%.")))
             }
             contextUsage = assistant.contextUsage
             isResponding = false
@@ -1758,7 +1839,7 @@ final class AppState {
         appleOnly = PrivacyShield.current != nil && !PIIEngine.isInstalled
         defer { appleOnly = false }
         if appleOnly {
-            append(.notice("Non ho inviato niente a \(provider.name): il motore di anonimizzazione rizzo-pii non è installato (Impostazioni › Modelli › Privacy). Rispondo con Apple Intelligence sul Mac."))
+            append(.notice(String(localized: "Non ho inviato niente a \(provider.name): il motore di anonimizzazione rizzo-pii non è installato (Impostazioni › Modelli › Privacy). Rispondo con Apple Intelligence sul Mac.")))
             assistant.textWriter = nil
         }
         // Compiti complessi (o piano chiesto dal menu «+»): catena di pensieri e sub-agent con qualunque modello, non solo con Apple.
@@ -1776,7 +1857,7 @@ final class AppState {
         let outcome = await assistant.handle(prompt, enabled: enabledSources, picked: sources) { [weak self] status in
             self?.setThinking(status)
         }
-        guard !Task.isCancelled else { return append(.notice("Risposta interrotta.")) }
+        guard !Task.isCancelled else { return append(.notice(String(localized: "Risposta interrotta."))) }
         if var trace = assistant.trace, trace.isInteresting {
             trace.model = provider == .apple ? provider.label : label(for: activeSelection)
             append(.trace(trace))
@@ -1806,7 +1887,7 @@ final class AppState {
             let reply = await stream(text)
             // Chat di un progetto: se il modello non sa, si cerca prima nei file del progetto (poi, se non c'è niente, sul web).
             if fromMemory, files.isEmpty, !Task.isCancelled, Assistant.soundsUnsure(reply.text), currentProject != nil {
-                setThinking("Cerco nei file del progetto…")
+                setThinking(String(localized: "Cerco nei file del progetto…"))
                 if let grounded = await assistant.projectSearchAnswer(assistant.lastRequest.isEmpty ? prompt : assistant.lastRequest) {
                     if reply.text.count < 220, let id = reply.id { out?.messages.removeAll { $0.id == id } }
                     await stream(grounded)
@@ -1818,14 +1899,14 @@ final class AppState {
                 // Una risposta breve che dice solo "non lo so" si toglie; una risposta utile resta e la ricerca va sotto.
                 let onlyUnsure = reply.text.count < 220
                 if onlyUnsure, let id = reply.id { out?.messages.removeAll { $0.id == id } }
-                setThinking("Cerco sul web…")
+                setThinking(String(localized: "Cerco sul web…"))
                 do {
                     let request = assistant.lastRequest.isEmpty ? prompt : assistant.lastRequest
                     let web = try await assistant.searchWeb(request, prompt: request) { [weak self] status in self?.setThinking(status) }
                     if case .web(let answer, let grounded) = web {
                         append(.web(answer))
                         await stream(grounded)
-                        log(icon: "globe", title: "Ricerca sul web", detail: answer.query, status: .done)
+                        log(icon: "globe", title: String(localized: "Ricerca sul web"), detail: answer.query, status: .done)
                     } else if case .message(let text) = web {
                         if onlyUnsure { append(.text(reply.text)) }
                         append(.notice(text))
@@ -1839,7 +1920,7 @@ final class AppState {
         case .web(let answer, let text):
             append(.web(answer))
             await stream(text)
-            log(icon: "globe", title: answer.kind == .search ? "Ricerca sul web" : "Pagina letta", detail: answer.kind == .search ? answer.query : (answer.sources.first?.url ?? ""), status: .done)
+            log(icon: "globe", title: answer.kind == .search ? String(localized: "Ricerca sul web") : String(localized: "Pagina letta"), detail: answer.kind == .search ? answer.query : (answer.sources.first?.url ?? ""), status: .done)
 
         case .browse(let command):
             await browse(command)
@@ -1847,42 +1928,42 @@ final class AppState {
         case .items(let items, let text):
             append(.items(items))
             await stream(text)
-            log(icon: "source:\(items.source.rawValue)", title: items.title, detail: "\(items.rows.count) risultati", status: .done)
+            log(icon: "source:\(items.source.rawValue)", title: items.title, detail: String(localized: "\(items.rows.count) risultati"), status: .done)
 
         case .noteDraft(let draft):
             guard canWrite(.notes) else { return readOnly(.notes, prompt) }
-            append(.text("Ecco la nota. Controllala e creala quando è pronta."))
+            append(.text(String(localized: "Ecco la nota. Controllala e creala quando è pronta.")))
             append(.note(NoteCardModel(draft)))
 
         case .messageDraft(let draft):
             guard canWrite(.messages) else { return readOnly(.messages, prompt) }
-            append(.text("Ho preparato il messaggio. Parte solo quando premi «Invia» e confermi."))
+            append(.text(String(localized: "Ho preparato il messaggio. Parte solo quando premi «Invia» e confermi.")))
             append(.imessage(MessageCardModel(draft)))
 
         case .website(let draft):
             let card = WebsiteCardModel(draft, projectID: currentProject?.id)
             if let project = currentProject {
                 guard project.allowWrite else {
-                    append(.text("Nel progetto posso solo leggere i file: attiva la scrittura nelle impostazioni del progetto."))
+                    append(.text(String(localized: "Nel progetto posso solo leggere i file: attiva la scrittura nelle impostazioni del progetto.")))
                     return
                 }
-                append(.text("Ecco la pagina «\(draft.title)». Controlla l'anteprima e crea i file nel progetto: poi si apre nel browser."))
+                append(.text(String(localized: "Ecco la pagina «\(draft.title)». Controlla l'anteprima e crea i file nel progetto: poi si apre nel browser.")))
                 append(.website(card))
             } else {
-                append(.text("Ecco la pagina «\(draft.title)». Controlla l'anteprima e creala: la salvo in Documenti e si apre nel browser."))
+                append(.text(String(localized: "Ecco la pagina «\(draft.title)». Controlla l'anteprima e creala: la salvo in Documenti e si apre nel browser.")))
                 append(.website(card))
             }
 
         case .agentDraft(let spec):
-            append(.text("Ecco l'agente che ho preparato. Controllalo e crealo: lavorerà da solo e ti chiederà conferma prima delle azioni importanti."))
+            append(.text(String(localized: "Ecco il Genius che ho preparato. Controllalo e crealo: lavorerà da solo e ti chiederà conferma prima delle azioni importanti.")))
             append(.agentDraft(AgentDraftCardModel(spec)))
 
         case .newChat(let request):
             let project = request.project.flatMap { name in projects.first { $0.name.localizedCaseInsensitiveCompare(name) == .orderedSame } }
-            let where_ = project.map { " nel progetto «\($0.name)»" } ?? ""
+            let where_ = project.map { String(localized: " nel progetto «\($0.name)»") } ?? ""
             append(.text(request.child
-                ? "Apro la chat figlia «\(request.title)»\(where_). Quando hai finito, premi «Concludi e invia alla chat madre» e il riepilogo torna qui."
-                : "Apro la nuova chat «\(request.title)»\(where_)."))
+                ? String(localized: "Apro la chat figlia «\(request.title)»\(where_). Quando hai finito, premi «Concludi e invia alla chat madre» e il riepilogo torna qui.")
+                : String(localized: "Apro la nuova chat «\(request.title)»\(where_).")))
             // Si apre appena finisce questa risposta (la richiesta in corso appartiene alla chat attuale).
             pendingChat = (request, project)
 
@@ -1909,12 +1990,12 @@ final class AppState {
 
         case .eventDraft(let draft):
             guard canWrite(.calendar) else { return readOnly(.calendar, prompt) }
-            append(.text("Ecco l'evento. Controlla i dettagli e salvalo quando è tutto a posto."))
+            append(.text(String(localized: "Ecco l'evento. Controlla i dettagli e salvalo quando è tutto a posto.")))
             append(.event(EventCardModel(draft)))
 
         case .reminderDrafts(let drafts, let list):
             guard canWrite(.reminders) else { return readOnly(.reminders, prompt) }
-            append(.text(drafts.count == 1 ? "Ecco il promemoria da aggiungere." : "Ecco \(drafts.count) promemoria. Togli quelli che non ti servono prima di aggiungerli."))
+            append(.text(drafts.count == 1 ? String(localized: "Ecco il promemoria da aggiungere.") : String(localized: "Ecco \(drafts.count) promemoria. Togli quelli che non ti servono prima di aggiungerli.")))
             append(.reminders(RemindersCardModel(drafts, list: list)))
 
         case .confirm(let action):
@@ -1924,46 +2005,46 @@ final class AppState {
 
         case .eventEdit(let edit):
             guard canWrite(.calendar) else { return readOnly(.calendar, prompt) }
-            append(.text("Ecco la modifica di «\(edit.before.title)». Controllala e salvala quando è tutto a posto."))
+            append(.text(String(localized: "Ecco la modifica di «\(edit.before.title)». Controllala e salvala quando è tutto a posto.")))
             append(.event(EventCardModel(edit.after, edit: edit)))
 
         case .reminderEdit(let edit):
             guard canWrite(.reminders) else { return readOnly(.reminders, prompt) }
-            append(.text("Ecco il promemoria «\(edit.before.title)» con le modifiche. Salvale quando è tutto a posto."))
+            append(.text(String(localized: "Ecco il promemoria «\(edit.before.title)» con le modifiche. Salvale quando è tutto a posto.")))
             append(.reminders(RemindersCardModel([edit.after], list: edit.afterList, edit: edit)))
 
         case .noteAppend(let draft):
             guard canWrite(.notes) else { return readOnly(.notes, prompt) }
-            append(.text(draft.manual ? "La nota «\(draft.title)» ha liste o allegati che Note perderebbe se la modificassi da qui: ti preparo il testo da incollare."
-                                      : "Ecco cosa aggiungo in fondo alla nota «\(draft.title)». Conferma e lo scrivo."))
+            append(.text(draft.manual ? String(localized: "La nota «\(draft.title)» ha liste o allegati che Note perderebbe se la modificassi da qui: ti preparo il testo da incollare.")
+                                      : String(localized: "Ecco cosa aggiungo in fondo alla nota «\(draft.title)». Conferma e lo scrivo.")))
             append(.noteAppend(NoteAppendCardModel(draft)))
 
         case .mailReply(let reply):
-            append(.text("Ho preparato la risposta. Rivedila: si apre in Mail nella stessa conversazione e parte solo quando premi Invia."))
+            append(.text(String(localized: "Ho preparato la risposta. Rivedila: si apre in Mail nella stessa conversazione e parte solo quando premi Invia.")))
             append(.mail(MailCardModel(reply: reply)))
 
         case .mailForward(let draft):
-            append(.text("Ecco l'inoltro. Si apre in Mail con gli allegati e parte solo quando premi Invia."))
+            append(.text(String(localized: "Ecco l'inoltro. Si apre in Mail con gli allegati e parte solo quando premi Invia.")))
             append(.forward(MailForwardCardModel(draft)))
 
         case .mailDraft(let draft):
-            append(.text("Ho preparato la bozza. Rivedila: l'invio parte solo da Mail, dopo la tua conferma."))
+            append(.text(String(localized: "Ho preparato la bozza. Rivedila: l'invio parte solo da Mail, dopo la tua conferma.")))
             append(.mail(MailCardModel(draft)))
 
         case .document(let draft):
             present(ArtifactModel(kind: .pages, title: draft.title, content: .document(ArtifactFactory.document(from: draft))),
-                    intro: "Ho scritto il documento: è aperto al centro, pronto da modificare.")
+                    intro: String(localized: "Ho scritto il documento: è aperto al centro, pronto da modificare."))
 
         case .sheet(let draft):
             present(ArtifactModel(kind: .numbers, title: draft.title, content: .sheet(Spreadsheet(from: draft))),
-                    intro: "Ecco il foglio, con formule e grafico collegati ai dati.")
+                    intro: String(localized: "Ecco il foglio, con formule e grafico collegati ai dati."))
 
         case .deck(let draft):
             present(ArtifactModel(kind: .keynote, title: draft.title, content: .deck(Deck(from: draft))),
-                    intro: "Ho preparato la presentazione: puoi modificare testi, posizioni e ordine delle slide.")
+                    intro: String(localized: "Ho preparato la presentazione: puoi modificare testi, posizioni e ordine delle slide."))
 
         case .plan(let plan):
-            append(.text("Ecco il piano che ho preparato. Controllalo: non faccio nulla finché non confermi."))
+            append(.text(String(localized: "Ecco il piano che ho preparato. Controllalo: non faccio nulla finché non confermi.")))
             append(.plan(PlanCardModel(plan)))
 
         case .image(let imagePrompt, let style):
@@ -1972,17 +2053,17 @@ final class AppState {
             await generate(card)
 
         case .remembered(let fact, let inProject):
-            append(.text(inProject ? "Salvato nella memoria del progetto: «\(fact)»." : "Me lo ricorderò: «\(fact)»."))
+            append(.text(inProject ? String(localized: "Salvato nella memoria del progetto: «\(fact)».") : String(localized: "Me lo ricorderò: «\(fact)».")))
             memoryRevision += 1
             projectRevision += 1
-            log(icon: "brain", title: "Memoria aggiornata", detail: fact, status: .done)
+            log(icon: "brain", title: String(localized: "Memoria aggiornata"), detail: fact, status: .done)
 
         case .files(let entries, let text):
             append(.files(entries.prefix(40).map { ($0.isDirectory ? "📁 " : "") + $0.path }))
             await stream(text)
 
         case .fileWrite(let draft):
-            append(.text(draft.exists ? "Ecco le modifiche a «\(draft.path)». Controllale prima di salvarle." : "Ecco il nuovo file «\(draft.path)». Controllalo prima di crearlo."))
+            append(.text(draft.exists ? String(localized: "Ecco le modifiche a «\(draft.path)». Controllale prima di salvarle.") : String(localized: "Ecco il nuovo file «\(draft.path)». Controllalo prima di crearlo.")))
             append(.fileWrite(FileWriteCardModel(draft, projectID: currentProject?.id)))
 
         case .fileOp(let draft):
@@ -2007,25 +2088,25 @@ final class AppState {
         switch command {
         case .open(let url):
             browser.load(url)
-            append(.text("Ho aperto \(url.host() ?? url.absoluteString) nel browser."))
+            append(.text(String(localized: "Ho aperto \(url.host() ?? url.absoluteString) nel browser.")))
         case .search(let query):
             if query.isEmpty {
-                append(.text("Ecco il browser: dimmi cosa cercare o quale sito aprire."))
+                append(.text(String(localized: "Ecco il browser: dimmi cosa cercare o quale sito aprire.")))
             } else {
                 browser.search(query)
-                append(.text("Ho cercato «\(query)» nel browser."))
+                append(.text(String(localized: "Ho cercato «\(query)» nel browser.")))
             }
         case .back:
             browser.back()
-            append(.text("Sono tornato alla pagina precedente."))
+            append(.text(String(localized: "Sono tornato alla pagina precedente.")))
         case .follow(let text):
             if let clicked = await browser.follow(text) {
-                append(.text("Ho aperto «\(clicked)»."))
+                append(.text(String(localized: "Ho aperto «\(clicked)».")))
             } else {
-                append(.text("Non trovo un link «\(text)» in questa pagina."))
+                append(.text(String(localized: "Non trovo un link «\(text)» in questa pagina.")))
             }
         }
-        log(icon: "safari", title: "Browser", detail: browser.address, status: .done)
+        log(icon: "safari", title: String(localized: "Browser"), detail: browser.address, status: .done)
     }
 
     private func readOnly(_ source: SourceKind, _ prompt: String) {
@@ -2037,7 +2118,7 @@ final class AppState {
         artifact.projectID = currentProject?.id
         append(.text(intro))
         append(.artifact(artifact))
-        log(icon: "artifact:\(artifact.kind.rawValue)", title: "\(artifact.kind.noun) creat\(artifact.kind.ending)", detail: artifact.title, status: .done)
+        log(icon: "artifact:\(artifact.kind.rawValue)", title: String(localized: "\(artifact.kind.noun) creat\(artifact.kind.ending)"), detail: artifact.title, status: .done)
         open(artifact)
     }
 
@@ -2067,9 +2148,9 @@ final class AppState {
     /// Crea un artefatto vuoto da modificare a mano.
     func newArtifact(_ kind: ArtifactKind) {
         let artifact: ArtifactModel = switch kind {
-        case .pages: ArtifactModel(kind: .pages, title: "Documento senza titolo", content: .document(ArtifactFactory.blankDocument(title: "Documento senza titolo")))
-        case .numbers: ArtifactModel(kind: .numbers, title: "Foglio senza titolo", content: .sheet(Spreadsheet(title: "Foglio senza titolo", sheets: [Sheet(name: "Foglio 1", columns: 8, rows: 30)])))
-        case .keynote: ArtifactModel(kind: .keynote, title: "Presentazione senza titolo", content: .deck(Deck(title: "Presentazione senza titolo", slides: [.make(.titolo, title: "Titolo della presentazione", subtitle: "Sottotitolo")])))
+        case .pages: ArtifactModel(kind: .pages, title: String(localized: "Documento senza titolo"), content: .document(ArtifactFactory.blankDocument(title: String(localized: "Documento senza titolo"))))
+        case .numbers: ArtifactModel(kind: .numbers, title: String(localized: "Foglio senza titolo"), content: .sheet(Spreadsheet(title: String(localized: "Foglio senza titolo"), sheets: [Sheet(name: String(localized: "Foglio 1"), columns: 8, rows: 30)])))
+        case .keynote: ArtifactModel(kind: .keynote, title: String(localized: "Presentazione senza titolo"), content: .deck(Deck(title: String(localized: "Presentazione senza titolo"), slides: [.make(.titolo, title: String(localized: "Titolo della presentazione"), subtitle: String(localized: "Sottotitolo"))])))
         }
         artifact.projectID = currentProject?.id
         if let current, current.messages.isEmpty { current.title = artifact.title }
@@ -2095,7 +2176,7 @@ final class AppState {
                 updateExternalUsage(prompt: prompt, reply: result.text)
                 return result
             }
-            append(.notice("\(label(for: activeSelection)) non è disponibile: rispondo con Apple Intelligence."))
+            append(.notice(String(localized: "\(label(for: activeSelection)) non è disponibile: rispondo con Apple Intelligence.")))
             // Il prompt era pensato per una finestra più grande: per Apple Intelligence va accorciato.
             if prompt.count > 9_000 { prompt = String(prompt.prefix(6_000)) + "\n…\n" + String(prompt.suffix(2_500)) }
         }
@@ -2105,7 +2186,7 @@ final class AppState {
             // Spazio per la risposta: se la finestra è quasi piena si compatta prima, invece di fallire a metà.
             let fitted = await assistant.fitPrompt(prompt) { [weak self] status in self?.setThinking(status) }
             if let compaction = fitted.compaction {
-                append(.notice("Conversazione compattata per fare spazio alla risposta: contesto dal \(Int(compaction.before * 100))% al \(Int(compaction.after * 100))%."))
+                append(.notice(String(localized: "Conversazione compattata per fare spazio alla risposta: contesto dal \(Int(compaction.before * 100))% al \(Int(compaction.after * 100))%.")))
             }
             // Temperatura e forma dipendono dalla richiesta: confronti in tabella, procedure in passi, fatti con poca fantasia.
             final = try await assistant.answer(fitted.prompt) { text in
@@ -2121,13 +2202,13 @@ final class AppState {
         } catch let error as LanguageModelError {
             switch error {
             case .contextSizeExceeded where allowRetry:
-                append(.notice("Contesto pieno: compatto la conversazione e riprovo."))
+                append(.notice(String(localized: "Contesto pieno: compatto la conversazione e riprovo.")))
                 _ = await assistant.compactIfNeeded(threshold: 0)
                 return await stream(prompt, allowRetry: false)
             case .guardrailViolation:
-                append(.notice("Richiesta bloccata dai filtri di sicurezza di Apple."))
+                append(.notice(String(localized: "Richiesta bloccata dai filtri di sicurezza di Apple.")))
             case .refusal:
-                append(.notice("Il modello ha rifiutato la richiesta."))
+                append(.notice(String(localized: "Il modello ha rifiutato la richiesta.")))
             default:
                 if assistant.appleResponseModel == .privateCloud, !Task.isCancelled {
                     return await retryOnDevice(prompt, removing: messageID, because: error)
@@ -2137,13 +2218,13 @@ final class AppState {
         } catch let error as LanguageModelSession.GenerationError {
             switch error {
             case .exceededContextWindowSize where allowRetry:
-                append(.notice("Contesto pieno: compatto la conversazione e riprovo."))
+                append(.notice(String(localized: "Contesto pieno: compatto la conversazione e riprovo.")))
                 _ = await assistant.compactIfNeeded(threshold: 0)
                 return await stream(prompt, allowRetry: false)
             case .guardrailViolation:
-                append(.notice("Richiesta bloccata dai filtri di sicurezza di Apple."))
+                append(.notice(String(localized: "Richiesta bloccata dai filtri di sicurezza di Apple.")))
             case .refusal:
-                append(.notice("Il modello ha rifiutato la richiesta."))
+                append(.notice(String(localized: "Il modello ha rifiutato la richiesta.")))
             default:
                 if assistant.appleResponseModel == .privateCloud, !Task.isCancelled {
                     return await retryOnDevice(prompt, removing: messageID, because: error)
@@ -2154,7 +2235,7 @@ final class AppState {
             if assistant.appleResponseModel == .privateCloud, !Task.isCancelled {
                 return await retryOnDevice(prompt, removing: messageID, because: error)
             }
-            append(.notice(Task.isCancelled ? "Risposta interrotta." : error.localizedDescription))
+            append(.notice(Task.isCancelled ? String(localized: "Risposta interrotta.") : error.localizedDescription))
         }
         return (messageID, final)
     }
@@ -2164,7 +2245,7 @@ final class AppState {
         if let partialID { out?.messages.removeAll { $0.id == partialID } }
         assistant.selectAppleResponseModel(.onDevice)
         appleResponseModel = .onDevice
-        append(.notice("Private Cloud Compute non è disponibile: continuo con il modello Apple sul Mac."))
+        append(.notice(String(localized: "Private Cloud Compute non è disponibile: continuo con il modello Apple sul Mac.")))
         return await stream(prompt, allowRetry: false)
     }
 
@@ -2177,14 +2258,14 @@ final class AppState {
     func generate(_ card: ImageCardModel) async {
         card.status = .running
         card.error = nil
-        setThinking("Disegno con Image Playground…")
+        setThinking(String(localized: "Disegno con Image Playground…"))
         do {
             let urls = try await ImageService.generate(prompt: card.prompt, style: card.style, count: 2, folder: imageFolder) { [assistant] text in
                 await assistant.englishImagePrompt(text)
             }
             card.paths = urls.map(\.path)
             card.status = .done
-            log(icon: "photo", title: "Immagine creata", detail: card.prompt, status: .done)
+            log(icon: "photo", title: String(localized: "Immagine creata"), detail: card.prompt, status: .done)
             flash(.done)
             projectRevision += 1
         } catch ImageService.ServiceError.unavailable {
@@ -2204,7 +2285,7 @@ final class AppState {
         if let saved = keepImage(url) {
             card.paths.append(saved.path)
             card.status = .done
-            log(icon: "photo", title: "Immagine creata", detail: card.prompt, status: .done)
+            log(icon: "photo", title: String(localized: "Immagine creata"), detail: card.prompt, status: .done)
             flash(.done)
             projectRevision += 1
             saveConversations()
@@ -2215,7 +2296,7 @@ final class AppState {
     func keepImage(_ url: URL) -> URL? {
         let folder = imageFolder
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let name = "Image Playground \(Date.now.formatted(.iso8601.year().month().day().time(includingFractionalSeconds: false)).replacingOccurrences(of: ":", with: "")) \(UUID().uuidString.prefix(4)).\(url.pathExtension.isEmpty ? "png" : url.pathExtension)"
+        let name = String(localized: "Image Playground \(Date.now.formatted(.iso8601.year().month().day().time(includingFractionalSeconds: false)).replacingOccurrences(of: ":", with: "")) \(UUID().uuidString.prefix(4)).\(url.pathExtension.isEmpty ? "png" : url.pathExtension)")
         let destination = folder.appending(path: name)
         do {
             try FileManager.default.copyItem(at: url, to: destination)
@@ -2234,7 +2315,7 @@ final class AppState {
         let urls = try await ImageService.generate(prompt: prompt, style: style, count: 1, folder: imageFolder) { [assistant] text in
             await assistant.englishImagePrompt(text)
         }
-        log(icon: "photo", title: "Immagine creata", detail: prompt, status: .done)
+        log(icon: "photo", title: String(localized: "Immagine creata"), detail: prompt, status: .done)
         guard let url = urls.first else { throw ImageService.ServiceError.nothing }
         return url
     }
@@ -2242,12 +2323,12 @@ final class AppState {
     /// La versione di Gemma scelta, con il server acceso (nil, con un avviso in chat, se non è pronta).
     private func readyGemma(_ chosen: ModelSelection) async -> GemmaVariant? {
         guard let variant = GemmaVariant.variant(chosen.model ?? gemmaModel), variant.isDownloaded else {
-            append(.notice("Gemma non è ancora scaricata: scaricala in Impostazioni › Modelli."))
+            append(.notice(String(localized: "Gemma non è ancora scaricata: scaricala in Impostazioni › Modelli.")))
             return nil
         }
-        setThinking("Avvio \(variant.label)…")
+        setThinking(String(localized: "Avvio \(variant.label)…"))
         guard await models.ensureGemma(variant) else {
-            append(.notice(models.errors["gemma-start"] ?? "Per usare Gemma serve llama.cpp: installalo in Impostazioni › Modelli."))
+            append(.notice(models.errors["gemma-start"] ?? String(localized: "Per usare Gemma serve llama.cpp: installalo in Impostazioni › Modelli.")))
             return nil
         }
         return variant
@@ -2261,7 +2342,7 @@ final class AppState {
         let history = fitting(assistant.historyTurns, characters: contextBudget.historyCharacters)
         if chosen.provider == .gemma {
             guard let variant = await readyGemma(chosen) else { return nil }
-            setThinking("\(variant.label) sta scrivendo…")
+            setThinking(String(localized: "\(variant.label) sta scrivendo…"))
         }
         let stream: AsyncThrowingStream<String, Error> = switch chosen.provider {
         case .gemma: ExternalEngine.streamOpenAICompatible(base: ExternalEngine.gemmaURL, model: "gemma", system: system, history: history, prompt: prompt,
@@ -2271,7 +2352,7 @@ final class AppState {
         case .claude: ExternalEngine.streamClaude(system: system, history: history, prompt: prompt, model: chosen.model, effort: chosen.effort)
         case .apple: AsyncThrowingStream { $0.finish() }
         }
-        if !chosen.provider.isLocal { setThinking("\(chosen.provider.name) sta scrivendo…") }
+        if !chosen.provider.isLocal { setThinking(String(localized: "\(chosen.provider.name) sta scrivendo…")) }
         var messageID: UUID?
         var final = ""
         do {
@@ -2318,7 +2399,7 @@ final class AppState {
     private func routeExternal(_ prompt: String) async -> ToolRoute? {
         guard availabilityProblem == nil, assistant.routesTools else { return nil }
         if Assistant.isSmallTalk(prompt) { return ToolRoute(decided: true) }
-        setThinking("Scelgo gli strumenti…")
+        setThinking(String(localized: "Scelgo gli strumenti…"))
         return await assistant.routeExternalTools(for: prompt, tools: ToolRegistry.tools(for: assistant.work, enabled: enabledSources))
     }
 
@@ -2370,7 +2451,7 @@ final class AppState {
             }
         }
         let onStatus: ExternalAgent.StatusUpdate = { [weak self] status in self?.setThinking(status) }
-        setThinking("\(modelLabel) sta lavorando…")
+        setThinking(String(localized: "\(modelLabel) sta lavorando…"))
         do {
             guard let text = try await runExternal(chosen, system: system, history: history, prompt: request, tools: tools,
                                                    onText: onText, onStatus: onStatus) else { return false }
@@ -2385,16 +2466,16 @@ final class AppState {
             return true
         } catch {
             conversation.messages.removeAll { if case .thinking = $0.content { true } else { false } }
-            if Task.isCancelled { append(.notice("Risposta interrotta.")); return true }
+            if Task.isCancelled { append(.notice(String(localized: "Risposta interrotta."))); return true }
             // Ha già scritto qualcosa: si tiene quello e si segnala l'errore.
             if box.messageID != nil || !box.all.isEmpty { append(.notice(error.localizedDescription)); return true }
             if error is PrivacyError {
-                append(.notice("Non ho inviato niente a \(modelLabel): \(error.localizedDescription). Rispondo con Apple Intelligence sul Mac."))
+                append(.notice(String(localized: "Non ho inviato niente a \(modelLabel): \(error.localizedDescription). Rispondo con Apple Intelligence sul Mac.")))
                 appleOnly = true
                 assistant.textWriter = nil
                 return false
             }
-            append(.notice("\(modelLabel) non è disponibile (\(error.localizedDescription)): rispondo con Apple Intelligence."))
+            append(.notice(String(localized: "\(modelLabel) non è disponibile (\(error.localizedDescription)): rispondo con Apple Intelligence.")))
             return false
         }
     }
@@ -2414,7 +2495,7 @@ final class AppState {
         case .remembered(let fact, _):
             memoryRevision += 1
             projectRevision += 1
-            log(icon: "brain", title: "Memoria aggiornata", detail: fact, status: .done)
+            log(icon: "brain", title: String(localized: "Memoria aggiornata"), detail: fact, status: .done)
         case .mcpCall(let draft) where mcp.isAlwaysAllowed(draft.tool):
             // Strumento già consentito dall'utente: si esegue e il risultato torna al modello.
             let card = MCPCallCardModel(draft)
@@ -2428,11 +2509,11 @@ final class AppState {
             } catch {
                 card.status = .failed
                 card.error = error.localizedDescription
-                return "Errore: \(error.localizedDescription)"
+                return String(localized: "Errore: \(error.localizedDescription)")
             }
         case .document(let draft):
             present(ArtifactModel(kind: .pages, title: draft.title, content: .document(ArtifactFactory.document(from: draft))),
-                    intro: "Ecco il documento, aperto al centro.")
+                    intro: String(localized: "Ecco il documento, aperto al centro."))
         case .artifactEdit(let edit):
             applyArtifactEdit(edit)
         default:
@@ -2446,7 +2527,7 @@ final class AppState {
             }
             if let source, !canWrite(source) {
                 readOnly(source, name)
-                return "L'utente non ha dato a questa app il permesso di scrivere in \(source.label)."
+                return String(localized: "L'utente non ha dato a questa app il permesso di scrivere in \(source.label).")
             }
             if let content = cardContent(for: outcome, projectID: currentProject?.id) {
                 append(content)
@@ -2510,7 +2591,7 @@ final class AppState {
             do {
                 return try await shield.protect(result)
             } catch {
-                return "Errore: il risultato non è stato inviato perché \(error.localizedDescription)."
+                return String(localized: "Errore: il risultato non è stato inviato perché \(error.localizedDescription).")
             }
         }
         switch chosen.provider {
@@ -2525,7 +2606,7 @@ final class AppState {
             if let helper = bridgeHelper, !tools.isEmpty {
                 let server = try ToolGateway(tools: tools) { name, arguments in
                     let text = await call(name, arguments)
-                    return (text, text.hasPrefix("Errore"))
+                    return (text, Self.isErrorText(text))
                 }
                 let url = try await server.start()
                 gateway = server
@@ -2551,7 +2632,7 @@ final class AppState {
         let modelLabel = label(for: chosen)
         assistant.beginExternal(prompt, model: modelLabel)
         await assistant.prepareExternal(prompt)
-        setThinking("\(modelLabel) ragiona sul compito…")
+        setThinking(String(localized: "\(modelLabel) ragiona sul compito…"))
         let request = assistant.taskPlanRequest(for: prompt)
         var plan: TaskPlan?
         do {
@@ -2570,7 +2651,7 @@ final class AppState {
         // ChatGPT e Claude: Apple Intelligence valuta la difficoltà dei passi e ognuno va alla versione adatta
         // (leggera per cercare e leggere, la più capace per le analisi difficili). Il passo finale lo scrive il modello della chat.
         if SubAgentRouting.routes(chosen.provider) {
-            setThinking("Apple Intelligence sceglie il modello per ogni passo…")
+            setThinking(String(localized: "Apple Intelligence sceglie il modello per ogni passo…"))
             let difficulties = await assistant.stepDifficulties(for: plan)
             let gpt = ModelCatalog.chatGPT()
             let finalIndex = Assistant.isFinalWriting(plan.steps[plan.steps.count - 1]) ? plan.steps.count - 1 : nil
@@ -2593,27 +2674,27 @@ final class AppState {
     private func runExternalStep(_ step: TaskPlan.Step, previous: String, chosen: ModelSelection) async -> (String, Outcome?) {
         // La versione scelta per questo passo (ChatGPT e Claude), altrimenti quella della chat.
         let chosen = step.subAgent ?? chosen
-        if chosen.provider == .gemma, await readyGemma(chosen) == nil { return ("Errore: Gemma non è pronta.", nil) }
+        if chosen.provider == .gemma, await readyGemma(chosen) == nil { return (String(localized: "Errore: Gemma non è pronta."), nil) }
         // Anche ogni sub-agent riceve solo gli strumenti del suo passo, scelti dallo smistatore.
         let route = availabilityProblem == nil && assistant.routesTools
             ? await assistant.routeExternalTools(for: step.instruction, tools: ToolRegistry.tools(for: assistant.work, enabled: enabledSources))
             : nil
         let tools = externalTools(for: step.instruction, route: route)
         let system = assistant.chatInstructions() + "\n\n" + Assistant.subAgentRule
-        let request = step.instruction + (previous.isEmpty ? "" : "\n\nRisultati dei passi precedenti:\n\(previous.prefix(12_000))")
+        let request = step.instruction + (previous.isEmpty ? "" : String(localized: "\n\nRisultati dei passi precedenti:\n\(previous.prefix(12_000))"))
         let box = ExternalText()
         let onText: ExternalAgent.TextUpdate = { text in
             if let text { box.text = text } else if !box.text.isEmpty { box.all.append(box.text); box.text = "" }
         }
         let title = step.title
-        let onStatus: ExternalAgent.StatusUpdate = { [weak self] status in self?.setThinking("Sub-agent «\(title)»: \(status)") }
+        let onStatus: ExternalAgent.StatusUpdate = { [weak self] status in self?.setThinking(String(localized: "Sub-agent «\(title)»: \(status)")) }
         do {
             let text = try await runExternal(chosen, system: system, history: [], prompt: request, tools: tools, onText: onText, onStatus: onStatus) ?? ""
             let streamed = (box.all + [box.text]).filter { !$0.isEmpty }.joined(separator: "\n")
             let result = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? streamed : text
-            return (result.isEmpty ? "Errore: nessun risultato." : result, nil)
+            return (result.isEmpty ? String(localized: "Errore: nessun risultato.") : result, nil)
         } catch {
-            return ("Errore: \(error.localizedDescription)", nil)
+            return (String(localized: "Errore: \(error.localizedDescription)"), nil)
         }
     }
 
@@ -2633,7 +2714,7 @@ final class AppState {
             let indices = batch.filter { $0 != finalIndex }
             guard !indices.isEmpty else { continue }
             for index in indices { card.plan.steps[index].status = "corso" }
-            setThinking(indices.count > 1 ? "\(indices.count) sub-agent al lavoro in parallelo…" : "Sub-agent: \(card.plan.steps[indices[0]].title)…")
+            setThinking(indices.count > 1 ? String(localized: "\(indices.count) sub-agent al lavoro in parallelo…") : String(localized: "Sub-agent: \(card.plan.steps[indices[0]].title)…"))
             let previous = card.plan.steps.filter { !$0.result.isEmpty }
                 .map { "\($0.title): \($0.result.prefix(700))" }.joined(separator: "\n\n")
             // Un Task per sub-agent: lavorano insieme, ognuno con la sua sessione.
@@ -2652,34 +2733,34 @@ final class AppState {
                     card.plan.steps[index].status = "conferma"
                     await present(outcome, prompt: card.plan.steps[index].instruction)
                 } else {
-                    card.plan.steps[index].status = text.hasPrefix("Errore") ? "errore" : "fatto"
+                    card.plan.steps[index].status = Self.isErrorText(text) ? "errore" : "fatto"
                 }
             }
             saveConversations()
         }
-        guard !Task.isCancelled else { return append(.notice("Piano interrotto.")) }
+        guard !Task.isCancelled else { return append(.notice(String(localized: "Piano interrotto."))) }
         if let finalIndex { card.plan.steps[finalIndex].status = "corso" }
-        setThinking("Scrivo la risposta finale…")
+        setThinking(String(localized: "Scrivo la risposta finale…"))
         let reply = await stream(assistant.taskSynthesisPrompt(card.plan))
         if let finalIndex {
             card.plan.steps[finalIndex].status = "fatto"
-            card.plan.steps[finalIndex].result = "Scritto nella risposta."
+            card.plan.steps[finalIndex].result = String(localized: "Scritto nella risposta.")
         }
         if card.plan.delivery == .documento, !reply.text.isEmpty {
             let title = String(card.plan.goal.split(separator: " ").prefix(8).joined(separator: " "))
             present(ArtifactModel(kind: .pages, title: title.capitalized, content: .document(Self.styled(reply.text))),
-                    intro: "Ho messo il risultato anche in un documento, aperto al centro.")
+                    intro: String(localized: "Ho messo il risultato anche in un documento, aperto al centro."))
         }
-        log(icon: "list.number", title: "Compito completato", detail: card.plan.goal, status: .done)
+        log(icon: "list.number", title: String(localized: "Compito completato"), detail: card.plan.goal, status: .done)
     }
 
     /// Un passo che fallisce si ritenta una volta, chiedendo al sub-agent un'altra strada (parole diverse, altra fonte).
     private func runStepRetrying(_ step: TaskPlan.Step, previous: String, work: WorkContext,
                                  enabled: Set<SourceKind>? = nil, into target: Conversation? = nil, model: ModelSelection? = nil) async -> (String, Outcome?) {
         let first = await runStep(step, previous: previous, work: work, enabled: enabled, into: target, model: model)
-        guard first.1 == nil, first.0.hasPrefix("Errore") || first.0.trimmingCharacters(in: .whitespacesAndNewlines).count < 3, !Task.isCancelled else { return first }
+        guard first.1 == nil, Self.isErrorText(first.0) || first.0.trimmingCharacters(in: .whitespacesAndNewlines).count < 3, !Task.isCancelled else { return first }
         var retry = step
-        retry.instruction += "\n(Il primo tentativo non è riuscito: \(first.0.prefix(200)). Prova un'altra strada: parole diverse o un'altra fonte.)"
+        retry.instruction += String(localized: "\n(Il primo tentativo non è riuscito: \(first.0.prefix(200)). Prova un'altra strada: parole diverse o un'altra fonte.)")
         // Un modello più leggero (o al limite dell'abbonamento) non ce l'ha fatta: il secondo tentativo lo fa il modello della chat.
         retry.subAgent = nil
         Agent.log("SUB-AGENT: ritento «\(step.title)»")
@@ -2696,10 +2777,10 @@ final class AppState {
         do {
             // Analisi e scrittura: basta ragionare sui risultati dei passi precedenti.
             guard Assistant.stepNeedsTools(step.instruction) else {
-                let request = step.instruction + (previous.isEmpty ? "" : "\n\nRisultati dei passi precedenti:\n\(previous.prefix(2400))")
+                let request = step.instruction + (previous.isEmpty ? "" : String(localized: "\n\nRisultati dei passi precedenti:\n\(previous.prefix(2400))"))
                 return (try await agent.chat.respond(to: request, options: agent.responseOptions).content, nil)
             }
-            let request = step.instruction + (previous.isEmpty ? "" : "\n\nContesto: \(previous.prefix(400))")
+            let request = step.instruction + (previous.isEmpty ? "" : String(localized: "\n\nContesto: \(previous.prefix(400))"))
             let outcome = await agent.handle(request, enabled: enabled ?? enabledSources, picked: []) { _ in }
             switch outcome {
             case .reply(let prompt), .files(_, let prompt):
@@ -2727,12 +2808,12 @@ final class AppState {
                 }
                 return (try await agent.chat.respond(to: agent.mcpAnswerPrompt(request: step.instruction, steps: steps), options: agent.responseOptions).content, nil)
             case .unavailable(let source, _):
-                return ("Errore: \(source.label) non è disponibile.", nil)
+                return (String(localized: "Errore: \(source.label) non è disponibile."), nil)
             default:
-                return ("Preparato: controlla e conferma la scheda qui sotto.", outcome)
+                return (String(localized: "Preparato: controlla e conferma la scheda qui sotto."), outcome)
             }
         } catch {
-            return ("Errore: \(error.localizedDescription)", nil)
+            return (String(localized: "Errore: \(error.localizedDescription)"), nil)
         }
     }
 
@@ -2740,19 +2821,30 @@ final class AppState {
 
     // MARK: - Skill
 
-    /// Un piano riuscito diventa una procedura riusabile (SKILL.md), nel progetto se ce n'è uno.
+    /// Un piano riuscito diventa una skill del Genius, del progetto o generale secondo la chat d'origine.
     func saveSkill(from card: TaskPlanCardModel) {
         let draft = SkillStore.draft(from: card.plan)
         do {
+            let sourceConversation = conversations.first { item in
+                item.messages.contains { message in
+                    if case .taskPlan(let model) = message.content { return model === card }
+                    return false
+                }
+            }
+            let ownerID = sourceConversation == nil ? currentAgent?.id : sourceConversation?.agentID
+            let project = sourceConversation == nil ? currentProject?.folder
+                : sourceConversation?.projectID.flatMap { id in projects.first { $0.id == id }?.folder }
             let skill = try SkillStore.save(name: draft.name, description: draft.description, cues: draft.cues, body: draft.body,
-                                            project: currentProject?.folder)
+                                            project: ownerID == nil ? project : nil, agent: ownerID)
             card.savedAsSkill = true
             skillsRevision += 1
-            log(icon: "wand.and.stars", title: "Skill salvata", detail: skill.name, status: .done)
-            showToast("Skill «\(skill.name)» salvata", symbol: "wand.and.stars")
-            append(.notice("Skill «\(skill.name)» salvata: la seguirò quando chiedi qualcosa di simile. La trovi in Impostazioni › Skill."))
+            log(icon: "wand.and.stars", title: String(localized: "Skill salvata"), detail: skill.name, status: .done)
+            showToast(String(localized: "Skill «\(skill.name)» salvata"), symbol: "wand.and.stars")
+            let notice = String(localized: "Skill «\(skill.name)» salvata: la seguirò quando chiedi qualcosa di simile. La trovi in \(ownerID == nil ? String(localized: "Impostazioni › Skill") : String(localized: "Genius › Skill")).")
+            if let sourceConversation { sourceConversation.messages.append(Message(content: .notice(notice))) }
+            else { append(.notice(notice)) }
         } catch {
-            log(icon: "wand.and.stars", title: "Skill non salvata", detail: error.localizedDescription, status: .failed)
+            log(icon: "wand.and.stars", title: String(localized: "Skill non salvata"), detail: error.localizedDescription, status: .failed)
         }
         saveConversations()
     }
@@ -2784,7 +2876,7 @@ final class AppState {
             }
             card.savedFolder = folder.path
             card.status = .done
-            log(icon: "globe", title: "Pagina web creata", detail: folder.lastPathComponent, status: .done)
+            log(icon: "globe", title: String(localized: "Pagina web creata"), detail: folder.lastPathComponent, status: .done)
             openInBrowser(folder.appending(path: "index.html"))
         } catch {
             card.status = .failed
@@ -2818,19 +2910,36 @@ final class AppState {
 
     func agent(_ id: UUID) -> AgentSpec? { agents.first { $0.id == id } }
 
+    /// Risultato di un passo non riuscito: «Errore: …» del motore o dell'app, anche nell'interfaccia in inglese («Error: …»).
+    nonisolated static func isErrorText(_ text: String) -> Bool { text.hasPrefix("Errore") || text.hasPrefix("Error") }
+
     /// Chat dell'agente (una sola, creata al primo uso).
     func conversation(for agent: AgentSpec) -> Conversation {
-        if let existing = conversations.first(where: { $0.agentID == agent.id }) { return existing }
+        if let existing = conversations.first(where: { $0.agentID == agent.id }) {
+            if existing.space != agent.space { existing.space = agent.space }
+            return existing
+        }
         let conversation = Conversation(title: agent.displayName)
         conversation.agentID = agent.id
+        conversation.space = agent.space
         conversations.append(conversation)
         return conversation
     }
 
-    /// Apre l'agente al centro e la sua chat a destra.
-    func openAgent(_ id: UUID) {
+    /// Apre il Genius al centro e la sua chat persistente a destra.
+    func openAgent(_ id: UUID, tab: Int = 0) {
         guard let agent = agent(id) else { return }
+        if let targetSpace = Space(rawValue: agent.space), targetSpace != space {
+            switchSpace(targetSpace)
+        }
         section = .agent(id)
+        agentTabRequest = tab
+        if !agent.hasGenmoji && !genmojiPrompted.contains(id)
+            && !AppPaths.isTestEnvironment && !CommandLine.arguments.contains("--ephemeral") {
+            genmojiPrompted.insert(id)
+            genmojiRequestAgentID = id
+        }
+        showAssistant = true
         select(conversation(for: agent))
     }
 
@@ -2855,8 +2964,8 @@ final class AppState {
 
     func saveSoul(_ text: String, for agent: AgentSpec) {
         try? text.write(to: Self.soulURL(agent.id), atomically: true, encoding: .utf8)
-        updateAgent(agent.id) { $0.record(.nota, "Anima modificata") }
-        showToast("Anima di \(agent.personName.isEmpty ? agent.name : agent.personName) salvata")
+        updateAgent(agent.id) { $0.record(.nota, String(localized: "Anima modificata")) }
+        showToast(String(localized: "Anima di \(agent.personName.isEmpty ? agent.name : agent.personName) salvata"))
     }
 
     func saveAgent(_ spec: AgentSpec) {
@@ -2870,9 +2979,9 @@ final class AppState {
         if let index = agents.firstIndex(where: { $0.id == spec.id }) {
             agents[index] = spec
         } else {
-            spec.record(.nota, "Agente creato: \(spec.goal)")
+            spec.record(.nota, String(localized: "Genius creato: \(spec.goal)"))
             agents.append(spec)
-            log(icon: "sparkles", title: "Agente creato", detail: spec.displayName, status: .done)
+            log(icon: "sparkles", title: String(localized: "Genius creato"), detail: spec.displayName, status: .done)
             requestNotifications()
         }
         conversation(for: spec).title = spec.displayName
@@ -2882,7 +2991,7 @@ final class AppState {
     /// Configurazione proposta da una descrizione in linguaggio naturale.
     func draftAgent(_ description: String) async -> AgentSpec {
         await syncWorkContext()
-        return (try? await assistant.draftAgent(from: description)) ?? AgentSpec(name: "Nuovo agente", goal: description)
+        return (try? await assistant.draftAgent(from: description)) ?? AgentSpec(name: String(localized: "Nuovo Genius"), goal: description)
     }
 
     func createAgent(from card: AgentDraftCardModel) {
@@ -2904,7 +3013,7 @@ final class AppState {
         guard let index = agents.firstIndex(where: { $0.id == id }) else { return }
         agents[index].active.toggle()
         agents[index].reschedule()
-        agents[index].record(.nota, agents[index].active ? "Agente riattivato" : "Agente in pausa")
+        agents[index].record(.nota, agents[index].active ? String(localized: "Genius riattivato") : String(localized: "Genius in pausa"))
         saveAgents()
     }
 
@@ -2919,11 +3028,14 @@ final class AppState {
     private func rememberInstruction(for agent: AgentSpec) {
         guard let last = out?.messages.last, case .user(let text, _, _) = last.content else { return }
         let lower = text.lowercased()
-        let cues = ["d'ora in poi", "da ora", "da domani", "ricorda", "includi", "aggiungi anche", "non ", "evita", "preferisco", "voglio che", "sempre", "mai "]
+        // Parole cercate nel testo di chi scrive: in italiano e in inglese, qualunque sia la lingua dell'interfaccia.
+        let cues = ["d'ora in poi", "da ora", "da domani", "ricorda", "includi", "aggiungi anche", "non ", "evita", "preferisco", "voglio che", "sempre", "mai ",
+                    "from now on", "starting today", "starting tomorrow", "remember", "include", "also add", "don't ", "do not ", "avoid", "i prefer",
+                    "i want you to", "always", "never "]
         guard cues.contains(where: lower.contains) else { return }
         updateAgent(agent.id) { spec in
             if !spec.memory.contains(text) { spec.memory.append(text); if spec.memory.count > 20 { spec.memory.removeFirst() } }
-            spec.record(.nota, "Nuova indicazione: \(text.prefix(160))")
+            spec.record(.nota, String(localized: "Nuova indicazione: \(text.prefix(160))"))
         }
     }
 
@@ -2951,7 +3063,7 @@ final class AppState {
                 if heartbeat, !(await heartbeatSaysGo(id, routine: routine)) {
                     if let claimedRunID {
                         updateAgent(id) { $0.updateRun(claimedRunID) { run in
-                            run.outcome = .completata; run.end = .now; run.summary = "Nessuna azione necessaria"
+                            run.outcome = .completata; run.end = .now; run.summary = String(localized: "Nessuna azione necessaria")
                         } }
                     }
                     return
@@ -2971,9 +3083,9 @@ final class AppState {
                 spec.history[index].outcome = .interrotta
                 spec.history[index].end = .now
             }
-            spec.record(.nota, "Esecuzione interrotta dall'utente")
+            spec.record(.nota, String(localized: "Esecuzione interrotta dall'utente"))
         }
-        log(icon: "stop.circle", title: "Agente fermato", detail: agent(id)?.displayName ?? "", status: .cancelled)
+        log(icon: "stop.circle", title: String(localized: "Genius fermato"), detail: agent(id)?.displayName ?? "", status: .cancelled)
     }
 
     /// «Esci» chiude l'esecuzione corrente senza lasciare una scadenza reclamata come ancora attiva.
@@ -2995,14 +3107,14 @@ final class AppState {
         var lines: [String] = []
         if agent.allowApps.contains(.calendar), isEnabled(.calendar) {
             let events = Overview.events().filter { $0.end > .now }.prefix(8).map { "- \($0.title) \(Dates.friendly($0.start))" }
-            lines.append("Eventi di oggi:\n" + (events.isEmpty ? "nessuno" : events.joined(separator: "\n")))
+            lines.append(String(localized: "Eventi di oggi:\n") + (events.isEmpty ? "nessuno" : events.joined(separator: "\n")))
         }
         if agent.allowApps.contains(.reminders), isEnabled(.reminders) {
             let due = await Overview.openReminders(limit: 60).filter { ($0.due ?? .distantFuture) < Calendar.current.date(byAdding: .day, value: 1, to: .now)! }
-            lines.append("Promemoria in scadenza:\n" + (due.isEmpty ? "nessuno" : due.prefix(8).map { "- \($0.title)" }.joined(separator: "\n")))
+            lines.append(String(localized: "Promemoria in scadenza:\n") + (due.isEmpty ? "nessuno" : due.prefix(8).map { "- \($0.title)" }.joined(separator: "\n")))
         }
         if agent.allowApps.contains(.mail), isEnabled(.mail), let unread = try? await MailReader.inbox(query: nil, unreadOnly: true, limit: 8) {
-            lines.append("Email non lette:\n" + (unread.rows.isEmpty ? "nessuna" : unread.rows.map { "- \($0.title) — \($0.subtitle)" }.joined(separator: "\n")))
+            lines.append(String(localized: "Email non lette:\n") + (unread.rows.isEmpty ? "nessuna" : unread.rows.map { "- \($0.title) — \($0.subtitle)" }.joined(separator: "\n")))
         }
         let worker = Assistant()
         worker.isSubAgent = true
@@ -3016,7 +3128,7 @@ final class AppState {
             Agent.log("HEARTBEAT \(agent.displayName): niente da fare (\(decision.reason))")
             return false
         }
-        updateAgent(id) { $0.record(.nota, "Controllo: c'è da fare — \(decision.reason)") }
+        updateAgent(id) { $0.record(.nota, String(localized: "Controllo: c'è da fare — \(decision.reason)")) }
         return true
     }
 
@@ -3029,7 +3141,7 @@ final class AppState {
             if approveAutomatically(message.content) { count += 1 }
         }
         if count > 0 {
-            updateAgent(agentID) { $0.record(.nota, "Approvate insieme \(count) azioni") }
+            updateAgent(agentID) { $0.record(.nota, String(localized: "Approvate insieme \(count) azioni")) }
             saveConversations()
         }
         return count
@@ -3061,6 +3173,9 @@ final class AppState {
             links[unique] = url
             if !writable { readOnly.insert(unique) }
         }
+        if !SkillStore.forAgent(agent.id).isEmpty {
+            add("Skill", SkillStore.agentFolder(agent.id), writable: false)
+        }
         if let name = agent.projectName, let project = projects.first(where: { $0.name == name }), project.exists {
             add(project.name, project.folder, writable: project.allowWrite)
         }
@@ -3082,7 +3197,8 @@ final class AppState {
             // Più cartelle: una radice virtuale con una voce per cartella, ognuna con il suo permesso.
             let root = Self.agentFolder(id).appending(path: "workspace")
             try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-            work.projectName = workspace.links.count == 1 ? workspace.links.keys.first : "cartelle di \(agent.displayName)"
+            work.projectName = workspace.links.count == 1 && workspace.links["Skill"] == nil
+                ? workspace.links.keys.first : String(localized: "cartelle di \(agent.displayName)")
             work.projectRoot = root
             work.linkedFolders = workspace.links
             work.readOnlyFolders = workspace.readOnly
@@ -3093,6 +3209,9 @@ final class AppState {
             }
         }
         work.soul = soul
+        work.agentID = id
+        work.skillProjectRoot = project?.folder
+        work.skillTask = routine.flatMap { $0.task.isEmpty ? nil : $0.task } ?? agent.goal
         work.webEnabled = webEnabled && agent.allowWeb
         let agentSpace = Space(rawValue: agent.space) ?? .lavoro
         work.spaceName = agentSpace.label
@@ -3111,8 +3230,8 @@ final class AppState {
         if claimedRunID == nil { updateAgent(id) { runID = $0.beginRun(trigger, routine: routine) } }
         /// Aggiorna la voce dello storico di questa esecuzione.
         func track(_ change: (inout AgentRun) -> Void) { updateAgent(id) { $0.updateRun(runID, change) } }
-        updateAgent(id) { $0.record(.avvio, "Inizio dell'esecuzione n. \($0.runs + 1)" + (routine.map { " · \($0.schedule.label)" + ($0.task.isEmpty ? "" : ": \($0.task)") } ?? "")) }
-        conversation.messages.append(Message(content: .notice("\(agent.displayName) al lavoro — \(Dates.friendly(.now))")))
+        updateAgent(id) { $0.record(.avvio, String(localized: "Inizio dell'esecuzione n. \($0.runs + 1)") + (routine.map { " · \($0.schedule.label)" + ($0.task.isEmpty ? "" : ": \($0.task)") } ?? "")) }
+        conversation.messages.append(Message(content: .notice(String(localized: "\(agent.displayName) al lavoro — \(Dates.friendly(.now))"))))
         do {
             let plan = try await worker.makeTaskPlan(for: Assistant.agentRunPrompt(agent, task: routine?.task, soul: soul))
             updateAgent(id) { $0.record(.piano, plan.steps.map(\.title).joined(separator: " → ")) }
@@ -3143,24 +3262,24 @@ final class AppState {
                         // Un documento creato non è un'azione da approvare.
                         card.plan.steps[index].status = "fatto"
                         conversation.messages.append(Message(content: content))
-                        updateAgent(id) { $0.record(.passo, "\(title): documento creato") }
+                        updateAgent(id) { $0.record(.passo, String(localized: "\(title): documento creato")) }
                         track { $0.steps += 1 }
                     } else if let outcome, let content = cardContent(for: outcome, projectID: project?.id) {
                         conversation.messages.append(Message(content: content))
                         if agent.autoApprove, approveAutomatically(content) {
                             card.plan.steps[index].status = "fatto"
-                            updateAgent(id) { $0.record(.passo, "\(title): approvato automaticamente") }
+                            updateAgent(id) { $0.record(.passo, String(localized: "\(title): approvato automaticamente")) }
                             track { $0.steps += 1 }
                         } else {
                             card.plan.steps[index].status = "conferma"
-                            updateAgent(id) { $0.record(.approvazione, "Da approvare: \(title)") }
+                            updateAgent(id) { $0.record(.approvazione, String(localized: "Da approvare: \(title)")) }
                             track { $0.approvals += 1 }
-                            notify(title: "\(agent.displayName) ha bisogno di te", body: "Da approvare: \(title)")
+                            notify(title: String(localized: "\(agent.displayName) ha bisogno di te"), body: String(localized: "Da approvare: \(title)"))
                         }
                     } else {
-                        card.plan.steps[index].status = text.hasPrefix("Errore") ? "errore" : "fatto"
-                        updateAgent(id) { $0.record(text.hasPrefix("Errore") ? .errore : .passo, "\(title): \(text.prefix(160))") }
-                        track { if text.hasPrefix("Errore") { $0.errors += 1 } else { $0.steps += 1 } }
+                        card.plan.steps[index].status = Self.isErrorText(text) ? "errore" : "fatto"
+                        updateAgent(id) { $0.record(Self.isErrorText(text) ? .errore : .passo, "\(title): \(text.prefix(160))") }
+                        track { if Self.isErrorText(text) { $0.errors += 1 } else { $0.steps += 1 } }
                     }
                 }
                 saveConversations()
@@ -3172,7 +3291,7 @@ final class AppState {
             try Task.checkCancellation()
             if let finalIndex {
                 card.plan.steps[finalIndex].status = "fatto"
-                card.plan.steps[finalIndex].result = "Scritto nel riepilogo."
+                card.plan.steps[finalIndex].result = String(localized: "Scritto nel riepilogo.")
             }
             conversation.messages.append(Message(content: .text(summary)))
             updateAgent(id) { spec in
@@ -3184,12 +3303,12 @@ final class AppState {
                 run.summary = String(summary.prefix(1500))
             }
             notify(title: agent.displayName, body: String(summary.prefix(180)))
-            log(icon: "sparkles", title: "Agente: \(agent.displayName)", detail: "Esecuzione completata", status: .done)
+            log(icon: "sparkles", title: String(localized: "Genius: \(agent.displayName)"), detail: String(localized: "Esecuzione completata"), status: .done)
         } catch is CancellationError {
-            conversation.messages.append(Message(content: .notice("Esecuzione interrotta.")))
+            conversation.messages.append(Message(content: .notice(String(localized: "Esecuzione interrotta."))))
             track { $0.outcome = .interrotta }
         } catch {
-            conversation.messages.append(Message(content: .notice("Esecuzione non riuscita: \(error.localizedDescription)")))
+            conversation.messages.append(Message(content: .notice(String(localized: "Esecuzione non riuscita: \(error.localizedDescription)"))))
             updateAgent(id) { $0.record(.errore, error.localizedDescription) }
             track { $0.outcome = .errore; $0.summary = error.localizedDescription }
         }
@@ -3257,14 +3376,14 @@ final class AppState {
                     spec.dreams.append(dream)
                     if spec.dreams.count > 30 { spec.dreams.removeFirst(spec.dreams.count - 30) }
                     spec.lastDream = .now
-                    spec.record(.sogno, dream.reflection + (dream.lessons.isEmpty ? "" : " Lezioni: " + dream.lessons.joined(separator: "; ")))
+                    spec.record(.sogno, dream.reflection + (dream.lessons.isEmpty ? "" : String(localized: " Lezioni: ") + dream.lessons.joined(separator: "; ")))
                 }
-                conversation.messages.append(Message(content: .notice("🌙 \(agent.displayName) ha sognato: \(dream.lessons.count) lezioni aggiunte all'anima.")))
-                log(icon: "moon.stars", title: "Sogno di \(agent.displayName)", detail: dream.reflection, status: .done)
+                conversation.messages.append(Message(content: .notice(String(localized: "🌙 \(agent.displayName) ha sognato: \(dream.lessons.count) lezioni aggiunte all'anima."))))
+                log(icon: "moon.stars", title: String(localized: "Sogno di \(agent.displayName)"), detail: dream.reflection, status: .done)
             } catch {
                 updateAgent(id) { spec in
                     spec.lastDream = .now
-                    spec.record(.errore, "Sogno non riuscito: \(error.localizedDescription)")
+                    spec.record(.errore, String(localized: "Sogno non riuscito: \(error.localizedDescription)"))
                 }
             }
             saveConversations()
@@ -3275,7 +3394,7 @@ final class AppState {
     func undoDream(_ dream: AgentDream, for agentID: UUID) {
         updateAgent(agentID) { spec in
             spec.instructions = dream.previousInstructions
-            spec.record(.nota, "Istruzioni ripristinate a prima del sogno del \(Dates.friendly(dream.date))")
+            spec.record(.nota, String(localized: "Istruzioni ripristinate a prima del sogno del \(Dates.friendly(dream.date))"))
         }
     }
 
@@ -3337,7 +3456,7 @@ final class AppState {
                     var runID = UUID()
                     let beforeClaim = agents.first { $0.id == agent.id }
                     let claimed = updateAgent(agent.id) { spec in
-                        if late { spec.record(.nota, "Recupero una esecuzione dalle \(Dates.friendly(next)); le altre scadenze passate vengono saltate") }
+                        if late { spec.record(.nota, String(localized: "Recupero una esecuzione dalle \(Dates.friendly(next)); le altre scadenze passate vengono saltate")) }
                         let current = spec.routines.first { $0.id == routine.id }
                         runID = spec.beginRun(late ? .recupero : .programmata, routine: current, occurrenceID: occurrenceID)
                         if let index = spec.routines.firstIndex(where: { $0.id == routine.id }) {
@@ -3350,8 +3469,8 @@ final class AppState {
                         if let beforeClaim, let index = agents.firstIndex(where: { $0.id == agent.id }) {
                             agents[index] = beforeClaim
                         }
-                        log(icon: "externaldrive.badge.exclamationmark", title: "Agente non avviato",
-                            detail: "Impossibile registrare la scadenza di \(agent.displayName). Controlla lo spazio disponibile e riapri l’app.", status: .failed)
+                        log(icon: "externaldrive.badge.exclamationmark", title: String(localized: "Genius non avviato"),
+                            detail: String(localized: "Impossibile registrare la scadenza di \(agent.displayName). Controlla lo spazio disponibile e riapri l’app."), status: .failed)
                         return
                     }
                     runAgent(agent.id, routine: routine.id, scheduled: true, heartbeat: agent.heartbeat && routine.schedule.kind == .continuo,
@@ -3391,26 +3510,53 @@ final class AppState {
         return agents
     }
 
-    /// Ritratto scelto nel foglio di Image Playground: copiato nella cartella dell'agente.
-    func setAvatar(_ url: URL, for agentID: UUID) {
-        let destination = Self.agentFolder(agentID).appending(path: "avatar-\(UUID().uuidString.prefix(6)).\(url.pathExtension.isEmpty ? "png" : url.pathExtension)")
+    /// Conserva il vero Genmoji adattivo, con le sue risoluzioni e i metadati.
+    func setGenmoji(_ glyph: NSAdaptiveImageGlyph, for agentID: UUID) {
+        guard let previous = agent(agentID) else { return }
+        let folder = Self.agentFolder(agentID)
+        let destination = folder.appending(path: "genmoji-\(UUID().uuidString.prefix(6)).genmoji")
         do {
-            try FileManager.default.copyItem(at: url, to: destination)
-            if let old = agent(agentID)?.avatarPath { try? FileManager.default.removeItem(atPath: old) }
-            updateAgent(agentID) { spec in
+            try glyph.imageContent.write(to: destination, options: .atomic)
+            let saved = updateAgent(agentID) { spec in
                 spec.avatarPath = destination.path
-                spec.record(.nota, "Nuovo ritratto creato con Image Playground")
+                spec.record(.nota, String(localized: "Nuovo Genmoji creato con Image Playground"))
             }
+            guard saved || !persists else {
+                if let index = agents.firstIndex(where: { $0.id == agentID }) { agents[index] = previous }
+                try? FileManager.default.removeItem(at: destination)
+                showToast(String(localized: "Genmoji non salvato: riprova"), symbol: "exclamationmark.triangle.fill")
+                return
+            }
+            if let old = previous.avatarPath { Self.removeAvatarFile(at: old, from: folder) }
         } catch {
-            log(icon: "photo", title: "Ritratto non salvato", detail: error.localizedDescription, status: .failed)
+            log(icon: "photo", title: String(localized: "Genmoji non salvato"), detail: error.localizedDescription, status: .failed)
         }
     }
 
-    /// Descrizione per Image Playground (in inglese capisce meglio).
+    func removeAvatar(for agentID: UUID) {
+        guard let previous = agent(agentID), let old = previous.avatarPath else { return }
+        let saved = updateAgent(agentID) { $0.avatarPath = nil }
+        guard saved || !persists else {
+            if let index = agents.firstIndex(where: { $0.id == agentID }) { agents[index] = previous }
+            showToast(String(localized: "Immagine non rimossa: riprova"), symbol: "exclamationmark.triangle.fill")
+            return
+        }
+        Self.removeAvatarFile(at: old, from: Self.agentFolder(agentID))
+    }
+
+    private static func removeAvatarFile(at path: String, from folder: URL) {
+        let root = folder.standardizedFileURL.resolvingSymlinksInPath().path + "/"
+        let target = URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath().path
+        guard target.hasPrefix(root) else { return }
+        try? FileManager.default.removeItem(atPath: path)
+    }
+
+    /// Descrizione per il Genmoji di Image Playground (in inglese capisce meglio).
     func portraitConcept(for agent: AgentSpec) async -> String {
-        let person = agent.personName.isEmpty ? "una persona" : agent.personName
-        let text = "Ritratto amichevole di \(person), assistente esperto di \(agent.name.lowercased()), sfondo semplice, espressione sorridente"
-        return await assistant.englishImagePrompt(text)
+        let person = agent.personName.isEmpty ? String(localized: "una persona") : agent.personName
+        let text = String(localized: "Ritratto Genmoji originale di \(person), assistente esperto di \(agent.name.lowercased()), solo volto e spalle, espressione viva, senza oggetti né scritte")
+        let translated = await assistant.englishImagePrompt(text)
+        return translated + ". Distinctive original face, natural skin tone, head and shoulders only, no props or text."
     }
 
     @discardableResult
@@ -3427,7 +3573,7 @@ final class AppState {
     func newChildChat(title: String, project: ProjectModel?, firstMessage: String?) {
         guard let parent = current else { return }
         saveConversations()
-        let child = Conversation(title: title.isEmpty ? "Chat figlia" : title, projectID: project?.id, parentID: parent.id)
+        let child = Conversation(title: title.isEmpty ? String(localized: "Chat figlia") : title, projectID: project?.id, parentID: parent.id)
         child.space = parent.space ?? space.rawValue
         // La figlia sa di cosa si parlava nella madre e usa lo stesso modello.
         child.inherited = Self.handoff(from: parent)
@@ -3464,7 +3610,7 @@ final class AppState {
             current?.title = request.title
             if let first = request.firstMessage, !first.isEmpty { send(first) }
         }
-        log(icon: "plus.bubble", title: "Chat creata", detail: request.title, status: .done)
+        log(icon: "plus.bubble", title: String(localized: "Chat creata"), detail: request.title, status: .done)
     }
 
     func parent(of conversation: Conversation) -> Conversation? {
@@ -3475,13 +3621,14 @@ final class AppState {
     func returnToParent() {
         guard let child = current, let parent = parent(of: child), !isResponding else { return }
         isResponding = true
-        setThinking("Riassumo la chat per la chat madre…")
+        setThinking(String(localized: "Riassumo la chat per la chat madre…"))
         Task {
-            let transcript = Self.turns(of: child).map { "\($0.role == .user ? "Ivan" : "Siri AI+"): \($0.text.prefix(600))" }.joined(separator: "\n")
+            let user = Assistant.userFirstName ?? String(localized: "Utente")
+            let transcript = Self.turns(of: child).map { "\($0.role == .user ? user : "Siri AI+"): \($0.text.prefix(600))" }.joined(separator: "\n")
             let summary = (try? await assistant.summarizeForParent(title: child.title, transcript: transcript)) ?? String(transcript.suffix(800))
             child.messages.removeAll { if case .thinking = $0.content { true } else { false } }
             child.returned = true
-            child.messages.append(Message(content: .notice("Chat conclusa: riepilogo inviato a «\(parent.title)».")))
+            child.messages.append(Message(content: .notice(String(localized: "Chat conclusa: riepilogo inviato a «\(parent.title)»."))))
             let project = child.projectID.flatMap { id in projects.first { $0.id == id } }
             // Una sola scheda per figlia: quella «aperta» lascia il posto al riepilogo, in fondo alla madre.
             parent.messages.removeAll { message in
@@ -3492,7 +3639,7 @@ final class AppState {
             saveConversations()
             select(parent)
             if case .project = section, parent.projectID == nil { section = .home }
-            log(icon: "arrow.uturn.backward", title: "Chat figlia conclusa", detail: child.title, status: .done)
+            log(icon: "arrow.uturn.backward", title: String(localized: "Chat figlia conclusa"), detail: child.title, status: .done)
         }
     }
 
@@ -3515,16 +3662,16 @@ final class AppState {
                 let expectedLines = [card.draft.title] + card.draft.body.components(separatedBy: "\n").filter { !$0.isEmpty }
                 if let observed, expectedLines.allSatisfy({ observed.text.contains($0) }) {
                     card.status = .done
-                    log(icon: "source:notes", title: "Nota verificata", detail: card.draft.title, status: .done)
+                    log(icon: "source:notes", title: String(localized: "Nota verificata"), detail: card.draft.title, status: .done)
                     flash(.done)
                 } else {
                     card.status = .uncertain
-                    card.error = "La nota è stata richiesta a Note, ma non sono riuscita a rileggere il contenuto. Controlla Note prima di riprovare."
-                    log(icon: "source:notes", title: "Nota da verificare", detail: card.draft.title, status: .failed)
+                    card.error = String(localized: "La nota è stata richiesta a Note, ma non sono riuscita a rileggere il contenuto. Controlla Note prima di riprovare.")
+                    log(icon: "source:notes", title: String(localized: "Nota da verificare"), detail: card.draft.title, status: .failed)
                 }
             } catch {
                 card.status = .uncertain
-                card.error = "Non posso stabilire se Note abbia creato la nota: \(error.localizedDescription). Controlla Note prima di riprovare."
+                card.error = String(localized: "Non posso stabilire se Note abbia creato la nota: \(error.localizedDescription). Controlla Note prima di riprovare.")
                 flash(.error)
             }
             saveConversations()
@@ -3540,21 +3687,21 @@ final class AppState {
                 var verified = false
                 for _ in 0..<3 {
                     if let rows = try? MessagesService.recent(matching: card.draft.text, limit: 30).rows,
-                       rows.contains(where: { $0.title.hasPrefix("Tu →") && $0.detail == card.draft.text && $0.reference == card.draft.handle }) {
+                       rows.contains(where: { ($0.title.hasPrefix("Tu →") || $0.title.hasPrefix("You →")) && $0.detail == card.draft.text && $0.reference == card.draft.handle }) {
                         verified = true; break
                     }
                     try? await Task.sleep(for: .seconds(1))
                 }
                 card.status = verified ? .done : .uncertain
                 if verified {
-                    log(icon: "source:messages", title: "Messaggio verificato", detail: card.draft.recipient, status: .done)
+                    log(icon: "source:messages", title: String(localized: "Messaggio verificato"), detail: card.draft.recipient, status: .done)
                     flash(.done)
                 } else {
-                    card.error = "Messaggi ha accettato l'invio, ma non posso confermarlo. Controlla la conversazione prima di riprovare."
+                    card.error = String(localized: "Messaggi ha accettato l'invio, ma non posso confermarlo. Controlla la conversazione prima di riprovare.")
                 }
             } catch {
                 card.status = .uncertain
-                card.error = "Non posso stabilire se il messaggio sia partito: \(error.localizedDescription). Controlla Messaggi prima di riprovare."
+                card.error = String(localized: "Non posso stabilire se il messaggio sia partito: \(error.localizedDescription). Controlla Messaggi prima di riprovare.")
                 flash(.error)
             }
             saveConversations()
@@ -3566,7 +3713,7 @@ final class AppState {
     func confirm(_ card: FileWriteCardModel) {
         guard let project = projects.first(where: { $0.id == card.projectID }) else {
             card.status = .failed
-            card.error = "Il progetto non è più collegato."
+            card.error = String(localized: "Il progetto non è più collegato.")
             return
         }
         do {
@@ -3581,16 +3728,16 @@ final class AppState {
             card.doneAt = .now
             if (try? project.files.read(card.draft.path, maxChars: max(card.draft.content.count + 1, 3000))) == card.draft.content {
                 card.status = .done
-                log(icon: "doc.badge.plus", title: card.draft.exists ? "File modificato e verificato" : "File creato e verificato", detail: "\(project.name)/\(card.draft.path)", status: .done)
+                log(icon: "doc.badge.plus", title: card.draft.exists ? String(localized: "File modificato e verificato") : String(localized: "File creato e verificato"), detail: "\(project.name)/\(card.draft.path)", status: .done)
             } else {
                 card.status = .uncertain
-                card.error = "Il file è stato scritto, ma la rilettura non coincide. Controlla il contenuto prima di riprovare."
+                card.error = String(localized: "Il file è stato scritto, ma la rilettura non coincide. Controlla il contenuto prima di riprovare.")
             }
             projectRevision += 1
             flash(card.status == .done ? .done : .error)
         } catch {
             card.status = .uncertain
-            card.error = "Non posso stabilire se il file sia stato modificato: \(error.localizedDescription). Controlla prima di riprovare."
+            card.error = String(localized: "Non posso stabilire se il file sia stato modificato: \(error.localizedDescription). Controlla prima di riprovare.")
             flash(.error)
         }
     }
@@ -3598,7 +3745,7 @@ final class AppState {
     func confirm(_ card: FileOpCardModel) {
         guard let project = projects.first(where: { $0.id == card.projectID }) else {
             card.status = .failed
-            card.error = "Il progetto non è più collegato."
+            card.error = String(localized: "Il progetto non è più collegato.")
             return
         }
         do {
@@ -3617,15 +3764,15 @@ final class AppState {
             card.status = verified ? .done : .uncertain
             if verified {
                 log(icon: "folder", title: card.draft.title, detail: "\(project.name)/\(card.draft.from)", status: .done)
-                assistant.remember("Operazione eseguita: \(card.draft.title) \(card.draft.from) \(card.draft.to)")
+                assistant.remember(String(localized: "Operazione eseguita: \(card.draft.title) \(card.draft.from) \(card.draft.to)"))
             } else {
-                card.error = "L'operazione non è stata confermata dalla rilettura dei file. Controlla prima di riprovare."
+                card.error = String(localized: "L'operazione non è stata confermata dalla rilettura dei file. Controlla prima di riprovare.")
             }
             projectRevision += 1
             flash(verified ? .done : .error)
         } catch {
             card.status = .uncertain
-            card.error = "Non posso stabilire se l'operazione sui file sia riuscita: \(error.localizedDescription). Controlla prima di riprovare."
+            card.error = String(localized: "Non posso stabilire se l'operazione sui file sia riuscita: \(error.localizedDescription). Controlla prima di riprovare.")
             flash(.error)
         }
         saveConversations()
@@ -3649,13 +3796,13 @@ final class AppState {
     /// Esegue la chiamata; se serve un altro passaggio prepara la scheda successiva, altrimenti risponde con tutti i risultati.
     private func runMCP(_ card: MCPCallCardModel) async {
         card.status = .running
-        setThinking("Chiedo a \(card.draft.tool.serverName)…")
+        setThinking(String(localized: "Chiedo a \(card.draft.tool.serverName)…"))
         do {
             let result = try await mcp.call(card.draft.tool, arguments: card.draft.arguments)
             card.result = String(result.prefix(4000))
             card.status = .done
-            log(icon: "puzzlepiece.extension", title: "Strumento esterno: \(card.draft.tool.name)", detail: card.draft.tool.serverName, status: .done)
-            setThinking("Valuto il risultato…")
+            log(icon: "puzzlepiece.extension", title: String(localized: "Strumento esterno: \(card.draft.tool.name)"), detail: card.draft.tool.serverName, status: .done)
+            setThinking(String(localized: "Valuto il risultato…"))
             if let next = await assistant.nextMCPStep(after: card.draft, result: result) {
                 let nextCard = MCPCallCardModel(next)
                 out?.messages.removeAll { if case .thinking = $0.content { true } else { false } }
@@ -3664,7 +3811,7 @@ final class AppState {
                 return
             }
             let steps = (card.draft.steps ?? []) + [MCPStep(tool: card.draft.tool.name, arguments: card.draft.arguments.compactString, result: String(result.prefix(3000)))]
-            await stream(assistant.mcpAnswerPrompt(request: card.draft.request ?? "Risultato di \(card.draft.tool.name)", steps: steps))
+            await stream(assistant.mcpAnswerPrompt(request: card.draft.request ?? String(localized: "Risultato di \(card.draft.tool.name)"), steps: steps))
         } catch {
             card.status = .failed
             card.error = error.localizedDescription
@@ -3685,12 +3832,12 @@ final class AppState {
     /// Modifiche precise decise dal motore su ciò che è aperto al centro: paragrafi, slide, righe e celle.
     /// Quello che non cambia resta identico; si annulla con ⌘Z (documenti) o dalla cronologia delle versioni.
     private func applyArtifactEdit(_ edit: ArtifactEdit) {
-        guard let artifact = openArtifact else { return append(.text("Apri prima un documento, un foglio o una presentazione.")) }
+        guard let artifact = openArtifact else { return append(.text(String(localized: "Apri prima un documento, un foglio o una presentazione."))) }
         guard !edit.isEmpty else {
-            append(.text(edit.summary.isEmpty ? "Non ho capito cosa cambiare: dimmi quale parte." : edit.summary))
+            append(.text(edit.summary.isEmpty ? String(localized: "Non ho capito cosa cambiare: dimmi quale parte.") : edit.summary))
             return
         }
-        artifact.snapshot("Prima della modifica di Siri AI+")
+        artifact.snapshot(String(localized: "Prima della modifica di Siri AI+"))
         switch edit {
         case .document(let plan):
             applyDocument(plan, to: artifact)
@@ -3704,12 +3851,12 @@ final class AppState {
             spreadsheet.sheets[index].apply(plan.operations)
             artifact.content = .sheet(spreadsheet)
         case .instruction(let text):
-            append(.text("Non riesco a modificare questo contenuto con «\(text)»: dimmi quale parte cambiare."))
+            append(.text(String(localized: "Non riesco a modificare questo contenuto con «\(text)»: dimmi quale parte cambiare.")))
             return
         }
-        let undo = if case .document = edit { " Per annullare: ⌘Z o la cronologia delle versioni." } else { " Per annullare: la cronologia delle versioni." }
+        let undo = if case .document = edit { String(localized: " Per annullare: ⌘Z o la cronologia delle versioni.") } else { String(localized: " Per annullare: la cronologia delle versioni.") }
         append(.text(edit.summary + undo))
-        log(icon: "artifact:\(artifact.kind.rawValue)", title: "\(artifact.kind.noun) modificat\(artifact.kind.ending) da Siri AI+", detail: edit.summary, status: .done)
+        log(icon: "artifact:\(artifact.kind.rawValue)", title: String(localized: "\(artifact.kind.noun) modificat\(artifact.kind.ending) da Siri AI+"), detail: edit.summary, status: .done)
         flash(.done)
     }
 
@@ -3734,22 +3881,25 @@ final class AppState {
     func applyDocumentInstruction(_ instruction: String, to artifact: ArtifactModel) async {
         let (current, _) = liveDocument(of: artifact)
         do {
-            let plan = try await assistant.planDocumentEdit(instruction, outline: DocumentBridge.outline(of: current))
+            // La modifica segue la lingua in cui è scritta l'istruzione (fuori dalla chat non c'è una richiesta in corso).
+            let plan = try await Language.$scoped.withValue(assistant.language(for: instruction)) {
+                try await assistant.planDocumentEdit(instruction, outline: DocumentBridge.outline(of: current))
+            }
             guard !plan.operations.isEmpty else { return showToast(plan.summary, symbol: "info.circle") }
-            artifact.snapshot("Prima di «\(instruction.prefix(30))»")
+            artifact.snapshot(String(localized: "Prima di «\(instruction.prefix(30))»"))
             applyDocument(plan, to: artifact)
             showToast(plan.summary, symbol: "sparkles")
         } catch {
-            showToast("Non sono riuscito a modificare il documento.", symbol: "exclamationmark.triangle")
+            showToast(String(localized: "Non sono riuscito a modificare il documento."), symbol: "exclamationmark.triangle")
         }
     }
 
     /// Documento nuovo su un argomento: si apre subito al centro (la chat passa a destra) e si riempie mentre viene scritto.
     private func writeDocument(about topic: String) async {
-        let artifact = ArtifactModel(kind: .pages, title: "Nuovo documento", content: .document(ArtifactFactory.document(from: DocumentDraft(literal: ""))))
+        let artifact = ArtifactModel(kind: .pages, title: String(localized: "Nuovo documento"), content: .document(ArtifactFactory.document(from: DocumentDraft(literal: ""))))
         artifact.projectID = currentProject?.id
         out?.messages.removeAll { if case .thinking = $0.content { true } else { false } }
-        let intro = Message(content: .text("Sto scrivendo il documento: lo vedi prendere forma al centro."))
+        let intro = Message(content: .text(String(localized: "Sto scrivendo il documento: lo vedi prendere forma al centro.")))
         out?.messages.append(intro)
         append(.artifact(artifact))
         open(artifact)
@@ -3759,14 +3909,14 @@ final class AppState {
                 if !partial.title.isEmpty { artifact.title = partial.title }
                 artifact.content = .document(ArtifactFactory.document(from: partial))
             }
-            artifact.versions = [ArtifactModel.Version(date: .now, label: "Creato da Siri AI+", content: artifact.content)]
+            artifact.versions = [ArtifactModel.Version(date: .now, label: String(localized: "Creato da Siri AI+"), content: artifact.content)]
             if let index = out?.messages.firstIndex(where: { $0.id == intro.id }) {
-                out?.messages[index].content = .text("Ho scritto il documento «\(draft.title)»: è aperto al centro, pronto da modificare.")
+                out?.messages[index].content = .text(String(localized: "Ho scritto il documento «\(draft.title)»: è aperto al centro, pronto da modificare."))
             }
-            log(icon: "artifact:pages", title: "Documento creato", detail: draft.title, status: .done)
+            log(icon: "artifact:pages", title: String(localized: "Documento creato"), detail: draft.title, status: .done)
             flash(.done)
         } catch {
-            append(.notice(Task.isCancelled ? "Scrittura interrotta: resta quello che era già pronto." : "Non sono riuscito a scrivere il documento: \(error.localizedDescription)"))
+            append(.notice(Task.isCancelled ? String(localized: "Scrittura interrotta: resta quello che era già pronto.") : String(localized: "Non sono riuscito a scrivere il documento: \(error.localizedDescription)")))
             flash(.error)
         }
     }
@@ -3800,12 +3950,12 @@ final class AppState {
         }
         do {
             let url = try ArtifactFactory.export(artifact, as: format, folder: projectFolder(for: artifact))
-            log(icon: "artifact:\(artifact.kind.rawValue)", title: "\(artifact.kind.noun) salvat\(artifact.kind.ending)", detail: url.lastPathComponent, status: .done)
+            log(icon: "artifact:\(artifact.kind.rawValue)", title: String(localized: "\(artifact.kind.noun) salvat\(artifact.kind.ending)"), detail: url.lastPathComponent, status: .done)
             projectRevision += 1
             saveConversations()
             return url
         } catch {
-            log(icon: "artifact:\(artifact.kind.rawValue)", title: "Salvataggio non riuscito", detail: error.localizedDescription, status: .failed)
+            log(icon: "artifact:\(artifact.kind.rawValue)", title: String(localized: "Salvataggio non riuscito"), detail: error.localizedDescription, status: .failed)
             return nil
         }
     }
@@ -3827,16 +3977,16 @@ final class AppState {
                 let actual = card.savedStart.flatMap { CalendarStore.detail(identifier: edit.identifier, start: $0) }
                 if actual?.title == card.draft.title, actual?.start == card.draft.start {
                     card.status = .done
-                    log(icon: "source:calendar", title: "Evento modificato e verificato", detail: "\(card.draft.title) · \(Dates.friendly(card.draft.start))", status: .done)
+                    log(icon: "source:calendar", title: String(localized: "Evento modificato e verificato"), detail: "\(card.draft.title) · \(Dates.friendly(card.draft.start))", status: .done)
                     flash(.done)
                 } else {
                     card.status = .uncertain
-                    card.error = "Calendario ha accettato la modifica, ma la rilettura non l'ha confermata. Controlla l'evento prima di riprovare."
+                    card.error = String(localized: "Calendario ha accettato la modifica, ma la rilettura non l'ha confermata. Controlla l'evento prima di riprovare.")
                 }
             } catch {
                 card.status = .uncertain
-                card.error = "Non posso stabilire se Calendario abbia modificato l'evento: \(error.localizedDescription). Controlla prima di riprovare."
-                log(icon: "source:calendar", title: "Evento non modificato", detail: error.localizedDescription, status: .failed)
+                card.error = String(localized: "Non posso stabilire se Calendario abbia modificato l'evento: \(error.localizedDescription). Controlla prima di riprovare.")
+                log(icon: "source:calendar", title: String(localized: "Evento non modificato"), detail: error.localizedDescription, status: .failed)
                 flash(.error)
             }
             return
@@ -3848,16 +3998,16 @@ final class AppState {
             let actual = card.createdID.flatMap { CalendarStore.detail(identifier: $0, start: card.draft.start) }
             if actual?.title == card.draft.title, actual?.start == card.draft.start {
                 card.status = .done
-                log(icon: "source:calendar", title: "Evento creato e verificato", detail: "\(card.draft.title) · \(Dates.friendly(card.draft.start))", status: .done)
+                log(icon: "source:calendar", title: String(localized: "Evento creato e verificato"), detail: "\(card.draft.title) · \(Dates.friendly(card.draft.start))", status: .done)
                 flash(.done)
             } else {
                 card.status = .uncertain
-                card.error = "Calendario ha accettato l'evento, ma la rilettura non l'ha confermato. Controlla prima di riprovare."
+                card.error = String(localized: "Calendario ha accettato l'evento, ma la rilettura non l'ha confermato. Controlla prima di riprovare.")
             }
         } catch {
             card.status = .uncertain
-            card.error = "Non posso stabilire se Calendario abbia creato l'evento: \(error.localizedDescription). Controlla prima di riprovare."
-            log(icon: "source:calendar", title: "Evento non creato", detail: error.localizedDescription, status: .failed)
+            card.error = String(localized: "Non posso stabilire se Calendario abbia creato l'evento: \(error.localizedDescription). Controlla prima di riprovare.")
+            log(icon: "source:calendar", title: String(localized: "Evento non creato"), detail: error.localizedDescription, status: .failed)
             flash(.error)
         }
     }
@@ -3874,15 +4024,15 @@ final class AppState {
                 let actual = EventKitService.reminder(identifier: edit.identifier)
                 if actual?.draft.title == draft.title, actual?.list == card.list {
                     card.status = .done
-                    log(icon: "source:reminders", title: "Promemoria modificato e verificato", detail: draft.title, status: .done)
+                    log(icon: "source:reminders", title: String(localized: "Promemoria modificato e verificato"), detail: draft.title, status: .done)
                     flash(.done)
                 } else {
                     card.status = .uncertain
-                    card.error = "Promemoria ha accettato la modifica, ma la rilettura non l'ha confermata. Controlla prima di riprovare."
+                    card.error = String(localized: "Promemoria ha accettato la modifica, ma la rilettura non l'ha confermata. Controlla prima di riprovare.")
                 }
             } catch {
                 card.status = .uncertain
-                card.error = "Non posso stabilire se Promemoria abbia modificato l'elemento: \(error.localizedDescription). Controlla prima di riprovare."
+                card.error = String(localized: "Non posso stabilire se Promemoria abbia modificato l'elemento: \(error.localizedDescription). Controlla prima di riprovare.")
                 flash(.error)
             }
             return
@@ -3899,15 +4049,15 @@ final class AppState {
             }
             if verified {
                 card.status = .done
-                log(icon: "source:reminders", title: count == 1 ? "Promemoria verificato" : "\(count) promemoria verificati", detail: "Lista \(card.list)", status: .done)
+                log(icon: "source:reminders", title: count == 1 ? String(localized: "Promemoria verificato") : String(localized: "\(count) promemoria verificati"), detail: String(localized: "Lista \(card.list)"), status: .done)
                 flash(.done)
             } else {
                 card.status = .uncertain
-                card.error = "Promemoria ha accettato la richiesta, ma la rilettura non l'ha confermata. Controlla prima di riprovare."
+                card.error = String(localized: "Promemoria ha accettato la richiesta, ma la rilettura non l'ha confermata. Controlla prima di riprovare.")
             }
         } catch {
             card.status = .uncertain
-            card.error = "Non posso stabilire se Promemoria abbia creato gli elementi: \(error.localizedDescription). Controlla prima di riprovare."
+            card.error = String(localized: "Non posso stabilire se Promemoria abbia creato gli elementi: \(error.localizedDescription). Controlla prima di riprovare.")
             flash(.error)
         }
     }
@@ -3918,20 +4068,20 @@ final class AppState {
             let verified = try SpaceScope.$task.withValue(scope(forCard: card)) { try EventKitService.perform(card.action) }
             card.status = verified ? .done : .uncertain
             let title = switch card.action.kind {
-            case .deleteEvent: "Evento eliminato"
-            case .deleteReminder: "Promemoria eliminato"
-            case .completeReminder: "Promemoria completato"
+            case .deleteEvent: String(localized: "Evento eliminato")
+            case .deleteReminder: String(localized: "Promemoria eliminato")
+            case .completeReminder: String(localized: "Promemoria completato")
             }
             if verified {
                 log(icon: "source:\(card.source.rawValue)", title: title, detail: card.action.title, status: .done)
                 flash(.done)
             } else {
-                card.error = "L'app ha accettato l'azione, ma la rilettura non l'ha confermata. Controlla prima di riprovare."
-                log(icon: "source:\(card.source.rawValue)", title: "Azione da verificare", detail: card.action.title, status: .failed)
+                card.error = String(localized: "L'app ha accettato l'azione, ma la rilettura non l'ha confermata. Controlla prima di riprovare.")
+                log(icon: "source:\(card.source.rawValue)", title: String(localized: "Azione da verificare"), detail: card.action.title, status: .failed)
             }
         } catch {
             card.status = .uncertain
-            card.error = "Non posso stabilire se l'azione sia stata applicata: \(error.localizedDescription). Controlla l'elemento prima di riprovare."
+            card.error = String(localized: "Non posso stabilire se l'azione sia stata applicata: \(error.localizedDescription). Controlla l'elemento prima di riprovare.")
             flash(.error)
         }
     }
@@ -3944,7 +4094,7 @@ final class AppState {
                 try EventKitService.update(identifier: edit.identifier, start: saved, to: edit.before)
                 card.status = .cancelled
                 card.savedStart = nil
-                log(icon: "arrow.uturn.backward", title: "Modifica annullata", detail: edit.before.title, status: .cancelled)
+                log(icon: "arrow.uturn.backward", title: String(localized: "Modifica annullata"), detail: edit.before.title, status: .cancelled)
             } catch { card.error = error.localizedDescription }
             saveConversations()
             return
@@ -3954,7 +4104,7 @@ final class AppState {
             try EventKitService.remove(identifiers: [id])
             card.status = .cancelled
             card.createdID = nil
-            log(icon: "arrow.uturn.backward", title: "Evento annullato", detail: card.draft.title, status: .cancelled)
+            log(icon: "arrow.uturn.backward", title: String(localized: "Evento annullato"), detail: card.draft.title, status: .cancelled)
         } catch { card.error = error.localizedDescription }
         saveConversations()
     }
@@ -3964,7 +4114,7 @@ final class AppState {
             do {
                 try EventKitService.update(reminder: edit.identifier, to: edit.before, list: edit.beforeList)
                 card.status = .cancelled
-                log(icon: "arrow.uturn.backward", title: "Modifica annullata", detail: edit.before.title, status: .cancelled)
+                log(icon: "arrow.uturn.backward", title: String(localized: "Modifica annullata"), detail: edit.before.title, status: .cancelled)
             } catch { card.error = error.localizedDescription }
             saveConversations()
             return
@@ -3974,7 +4124,7 @@ final class AppState {
             try EventKitService.remove(identifiers: card.createdIDs)
             card.status = .cancelled
             card.createdIDs = []
-            log(icon: "arrow.uturn.backward", title: "Promemoria annullati", detail: "Lista \(card.list)", status: .cancelled)
+            log(icon: "arrow.uturn.backward", title: String(localized: "Promemoria annullati"), detail: String(localized: "Lista \(card.list)"), status: .cancelled)
         } catch { card.error = error.localizedDescription }
         saveConversations()
     }
@@ -3992,7 +4142,7 @@ final class AppState {
             card.status = .cancelled
             card.backupPath = nil
             projectRevision += 1
-            log(icon: "arrow.uturn.backward", title: card.draft.exists ? "Modifica annullata" : "File tolto", detail: card.draft.path, status: .cancelled)
+            log(icon: "arrow.uturn.backward", title: card.draft.exists ? String(localized: "Modifica annullata") : String(localized: "File tolto"), detail: card.draft.path, status: .cancelled)
         } catch { card.error = error.localizedDescription }
         saveConversations()
     }
@@ -4011,7 +4161,7 @@ final class AppState {
             ProjectGuide.invalidate(project.folder)
             card.status = .cancelled
             projectRevision += 1
-            log(icon: "arrow.uturn.backward", title: "\(card.draft.title) annullato", detail: card.draft.from, status: .cancelled)
+            log(icon: "arrow.uturn.backward", title: String(localized: "\(card.draft.title) annullato"), detail: card.draft.from, status: .cancelled)
         } catch { card.error = error.localizedDescription }
         saveConversations()
     }
@@ -4024,14 +4174,14 @@ final class AppState {
                 let verified = try await MailComposer.compose(to: card.recipientList, subject: card.subject, body: card.body)
                 card.status = verified ? .opened : .uncertain
                 if verified {
-                    log(icon: "source:mail", title: "Bozza aperta in Mail", detail: "\(card.subject) · \(card.recipientList.count) destinatari", status: .done)
+                    log(icon: "source:mail", title: String(localized: "Bozza aperta in Mail"), detail: String(localized: "\(card.subject) · \(card.recipientList.count) destinatari"), status: .done)
                     flash(.done)
                 } else {
-                    card.error = "Mail ha creato la bozza, ma la rilettura non l'ha confermata. Controlla Mail prima di riprovare."
+                    card.error = String(localized: "Mail ha creato la bozza, ma la rilettura non l'ha confermata. Controlla Mail prima di riprovare.")
                 }
             } catch {
                 card.status = .uncertain
-                card.error = "Non posso stabilire se Mail abbia aperto la bozza: \(error.localizedDescription). Controlla Mail prima di riprovare."
+                card.error = String(localized: "Non posso stabilire se Mail abbia aperto la bozza: \(error.localizedDescription). Controlla Mail prima di riprovare.")
             }
             saveConversations()
         }
@@ -4046,11 +4196,11 @@ final class AppState {
             do {
                 try await MailComposer.reply(to: reply.messageID, body: body, replyAll: reply.replyAll)
                 card.status = .opened
-                log(icon: "source:mail", title: "Risposta aperta in Mail", detail: card.subject, status: .done)
+                log(icon: "source:mail", title: String(localized: "Risposta aperta in Mail"), detail: card.subject, status: .done)
                 flash(.done)
             } catch {
                 card.status = .uncertain
-                card.error = "Non posso stabilire se Mail abbia aperto la risposta: \(error.localizedDescription). Controlla Mail prima di riprovare."
+                card.error = String(localized: "Non posso stabilire se Mail abbia aperto la risposta: \(error.localizedDescription). Controlla Mail prima di riprovare.")
                 flash(.error)
             }
             saveConversations()
@@ -4065,11 +4215,11 @@ final class AppState {
                 try await MailComposer.forward(card.draft.messageID, to: card.draft.recipientAddress.trimmingCharacters(in: .whitespaces),
                                                name: card.draft.recipientName)
                 card.status = .opened
-                log(icon: "source:mail", title: "Inoltro aperto in Mail", detail: card.draft.subject, status: .done)
+                log(icon: "source:mail", title: String(localized: "Inoltro aperto in Mail"), detail: card.draft.subject, status: .done)
                 flash(.done)
             } catch {
                 card.status = .uncertain
-                card.error = "Non posso stabilire se Mail abbia aperto l'inoltro: \(error.localizedDescription). Controlla Mail prima di riprovare."
+                card.error = String(localized: "Non posso stabilire se Mail abbia aperto l'inoltro: \(error.localizedDescription). Controlla Mail prima di riprovare.")
                 flash(.error)
             }
             saveConversations()
@@ -4085,7 +4235,7 @@ final class AppState {
             NSPasteboard.general.setString(lines.joined(separator: "\n"), forType: .string)
             Task { await NotesService.open(id: card.draft.noteID) }
             card.status = .copied
-            log(icon: "source:notes", title: "Testo copiato per la nota", detail: card.draft.title, status: .done)
+            log(icon: "source:notes", title: String(localized: "Testo copiato per la nota"), detail: card.draft.title, status: .done)
             saveConversations()
             return
         }
@@ -4094,14 +4244,14 @@ final class AppState {
             do {
                 let snapshot = try await NotesService.snapshot(id: card.draft.noteID)
                 guard NotesService.canAppendSafely(snapshot.html) else {
-                    throw AppleAppError.script("La nota ora ha liste o allegati che Note perderebbe: aggiungi il testo dall'app Note.")
+                    throw AppleAppError.script(String(localized: "La nota ora ha liste o allegati che Note perderebbe: aggiungi il testo dall'app Note."))
                 }
                 let saved = try await NotesService.append(id: card.draft.noteID, lines: lines, expectedHTML: snapshot.html)
                 card.previousHTML = snapshot.html
                 card.savedHTML = saved.html
                 card.doneAt = .now
                 card.status = .done
-                log(icon: "source:notes", title: "Nota aggiornata", detail: "\(card.draft.title) · \(lines.count == 1 ? "1 riga" : "\(lines.count) righe")", status: .done)
+                log(icon: "source:notes", title: String(localized: "Nota aggiornata"), detail: "\(card.draft.title) · \(lines.count == 1 ? String(localized: "1 riga") : String(localized: "\(lines.count) righe"))", status: .done)
                 flash(.done)
             } catch {
                 card.status = .failed
@@ -4119,7 +4269,7 @@ final class AppState {
                 _ = try await NotesService.replaceBody(id: card.draft.noteID, html: previous, expectedHTML: saved)
                 card.status = .cancelled
                 card.previousHTML = nil
-                log(icon: "arrow.uturn.backward", title: "Aggiunta annullata", detail: card.draft.title, status: .cancelled)
+                log(icon: "arrow.uturn.backward", title: String(localized: "Aggiunta annullata"), detail: card.draft.title, status: .cancelled)
             } catch { card.error = error.localizedDescription }
             saveConversations()
         }
@@ -4169,52 +4319,52 @@ final class AppState {
         struct StepError: LocalizedError { let errorDescription: String? }
         switch step.kind {
         case .evento:
-            guard canWrite(.calendar) else { throw StepError(errorDescription: "Serve l'accesso in scrittura al Calendario") }
-            guard let when = Dates.parse(step.when) else { throw StepError(errorDescription: "Data mancante: crealo dalla chat") }
+            guard canWrite(.calendar) else { throw StepError(errorDescription: String(localized: "Serve l'accesso in scrittura al Calendario")) }
+            guard let when = Dates.parse(step.when) else { throw StepError(errorDescription: String(localized: "Data mancante: crealo dalla chat")) }
             let start = when.hasTime ? when.date : Calendar.current.startOfDay(for: when.date)
             let draft = EventDraft(title: step.title, start: start, end: start.addingTimeInterval(when.hasTime ? 3600 : 86_399),
                                    isAllDay: !when.hasTime, calendar: EventKitService.defaultCalendar, notes: step.detail)
             try EventKitService.save(draft)
-            log(icon: "source:calendar", title: "Evento creato", detail: "\(step.title) · \(Dates.friendly(start, time: when.hasTime))", status: .done)
-            return "Creato · \(Dates.friendly(start, time: when.hasTime))"
+            log(icon: "source:calendar", title: String(localized: "Evento creato"), detail: "\(step.title) · \(Dates.friendly(start, time: when.hasTime))", status: .done)
+            return String(localized: "Creato · \(Dates.friendly(start, time: when.hasTime))")
         case .promemoria:
-            guard canWrite(.reminders) else { throw StepError(errorDescription: "Serve l'accesso in scrittura ai Promemoria") }
+            guard canWrite(.reminders) else { throw StepError(errorDescription: String(localized: "Serve l'accesso in scrittura ai Promemoria")) }
             let due = Dates.parse(step.when)
             try EventKitService.save([ReminderDraft(title: step.title, due: due?.date, dueHasTime: due?.hasTime ?? false)],
                                      list: EventKitService.defaultReminderList)
-            log(icon: "source:reminders", title: "Promemoria aggiunto", detail: step.title, status: .done)
-            return "Aggiunto a \(EventKitService.defaultReminderList)"
+            log(icon: "source:reminders", title: String(localized: "Promemoria aggiunto"), detail: step.title, status: .done)
+            return String(localized: "Aggiunto a \(EventKitService.defaultReminderList)")
         case .email:
             let draft = try await assistant.generateMail(topic: "\(step.title). \(step.detail)", recipients: nil)
             append(.mail(MailCardModel(draft)))
-            return "Bozza pronta: confermi tu l'invio"
+            return String(localized: "Bozza pronta: confermi tu l'invio")
         case .documento:
             let draft = try await assistant.generateDocument(topic: "\(step.title). \(step.detail)")
             let artifact = ArtifactModel(kind: .pages, title: draft.title, content: .document(ArtifactFactory.document(from: draft)), projectID: currentProject?.id)
             append(.artifact(artifact)); artifacts.append(artifact)
-            log(icon: "artifact:pages", title: "Documento creato", detail: draft.title, status: .done)
-            return "Documento pronto"
+            log(icon: "artifact:pages", title: String(localized: "Documento creato"), detail: draft.title, status: .done)
+            return String(localized: "Documento pronto")
         case .foglio:
             let draft = try await assistant.generateSheet(topic: "\(step.title). \(step.detail)")
             let artifact = ArtifactModel(kind: .numbers, title: draft.title, content: .sheet(Spreadsheet(from: draft)), projectID: currentProject?.id)
             append(.artifact(artifact)); artifacts.append(artifact)
-            log(icon: "artifact:numbers", title: "Foglio creato", detail: draft.title, status: .done)
-            return "Foglio pronto"
+            log(icon: "artifact:numbers", title: String(localized: "Foglio creato"), detail: draft.title, status: .done)
+            return String(localized: "Foglio pronto")
         case .presentazione:
             let draft = try await assistant.generateDeck(topic: "\(step.title). \(step.detail)")
             let artifact = ArtifactModel(kind: .keynote, title: draft.title, content: .deck(Deck(from: draft)), projectID: currentProject?.id)
             append(.artifact(artifact)); artifacts.append(artifact)
-            log(icon: "artifact:keynote", title: "Presentazione creata", detail: draft.title, status: .done)
-            return "Presentazione pronta"
+            log(icon: "artifact:keynote", title: String(localized: "Presentazione creata"), detail: draft.title, status: .done)
+            return String(localized: "Presentazione pronta")
         }
     }
 
     func complete(_ reminder: ReminderItem) {
         do {
             try Overview.setCompleted(reminderID: reminder.id, true)
-            log(icon: "source:reminders", title: "Promemoria completato", detail: reminder.title, status: .done)
+            log(icon: "source:reminders", title: String(localized: "Promemoria completato"), detail: reminder.title, status: .done)
         } catch {
-            append(.notice("Impossibile completare «\(reminder.title)»: \(error.localizedDescription)"))
+            append(.notice(String(localized: "Impossibile completare «\(reminder.title)»: \(error.localizedDescription)")))
         }
     }
 
@@ -4229,7 +4379,7 @@ final class AppState {
                 if let copy = Self.keepAttachment(url) {
                     attachments.append(Attachment(name: url.lastPathComponent, text: "", imageURL: copy))
                 } else {
-                    append(.notice("Non riesco a leggere l'immagine «\(url.lastPathComponent)»."))
+                    append(.notice(String(localized: "Non riesco a leggere l'immagine «\(url.lastPathComponent)».")))
                 }
                 continue
             }
@@ -4240,16 +4390,16 @@ final class AppState {
                 if text.trimmingCharacters(in: .whitespacesAndNewlines).count < 20 {
                     let pages = Self.renderPages(of: document, limit: 2)
                     for (index, page) in pages.enumerated() {
-                        attachments.append(Attachment(name: "\(url.lastPathComponent) · pagina \(index + 1)", text: "", imageURL: page))
+                        attachments.append(Attachment(name: String(localized: "\(url.lastPathComponent) · pagina \(index + 1)"), text: "", imageURL: page))
                     }
-                    if pages.isEmpty { append(.notice("Non riesco a leggere il PDF «\(url.lastPathComponent)».")) }
+                    if pages.isEmpty { append(.notice(String(localized: "Non riesco a leggere il PDF «\(url.lastPathComponent)»."))) }
                     continue
                 }
             } else if let attributed = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) {
                 text = attributed.string
             }
             guard !text.isEmpty else {
-                append(.notice("Non riesco a leggere il testo di «\(url.lastPathComponent)»."))
+                append(.notice(String(localized: "Non riesco a leggere il testo di «\(url.lastPathComponent)».")))
                 continue
             }
             attachments.append(Attachment(name: url.lastPathComponent, text: text))
@@ -4315,21 +4465,21 @@ final class AppState {
     /// Riga leggibile di un messaggio (diagnostica).
     static func describe(_ content: Message.Content) -> String {
         switch content {
-        case .user(let text, _, _): "UTENTE: \(text)"
-        case .text(let text): "TESTO: \(text.prefix(400).replacingOccurrences(of: "\n", with: " ¶ "))"
-        case .notice(let text): "AVVISO: \(text)"
-        case .privacy(let report): "DATI PROTETTI [\(report.destination)]: \(report.total) (\(report.summary))"
-        case .trace(let trace): "TRACCIA [\(trace.model)]: " + trace.steps.map { "\($0.action)(\($0.detail.prefix(80))) → \($0.result.prefix(80))" }.joined(separator: " | ")
-        case .agenda(let agenda): "SCHEDA agenda: \(agenda.events.count) eventi, \(agenda.reminders.count) promemoria"
-        case .event(let m): "SCHEDA evento: \(m.draft.title) \(Dates.friendly(m.draft.start))"
-        case .reminders(let m): "SCHEDA promemoria: \(m.drafts.map(\.title))"
-        case .mail(let m): "SCHEDA email: \(m.subject)"
-        case .mcp(let m): "SCHEDA connettore: \(m.draft.tool.name) \(m.status)"
-        case .fileWrite(let m): "SCHEDA file: \(m.draft.path)"
-        case .web(let answer): "SCHEDA web: \(answer.sources.count) fonti"
-        case .items(let items): "SCHEDA \(items.title): \(items.rows.count)"
-        case .chatLink(let link): "SCHEDA chat figlia «\(link.title)»: " + (link.summary.map { "riepilogo: \($0.prefix(400).replacingOccurrences(of: "\n", with: " ¶ "))" } ?? "aperta")
-        default: "ALTRO: \(String(describing: content).prefix(120))"
+        case .user(let text, _, _): String(localized: "UTENTE: \(text)")
+        case .text(let text): String(localized: "TESTO: \(text.prefix(400).replacingOccurrences(of: "\n", with: " ¶ "))")
+        case .notice(let text): String(localized: "AVVISO: \(text)")
+        case .privacy(let report): String(localized: "DATI PROTETTI [\(report.destination)]: \(report.total) (\(report.summary))")
+        case .trace(let trace): String(localized: "TRACCIA [\(trace.model)]: ") + trace.steps.map { "\($0.action)(\($0.detail.prefix(80))) → \($0.result.prefix(80))" }.joined(separator: " | ")
+        case .agenda(let agenda): String(localized: "SCHEDA agenda: \(agenda.events.count) eventi, \(agenda.reminders.count) promemoria")
+        case .event(let m): String(localized: "SCHEDA evento: \(m.draft.title) \(Dates.friendly(m.draft.start))")
+        case .reminders(let m): String(localized: "SCHEDA promemoria: \(m.drafts.map(\.title))")
+        case .mail(let m): String(localized: "SCHEDA email: \(m.subject)")
+        case .mcp(let m): String(localized: "SCHEDA connettore: \(m.draft.tool.name) \(m.status)")
+        case .fileWrite(let m): String(localized: "SCHEDA file: \(m.draft.path)")
+        case .web(let answer): String(localized: "SCHEDA web: \(answer.sources.count) fonti")
+        case .items(let items): String(localized: "SCHEDA \(items.title): \(items.rows.count)")
+        case .chatLink(let link): String(localized: "SCHEDA chat figlia «\(link.title)»: ") + (link.summary.map { String(localized: "riepilogo: \($0.prefix(400).replacingOccurrences(of: "\n", with: " ¶ "))") } ?? "aperta")
+        default: String(localized: "ALTRO: \(String(describing: content).prefix(120))")
         }
     }
 
@@ -4355,7 +4505,7 @@ final class AppState {
         try? FileManager.default.trashItem(at: url, resultingItemURL: nil)
         if !recovered.isEmpty {
             saveConversations()
-            LogFile.append("RECUPERO: \(recovered.count) conversazioni reinserite")
+            LogFile.append(String(localized: "RECUPERO: \(recovered.count) conversazioni reinserite"))
         }
     }
 
@@ -4383,7 +4533,7 @@ final class AppState {
             indexed[conversation.id] = conversation.messages.count
             let body = conversation.messages.compactMap { message -> String? in
                 switch message.content {
-                case .user(let text, _, _): "Ivan: " + text
+                case .user(let text, _, _): (Assistant.userFirstName ?? String(localized: "Utente")) + ": " + text
                 case .text(let text): text
                 case .chatLink(let link): link.summary
                 default: nil

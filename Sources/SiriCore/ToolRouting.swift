@@ -43,13 +43,15 @@ extension Assistant {
         let text = prompt.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return text.range(of: #"^(?:(?:per favore|puoi)\s+)?(?:rispondi|dimmi)\s+(?:solo|soltanto|semplicemente|brevemente)(?:\s*[:.,]|\s*$|\s+(?:con|in)\b)"#,
                           options: .regularExpression) != nil
+            || text.range(of: #"^(?:(?:please|can you)\s+)?(?:answer|reply|respond|tell me)\s+(?:only|just|simply|briefly)(?:\s*[:.,]|\s*$|\s+(?:with|in)\b)"#,
+                          options: .regularExpression) != nil
     }
 
     /// «Rispondi solo: …» chiede una stringa precisa: non serve un modello che possa parafrasarla.
     nonisolated public static func literalAnswer(_ prompt: String) -> String? {
         let text = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.contains("\n"),
-              let prefix = text.range(of: #"(?i)^rispondi\s+(?:solo|soltanto)\s*:\s*"#, options: .regularExpression) else { return nil }
+              let prefix = text.range(of: #"(?i)^(?:rispondi\s+(?:solo|soltanto)|(?:answer|reply)\s+(?:only|just))\s*:\s*"#, options: .regularExpression) else { return nil }
         let answer = text[prefix.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
         return answer.isEmpty ? nil : answer
     }
@@ -61,7 +63,11 @@ extension Assistant {
         guard text.split(separator: " ").count <= 5 else { return false }
         let phrases = ["ciao", "salve", "buongiorno", "buonasera", "buonanotte", "grazie", "grazie mille", "ok", "okay", "va bene", "perfetto",
                        "ottimo", "benissimo", "bene", "come stai", "come va", "chi sei", "cosa sai fare", "sì", "si", "no", "d'accordo", "a dopo",
-                       "ci sentiamo", "alla prossima", "bravo", "brava", "fantastico", "capito", "tutto chiaro"]
+                       "ci sentiamo", "alla prossima", "bravo", "brava", "fantastico", "capito", "tutto chiaro",
+                       // In inglese.
+                       "hi", "hello", "hey", "good morning", "good evening", "good night", "thanks", "thank you", "thanks a lot",
+                       "all right", "alright", "perfect", "great", "fine", "good", "how are you", "how's it going", "who are you",
+                       "what can you do", "yes", "sure", "see you", "talk later", "bye", "cool", "awesome", "got it", "understood"]
         return phrases.contains { text == $0 || text.hasPrefix($0 + " ") && text.count <= $0.count + 12 }
     }
 
@@ -115,10 +121,25 @@ extension Assistant {
                    actions: [.crea_documento, .crea_foglio, .crea_presentazione, .crea_sito, .modifica_artefatto],
                    tools: ["crea_documento", "modifica_aperto"]),
         ToolFamily(name: "immagini", summary: "disegnare o generare un'immagine", actions: [.genera_immagine], tools: []),
-        ToolFamily(name: "memoria", summary: "ricordare un fatto o una preferenza di Ivan, ritrovare cosa si era detto o deciso in passato",
+        ToolFamily(name: "memoria", summary: "ricordare un fatto o una preferenza di \(Assistant.userLabel), ritrovare cosa si era detto o deciso in passato",
                    actions: [.ricorda, .cerca_conversazioni], tools: ["ricorda", "cerca_conversazioni"]),
-        ToolFamily(name: "agenti", summary: "creare un agente che lavora da solo (anche a orari fissi) o aprire una nuova chat",
+        ToolFamily(name: "agenti", summary: "creare un Genius che lavora da solo (anche a orari fissi) o aprire una nuova chat",
                    actions: [.crea_agente, .nuova_chat], tools: []),
+    ]
+
+    /// Le descrizioni delle famiglie per le richieste in inglese (i nomi restano quelli: li legge il codice).
+    nonisolated static let englishFamilySummaries: [String: String] = [
+        "calendario": "events, meetings, appointments, plans, availability, moving or creating an event",
+        "promemoria": "things to do, deadlines, payments or commitments not to forget, task lists",
+        "email": "received mail (orders, parcels, invoices, newsletters, senders), writing, replying to or forwarding an email",
+        "messaggi": "messages and chats with people (iMessage, SMS): reading them or sending one",
+        "note": "the Notes app: reading, searching, creating a note or adding something to it",
+        "file": "saved files and documents (on the Mac or in the project): finding, reading, creating, moving, renaming them",
+        "web": "news, prices, weather, schedules, results, recent or changing facts, websites and web pages",
+        "documenti": "creating a document, a spreadsheet, a presentation or a web page; changing the open one",
+        "immagini": "drawing or generating an image",
+        "memoria": "remembering a fact or a preference of the user, finding what was said or decided in the past",
+        "agenti": "creating a Genius that works on its own (also at set times) or opening a new chat",
     ]
 
     /// L'azione ovvia di un'area trovata dallo smistatore: leggere se si chiede, preparare se si chiede di fare.
@@ -128,23 +149,38 @@ extension Assistant {
     func rescueAction(areas: [String], prompt: String, withCalculations: Bool = false) -> Action? {
         let lower = Self.withoutQuotes(prompt).lowercased()
         // Nemmeno per i problemi di logica e le scelte con i dati nella domanda («quale giorno mi conviene?»): si ragiona, non si legge.
+        let english = Language.isEnglish
+        let advice = lower.range(of: #"^(?:come (?:posso|potrei|faccio|si |mai)|cosa mi consigli|mi consigli|consigli|perch[eé] |spiegami|che cos)"#,
+                                 options: .regularExpression) != nil
+            || (english && lower.range(of: #"^(?:how (?:can|could|do|should|would) (?:i|we)|what do you (?:suggest|recommend)|any (?:advice|tips|ideas)|give me (?:an? |some )?(?:idea|ideas|tips?|advice|suggestions?)|suggest |why |explain|what is a|what's a)"#,
+                                       options: .regularExpression) != nil)
         guard !areas.isEmpty, work.artifactKind == nil, screenFocus == nil, ResponseStyle.detect(prompt) != .creative,
               !Self.isAnswerOnlyInstruction(prompt), !conversationCovers(prompt),
-              !Self.needsReasoning(prompt),
-              lower.range(of: #"^(?:come (?:posso|potrei|faccio|si |mai)|cosa mi consigli|mi consigli|consigli|perch[eé] |spiegami|che cos)"#,
-                          options: .regularExpression) == nil else { return nil }
+              !Self.needsReasoning(prompt), !advice else { return nil }
         // Chiedere di mandare, non raccontare cosa è arrivato («chi mi ha mandato il preventivo?» si legge).
         let received = lower.range(of: #"\b(?:mi|ci|ti) (?:ha|hanno|aveva|avevano) (?:mandat|scritt|inviat|rispost)\w*"#, options: .regularExpression) != nil
-        let writes = !received && lower.range(of: #"\b(?:scrivi|scrivere|scrivigli|scrivile|scrivimi|prepara|preparami|bozza|manda|mandagli|mandale|mandare|mandagliel\w*|invia|inviagli|inviale|inviare|butta gi[uù]|dillo|digli|dille|avvisa\w*|comunica\w*)\b"#,
-                                                     options: .regularExpression) != nil
+            || (english && lower.range(of: #"\b(?:sent|wrote|emailed|texted|replied|written)(?: to)? (?:me|us)\b|\bdid (?:i|we) (?:get|receive)\b|\b(?:got|received) (?:anything|any)\b"#,
+                                       options: .regularExpression) != nil)
+        let writes = !received && (lower.range(of: #"\b(?:scrivi|scrivere|scrivigli|scrivile|scrivimi|prepara|preparami|bozza|manda|mandagli|mandale|mandare|mandagliel\w*|invia|inviagli|inviale|inviare|butta gi[uù]|dillo|digli|dille|avvisa\w*|comunica\w*)\b"#,
+                                                      options: .regularExpression) != nil
+            || (english && lower.range(of: #"\b(?:write|draft|prepare|send|jot down|text (?:him|her|them)|tell (?:him|her|them)|let (?:him|her|them) know|notify|inform|email (?:him|her|them))\b"#,
+                                       options: .regularExpression) != nil))
         let remind = lower.range(of: #"non (?:farmi|fammi|lasciarmi|farmelo|farmela) (?:scordare|dimenticare)|non devo (?:scordar|dimenticar)|ricordamelo|segnamelo|segnatelo|tienimelo presente|tienilo presente|non scordarmelo"#,
                                  options: .regularExpression) != nil
+            || (english && lower.range(of: #"don't let me forget|do not let me forget|make sure i (?:don't|do not) forget|remind me|keep (?:it|this|that) in mind for me|keep in mind for me|i must not forget|don't forget"#,
+                                       options: .regularExpression) != nil)
+        let noteTaking = lower.contains("prendi nota") || lower.contains("annota")
+            || (english && ["make a note", "jot down", "write down", "take note"].contains(where: lower.contains))
         let available = Set(availableActions)
+        // Un conto con tutti i dati nella domanda («€89.90 including 22% VAT: how much without VAT?») non si cerca nei file.
+        let selfContainedMath = Calculations.looksArithmetic(prompt) && Calculations.numbers(in: prompt).count >= 2
+            && !["file", "document", "cartell", "progett", "folder", "project", ".pdf", ".md", ".txt", ".csv"].contains(where: lower.contains)
         for area in areas {
+            if area == "file", selfContainedMath { continue }
             let action: Action? = switch area {
             case "email": writes ? .scrivi_email : .mail_leggi
             case "messaggi": writes ? .invia_messaggio : .messaggi
-            case "note": writes || lower.contains("prendi nota") || lower.contains("annota") ? .crea_nota : .note
+            case "note": writes || noteTaking ? .crea_nota : .note
             case "file": work.files != nil ? .file_cerca : .file
             // Un promemoria si crea solo se lo chiede («non farmelo scordare»): «sto organizzando una cena sabato» è un racconto.
             case "promemoria": remind ? .crea_promemoria : Self.isQuestion(prompt) ? .promemoria : nil
@@ -173,14 +209,16 @@ extension Assistant {
     public func familyCatalog(tools: [ToolSpec]? = nil) -> [ToolCatalogEntry] {
         let available = Set(availableActions)
         let names = tools.map { Set($0.map(\.name)) }
+        let english = Language.isEnglish
         var entries = Self.families.filter { family in
             if let names { return family.tools.contains(where: names.contains) }
             return family.actions.contains(where: available.contains)
-        }.map { ToolCatalogEntry(name: $0.name, summary: $0.summary) }
+        }.map { ToolCatalogEntry(name: $0.name, summary: english ? Self.englishFamilySummaries[$0.name] ?? $0.summary : $0.summary) }
         if let tools {
             entries += ToolRegistry.catalog(tools).filter { $0.name.hasPrefix("connettore_") }
         } else if available.contains(.strumento_esterno) {
-            entries.append(ToolCatalogEntry(name: "connettori", summary: "servizi collegati: \(Set(work.mcpTools.map(\.serverName)).sorted().joined(separator: ", "))"))
+            let servers = Set(work.mcpTools.map(\.serverName)).sorted().joined(separator: ", ")
+            entries.append(ToolCatalogEntry(name: "connettori", summary: Language.t("servizi collegati: ", "connected services: ") + servers))
         }
         return entries
     }
@@ -215,11 +253,12 @@ extension Assistant {
     /// Ciò che lo smistatore deve sapere oltre alla richiesta: l'ultimo scambio, il progetto, l'app o il documento aperti.
     func routingContext() -> String {
         var lines: [String] = []
-        if let recent = recentConversation(exchanges: 1, user: 220, reply: 280) { lines.append("Conversazione recente:\n\(recent)") }
-        if let project = work.projectName { lines.append("Chat del progetto «\(project)» (i file sono nella sua cartella).") }
-        if let screen = work.screen { lines.append("Aperto nelle app: \(screen.app) · \(screen.title).") }
-        if let kind = work.artifactKind { lines.append("Aperto al centro: \(kind) «\(work.artifactTitle ?? "")».") }
-        if work.browserURL != nil { lines.append("Aperta in Safari: una pagina web.") }
+        let t = Language.t
+        if let recent = recentConversation(exchanges: 1, user: 220, reply: 280) { lines.append(t("Conversazione recente:", "Recent conversation:") + "\n\(recent)") }
+        if let project = work.projectName { lines.append(t("Chat del progetto «\(project)» (i file sono nella sua cartella).", "Chat of the project «\(project)» (the files are in its folder).")) }
+        if let screen = work.screen { lines.append(t("Aperto nelle app: ", "Open in the apps: ") + "\(screen.app) · \(screen.title).") }
+        if let kind = work.artifactKind { lines.append(t("Aperto al centro: ", "Open in the center: ") + "\(kind) «\(work.artifactTitle ?? "")».") }
+        if work.browserURL != nil { lines.append(t("Aperta in Safari: una pagina web.", "Open in Safari: a web page.")) }
         return lines.joined(separator: "\n")
     }
 
@@ -232,8 +271,11 @@ extension Assistant {
         // Domande personali con una sorgente inequivocabile: il modello piccolo può dimenticare la famiglia
         // anche quando gli indizi la indicano. Queste forme si instradano prima di chiamarlo.
         let lower = prompt.lowercased().folding(options: .diacriticInsensitive, locale: .current)
+        let english = Language.isEnglish
         let appointments = ["impegni", "appuntamenti", "riunioni", "meeting"].contains { lower.contains($0) }
+            || (english && ["appointments", "my schedule", "my calendar"].contains { lower.contains($0) })
         let incoming = lower.contains("mi e arrivato") || lower.contains("ho ricevuto") || lower.contains("nella posta")
+            || (english && ["did i get", "did i receive", "i received", "in my inbox", "in the mail"].contains { lower.contains($0) })
         let direct: String? = appointments && names.contains("calendario") ? "calendario"
             : incoming && names.contains("email") ? "email" : nil
         if let direct {
@@ -245,23 +287,35 @@ extension Assistant {
         // Righe corte: la finestra dello smistatore è quella piccola di Apple Intelligence, e meno testo da leggere è più veloce.
         let width = catalog.count > 40 ? 60 : 90
         let list = catalog.map { "- \($0.name): \(Self.shortened($0.summary, to: width))" }.joined(separator: "\n")
-        let instructions = """
+        let user = Self.userFirstName ?? "l'utente"
+        let instructions = english ? """
+        You are the Siri AI+ router. You don't answer the request: you understand what it asks and choose where the assistant must look or what it must use.
+        Areas:
+        \(list)
+        How to choose:
+        - No area for greetings, conversation, explanations, advice, ideas, texts to write in the chat, math with the data already in the request and general knowledge questions.
+        - The user's own things (appointments, to-dos, mail, messages, notes, files) are looked up in the right area even if the request doesn't name it: «did my parcel arrive?» is email; «what did Julia write to me?» is messages and email; «where did I put the contract?» is file; «don't let me forget to…» is promemoria.
+        - If in doubt between two areas choose both. At most 3.
+        """ : """
         Sei lo smistatore di Siri AI+. Non rispondi alla richiesta: capisci cosa chiede e scegli dove l'assistente deve guardare o cosa deve usare.
         Aree:
         \(list)
         Come scegliere:
         - Nessuna area per saluti, conversazione, spiegazioni, consigli, idee, testi da scrivere in chat, conti con i dati già nella richiesta e domande di cultura generale.
-        - Le cose di Ivan (appuntamenti, cose da fare, posta, messaggi, note, file) si guardano nell'area giusta anche se la richiesta non la nomina: «mi è arrivato il pacco?» è email; «cosa mi ha scritto Giulia?» è messaggi ed email; «dove ho messo il contratto?» è file; «non farmi scordare di…» è promemoria.
+        - Le cose di \(user) (appuntamenti, cose da fare, posta, messaggi, note, file) si guardano nell'area giusta anche se la richiesta non la nomina: «mi è arrivato il pacco?» è email; «cosa mi ha scritto Giulia?» è messaggi ed email; «dove ho messo il contratto?» è file; «non farmi scordare di…» è promemoria.
         - Nel dubbio fra due aree scegli entrambe. Al massimo 3.
         """
         var context = routingContext()
         // Le parole della richiesta che rimandano a uno strumento: un indizio, non un obbligo.
         let clues = hints.filter(names.contains)
-        if !clues.isEmpty { context += (context.isEmpty ? "" : "\n") + "Indizi dalle parole della richiesta (non obbligatori): \(clues.joined(separator: ", "))." }
-        let request = (context.isEmpty ? "" : context + "\n\n") + "Richiesta: \(prompt.prefix(1500))"
+        if !clues.isEmpty {
+            context += (context.isEmpty ? "" : "\n") + Language.t("Indizi dalle parole della richiesta (non obbligatori): ", "Clues from the words of the request (not binding): ")
+                + clues.joined(separator: ", ") + "."
+        }
+        let request = (context.isEmpty ? "" : context + "\n\n") + Language.t("Richiesta: ", "Request: ") + prompt.prefix(1500)
         let schema = makeSchema("Smistamento", [
-            .required("intento", .string, "Cosa chiede Ivan, in poche parole"),
-            .required("aree", .array(.choice(names), max: 3), "Le aree da usare (anche nessuna)"),
+            .required("intento", .string, english ? "What the user is asking, in a few words" : "Cosa chiede \(user), in poche parole"),
+            .required("aree", .array(.choice(names), max: 3), english ? "The areas to use (possibly none)" : "Le aree da usare (anche nessuna)"),
         ])
         let session = routerSession(instructions)
         do {
@@ -312,10 +366,12 @@ extension Assistant {
         guard route.decided else { return }
         trace?.route = route
         let names = chosen.map(Self.toolLabel)
+        let t = Language.t
+        let areas = route.areas ?? route.tools
         trace?.steps.insert(TraceStep(action: "smistatore",
-                                      detail: (route.note.isEmpty ? "" : "«\(route.note)» · ") + "aree: " + ((route.areas ?? route.tools).isEmpty ? "nessuna" : (route.areas ?? route.tools).joined(separator: ", ")),
-                                      result: (names.isEmpty ? "nessuno strumento: basta rispondere" : "strumenti: " + names.joined(separator: ", "))
-                                          + (route.multiStep ? " · piano a passi con i sub-agent" : " · piano di un passo"),
+                                      detail: (route.note.isEmpty ? "" : "«\(route.note)» · ") + t("aree: ", "areas: ") + (areas.isEmpty ? t("nessuna", "none") : areas.joined(separator: ", ")),
+                                      result: (names.isEmpty ? t("nessuno strumento: basta rispondere", "no tools: a reply is enough") : t("strumenti: ", "tools: ") + names.joined(separator: ", "))
+                                          + (route.multiStep ? t(" · piano a passi con i sub-agent", " · step-by-step plan with sub-agents") : t(" · piano di un passo", " · one-step plan")),
                                       milliseconds: route.milliseconds, ok: true), at: 0)
     }
 

@@ -32,13 +32,13 @@ enum AppTab: Hashable {
     /// Nome salvato tra un avvio e l'altro.
     var key: String {
         switch self {
-        case .app(let source): "app:\(source.rawValue)"
+        case .app(let source): String(localized: "app:\(source.rawValue)")
         case .browser: "browser"
-        case .docs(let kind): "docs:\(kind.rawValue)"
-        case .document(let id): "doc:\(id.uuidString)"
+        case .docs(let kind): String(localized: "docs:\(kind.rawValue)")
+        case .document(let id): String(localized: "doc:\(id.uuidString)")
         case .launcher: "launcher"
-        case .file(let url): "file:\(url.path)"
-        case .chats(let group): "chats:\(group.uuidString)"
+        case .file(let url): String(localized: "file:\(url.path)")
+        case .chats(let group): String(localized: "chats:\(group.uuidString)")
         }
     }
 
@@ -285,35 +285,35 @@ extension AppState {
     /// La chat, il progetto o il codice da cui si sono aperte le app (per il pulsante «indietro» della barra delle schede).
     var appsBackTarget: (title: String, symbol: String)? {
         switch sectionBeforeApps {
-        case .home: return (current?.messages.isEmpty == false ? current?.title ?? "Chat" : "Chat", "bubble.left.fill")
+        case .home: return (current?.messages.isEmpty == false ? current?.title ?? String(localized: "Chat") : String(localized: "Chat"), "bubble.left.fill")
         case .project(let id):
             guard let project = projects.first(where: { $0.id == id }) else { return nil }
             return (project.name, project.space == Space.codice.rawValue ? "chevron.left.forwardslash.chevron.right" : "folder.fill")
-        case .agent(let id): return (agent(id)?.displayName ?? "Agente", "person.crop.circle")
-        case .agents, .automations: return ("Agenti", "person.2.fill")
-        case .schedule: return ("Programmazioni", "calendar.badge.clock")
-        case .activity: return ("Attività", "list.bullet.rectangle")
-        case .connectors: return ("Connettori", "puzzlepiece.extension")
-        case .settings: return ("Impostazioni", "gearshape")
+        case .agent(let id): return (agent(id)?.displayName ?? String(localized: "Genius"), "person.crop.circle")
+        case .agents, .automations: return (String(localized: "Genius"), "person.2.fill")
+        case .schedule: return (String(localized: "Programmazioni"), "calendar.badge.clock")
+        case .activity: return (String(localized: "Attività"), "list.bullet.rectangle")
+        case .connectors: return (String(localized: "Connettori"), "puzzlepiece.extension")
+        case .settings: return (String(localized: "Impostazioni"), "gearshape")
         default: return nil
         }
     }
 
     var appsToggleHelp: String {
-        guard showsApps else { return "App in schede (⌥⌘A)" }
-        return sectionBeforeApps == .home ? "Torna alla chat (⌥⌘A)" : "Chiudi le app (⌥⌘A)"
+        guard showsApps else { return String(localized: "App in schede (⌥⌘A)") }
+        return sectionBeforeApps == .home ? String(localized: "Torna alla chat (⌥⌘A)") : String(localized: "Chiudi le app (⌥⌘A)")
     }
 
     func title(of tab: AppTab) -> String {
         switch tab {
         case .app(let source): source.label
-        case .browser: browser.title.isEmpty ? "Safari" : browser.title
+        case .browser: browser.title.isEmpty ? String(localized: "Safari") : browser.title
         case .docs(let kind): kind.app
-        case .document(let id): artifact(id).map { $0.title.isEmpty ? "Senza titolo" : $0.title } ?? "Documento"
-        case .launcher: "Nuova scheda"
+        case .document(let id): artifact(id).map { $0.title.isEmpty ? String(localized: "Senza titolo") : $0.title } ?? String(localized: "Documento")
+        case .launcher: String(localized: "Nuova scheda")
         case .file(let url): url.lastPathComponent
         case .chats(let group):
-            chats(in: group).map { $0.messages.isEmpty ? "Nuova chat" : $0.title }.prefix(2).joined(separator: " · ").nonEmpty ?? "Chat"
+            chats(in: group).map { $0.messages.isEmpty ? String(localized: "Nuova chat") : $0.title }.prefix(2).joined(separator: " · ").nonEmpty ?? String(localized: "Chat")
         }
     }
 }
@@ -428,7 +428,7 @@ struct AppTabBar: View {
                 }
                 .buttonStyle(.plain)
                 .glassEffect(.regular.tint(Color.accentColor.opacity(0.18)).interactive(), in: .capsule)
-                .iconHelp("Torna a \(back.title) (⌥⌘A): le app restano aperte in questa chat")
+                .iconHelp(String(localized: "Torna a \(back.title) (⌥⌘A): le app restano aperte in questa chat"))
             }
             ScrollViewReader { proxy in
                 ScrollView(.horizontal) {
@@ -456,7 +456,7 @@ struct AppTabBar: View {
             }
             .buttonStyle(.plain)
             .glassEffect(.regular.interactive(), in: .circle)
-            .iconHelp("Nuova scheda (⌘T)")
+            .iconHelp(String(localized: "Nuova scheda (⌘T)"))
         }
         .padding(.horizontal, 16)
         .padding(.top, 4)
@@ -496,7 +496,7 @@ private struct AppTabButton: View {
             .buttonStyle(.plain)
             .opacity(showsClose ? 0.75 : 0)
             .allowsHitTesting(showsClose)
-            .iconHelp("Chiudi la scheda")
+            .iconHelp(String(localized: "Chiudi la scheda"))
         }
         .foregroundStyle(front ? Color.black.opacity(0.85) : Color.primary)
         .padding(.leading, 9)
@@ -569,10 +569,10 @@ struct AppLauncher: View {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 104, maximum: 124), spacing: 12)], spacing: 16) {
                     ForEach(entries, id: \.self) { tab in cell(tab) }
                     // Oltre alle app: una chat accanto a quella del pannello e i file da leggere o modificare.
-                    action("Chat accanto", note: "affiancate", help: "Una o più chat accanto al pannello", icon: AnyView(ChatTabIcon(size: 60))) {
+                    action(String(localized: "Chat accanto"), note: "affiancate", help: String(localized: "Una o più chat accanto al pannello"), icon: AnyView(ChatTabIcon(size: 60))) {
                         state.newChatTab()
                     }
-                    action("Apri file…", note: ".md, testo, codice", help: "Leggi e modifica un file (⌘O)",
+                    action(String(localized: "Apri file…"), note: ".md, testo, codice", help: String(localized: "Leggi e modifica un file (⌘O)"),
                            icon: AnyView(FileTabIcon(url: URL(fileURLWithPath: "/tmp/nota.md"), size: 60))) {
                         state.chooseFileToOpen()
                     }
@@ -612,8 +612,8 @@ struct AppLauncher: View {
             .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .buttonStyle(LauncherCellStyle())
-        .help(open ? "Già aperta: passa alla sua scheda" : "Apri in una scheda")
-        .accessibilityLabel("\(label(tab))\(open ? ", già aperta" : "")")
+        .help(open ? String(localized: "Già aperta: passa alla sua scheda") : String(localized: "Apri in una scheda"))
+        .accessibilityLabel("\(label(tab))\(open ? String(localized: ", già aperta") : "")")
     }
 
     private func action(_ title: String, note: String, help: String, icon: AnyView, perform: @escaping () -> Void) -> some View {
@@ -636,8 +636,8 @@ struct AppLauncher: View {
     /// Stato sotto il nome (il puntino prende il posto del testo quando l'app è aperta).
     private func note(_ tab: AppTab) -> String {
         guard !state.appTabs.contains(tab), case .app(let source) = tab else { return " " }
-        if source.support == .comingSoon { return "In arrivo" }
-        return state.isEnabled(source) ? " " : "Da collegare"
+        if source.support == .comingSoon { return String(localized: "In arrivo") }
+        return state.isEnabled(source) ? " " : String(localized: "Da collegare")
     }
 }
 

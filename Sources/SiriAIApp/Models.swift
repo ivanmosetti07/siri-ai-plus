@@ -35,7 +35,10 @@ final class Conversation: Identifiable {
     /// Segnaposto ↔ dati veri di questa chat (anonimizzazione verso ChatGPT e Claude). Resta sul Mac.
     var privacyVault: PIIVault?
 
-    init(id: UUID = UUID(), title: String = "Nuova conversazione", created: Date = .now, projectID: UUID? = nil, parentID: UUID? = nil) {
+    /// Il titolo di una chat appena creata, in italiano o nella lingua dell'interfaccia: si sostituisce con la prima richiesta.
+    var hasDefaultTitle: Bool { title == "Nuova conversazione" || title == String(localized: "Nuova conversazione") }
+
+    init(id: UUID = UUID(), title: String = String(localized: "Nuova conversazione"), created: Date = .now, projectID: UUID? = nil, parentID: UUID? = nil) {
         self.id = id
         self.title = title
         self.created = created
@@ -459,7 +462,7 @@ struct ChatLink: Codable, Equatable {
         self.title = title
         self.content = content
         self.projectID = projectID
-        versions = [Version(date: .now, label: "Creato da Siri AI+", content: content)]
+        versions = [Version(date: .now, label: String(localized: "Creato da Siri AI+"), content: content)]
     }
 
     var document: NSAttributedString? { if case .document(let d) = content { d } else { nil } }
@@ -470,9 +473,9 @@ struct ChatLink: Codable, Equatable {
         switch content {
         case .document(let text):
             let words = text.string.split(whereSeparator: \.isWhitespace).count
-            return words == 1 ? "1 parola" : "\(words) parole"
-        case .sheet(let sheet): return sheet.sheets.count == 1 ? "1 foglio" : "\(sheet.sheets.count) fogli"
-        case .deck(let deck): return "\(deck.slides.count) slide"
+            return words == 1 ? String(localized: "1 parola") : String(localized: "\(words) parole")
+        case .sheet(let sheet): return sheet.sheets.count == 1 ? String(localized: "1 foglio") : String(localized: "\(sheet.sheets.count) fogli")
+        case .deck(let deck): return String(localized: "\(deck.slides.count) slide")
         }
     }
 
@@ -480,13 +483,13 @@ struct ChatLink: Codable, Equatable {
     var contextSummary: String {
         switch content {
         case .document(let text): String(text.string.prefix(900))
-        case .sheet(let sheet): sheet.sheets.first.map { "Foglio «\($0.name)»:\n" + $0.summary() } ?? ""
+        case .sheet(let sheet): sheet.sheets.first.map { String(localized: "Foglio «\($0.name)»:\n") + $0.summary() } ?? ""
         case .deck(let deck): deck.summary()
         }
     }
 
     var stateLabel: String {
-        if let lastExport { "Salvato alle \(lastExport.formatted(date: .omitted, time: .shortened))" } else { "Bozza in Siri AI+" }
+        if let lastExport { String(localized: "Salvato alle \(lastExport.formatted(date: .omitted, time: .shortened))") } else { String(localized: "Bozza in Siri AI+") }
     }
 
     func snapshot(_ label: String) {
@@ -495,7 +498,7 @@ struct ChatLink: Codable, Equatable {
     }
 
     func restore(_ version: Version) {
-        snapshot("Prima del ripristino")
+        snapshot(String(localized: "Prima del ripristino"))
         content = version.content
     }
 }
@@ -618,7 +621,7 @@ extension StoredConversation {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: Keys.self)
         id = try c.decode(UUID.self, forKey: .id)
-        title = (try? c.decode(String.self, forKey: .title)) ?? "Conversazione"
+        title = (try? c.decode(String.self, forKey: .title)) ?? String(localized: "Conversazione")
         created = (try? c.decode(Date.self, forKey: .created)) ?? .now
         messages = ((try? c.decode([Lossy<StoredMessage>].self, forKey: .messages)) ?? []).compactMap(\.value)
         projectID = try? c.decodeIfPresent(UUID.self, forKey: .projectID)
@@ -875,7 +878,7 @@ extension Message {
         case .imessage(let draft, let status, let error):
             let m = MessageCardModel(draft)
             m.status = status == .done ? .uncertain : status.restored
-            m.error = status == .done ? "L'invio storico non ha una conferma riletta da Messaggi. Controlla la conversazione prima di riprovare." : error
+            m.error = status == .done ? String(localized: "L'invio storico non ha una conferma riletta da Messaggi. Controlla la conversazione prima di riprovare.") : error
             self.init(content: .imessage(m))
         case .fileWrite(let draft, let projectID, let status, let error):
             let m = FileWriteCardModel(draft, projectID: projectID)

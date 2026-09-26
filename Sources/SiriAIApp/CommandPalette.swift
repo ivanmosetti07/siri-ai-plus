@@ -19,19 +19,24 @@ struct CommandPalette: View {
 
     private var entries: [Entry] {
         var items = [
-            Entry(id: "new", title: "Nuova conversazione", subtitle: "Azione", symbol: "square.and.pencil") { state.newConversation(in: nil) },
-            Entry(id: "home", title: "Home", subtitle: "Navigazione", symbol: "house") { state.section = .home },
-            Entry(id: "agents", title: "Agenti", subtitle: "Navigazione", symbol: "person.2") { state.section = .agents },
-            Entry(id: "schedule", title: "Programmazioni", subtitle: "Navigazione", symbol: "clock") { state.section = .schedule },
-            Entry(id: "browser", title: "Browser", subtitle: "Navigazione", symbol: "safari") { state.section = .browser },
-            Entry(id: "connectors", title: "Connettori", subtitle: "Navigazione", symbol: "puzzlepiece.extension") { state.section = .connectors },
-            Entry(id: "settings", title: "Impostazioni", subtitle: "Navigazione", symbol: "gearshape") { state.openSettings() }
+            Entry(id: "new", title: String(localized: "Nuova conversazione"), subtitle: String(localized: "Azione"), symbol: "square.and.pencil") { state.newConversation(in: nil) },
+            Entry(id: "home", title: String(localized: "Home"), subtitle: String(localized: "Navigazione"), symbol: "house") { state.section = .home },
+            Entry(id: "agents", title: String(localized: "Genius"), subtitle: String(localized: "Navigazione"), symbol: "person.2") { state.section = .agents },
+            Entry(id: "schedule", title: String(localized: "Programmazioni"), subtitle: String(localized: "Navigazione"), symbol: "clock") { state.section = .schedule },
+            Entry(id: "browser", title: String(localized: "Browser"), subtitle: String(localized: "Navigazione"), symbol: "safari") { state.section = .browser },
+            Entry(id: "connectors", title: String(localized: "Connettori"), subtitle: String(localized: "Navigazione"), symbol: "puzzlepiece.extension") { state.section = .connectors },
+            Entry(id: "settings", title: String(localized: "Impostazioni"), subtitle: String(localized: "Navigazione"), symbol: "gearshape") { state.openSettings() }
         ]
         items += state.sortedProjects.map { project in
-            Entry(id: "p-\(project.id)", title: project.name, subtitle: "Progetto", symbol: "folder") { state.openProject(project) }
+            Entry(id: "p-\(project.id)", title: project.name, subtitle: String(localized: "Progetto"), symbol: "folder") { state.openProject(project) }
+        }
+        items += state.spaceAgents.map { agent in
+            Entry(id: "g-\(agent.id)", title: agent.displayName, subtitle: String(localized: "Genius · \(agent.name)"), symbol: agent.symbol) {
+                state.openAgent(agent.id)
+            }
         }
         items += state.history.map { conversation in
-            Entry(id: "c-\(conversation.id)", title: conversation.title, subtitle: "Conversazione", symbol: "bubble.left") {
+            Entry(id: "c-\(conversation.id)", title: conversation.title, subtitle: String(localized: "Conversazione"), symbol: "bubble.left") {
                 state.section = .home
                 state.select(conversation)
             }
@@ -44,11 +49,11 @@ struct CommandPalette: View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("Cerca una chat, un progetto o un’azione", text: $query)
+                TextField("Cerca una chat, un progetto, un Genius o un’azione", text: $query)
                     .textFieldStyle(.plain).font(.title3).focused($focused)
                     .onSubmit { activate() }
                 Button { dismiss() } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }
-                    .buttonStyle(.plain).iconHelp("Chiudi (Esc)")
+                    .buttonStyle(.plain).iconHelp(String(localized: "Chiudi (Esc)"))
             }
             .padding(20)
             Divider()

@@ -132,22 +132,23 @@ enum ArtifactKind: String, CaseIterable, Codable {
 
     var app: String {
         switch self {
-        case .pages: "Pages"
-        case .numbers: "Numbers"
-        case .keynote: "Keynote"
+        case .pages: String(localized: "Pages")
+        case .numbers: String(localized: "Numbers")
+        case .keynote: String(localized: "Keynote")
         }
     }
 
     var noun: String {
         switch self {
-        case .pages: "Documento"
-        case .numbers: "Foglio"
-        case .keynote: "Presentazione"
+        case .pages: String(localized: "Documento")
+        case .numbers: String(localized: "Foglio")
+        case .keynote: String(localized: "Presentazione")
         }
     }
 
     /// Desinenza per l'accordo: «nuova presentazione», «presentazione salvata».
-    var ending: String { self == .keynote ? "a" : "o" }
+    /// In inglese non serve: «Presentation saved».
+    var ending: String { Language.system == .en ? "" : self == .keynote ? "a" : "o" }
 
     var symbol: String {
         switch self {
@@ -326,15 +327,15 @@ enum ItemStatus: String, Codable {
 
     var label: String {
         switch self {
-        case .draft: "Bozza"
-        case .awaiting: "Da confermare"
-        case .running: "In esecuzione"
-        case .opened: "Bozza aperta"
-        case .copied: "Testo copiato"
-        case .done: "Completato"
-        case .uncertain: "Da verificare"
-        case .failed: "Errore"
-        case .cancelled: "Annullato"
+        case .draft: String(localized: "Bozza")
+        case .awaiting: String(localized: "Da confermare")
+        case .running: String(localized: "In esecuzione")
+        case .opened: String(localized: "Bozza aperta")
+        case .copied: String(localized: "Testo copiato")
+        case .done: String(localized: "Completato")
+        case .uncertain: String(localized: "Da verificare")
+        case .failed: String(localized: "Errore")
+        case .cancelled: String(localized: "Annullato")
         }
     }
 
@@ -462,12 +463,12 @@ enum OrbState: Equatable {
 
     var label: String {
         switch self {
-        case .idle: "Pronto"
-        case .listening: "In ascolto…"
-        case .thinking: "Sto elaborando…"
-        case .waiting: "In attesa della tua conferma"
-        case .done: "Fatto"
-        case .error: "Serve la tua attenzione"
+        case .idle: String(localized: "Pronto")
+        case .listening: String(localized: "In ascolto…")
+        case .thinking: String(localized: "Sto elaborando…")
+        case .waiting: String(localized: "In attesa della tua conferma")
+        case .done: String(localized: "Fatto")
+        case .error: String(localized: "Serve la tua attenzione")
         }
     }
 

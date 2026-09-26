@@ -56,7 +56,8 @@ public final class ConversationIndex: @unchecked Sendable {
 
     /// Parole della domanda (anche con desinenze diverse), più pertinenti per prime.
     public func search(_ query: String, limit: Int = 6, excluding: String? = nil) -> [Hit] {
-        let words = MemoryStore.normalize(query).split(separator: " ").filter { $0.count >= 3 && !Self.stopwords.contains(String($0)) }
+        let skipped = Language.isEnglish ? Self.englishStopwords : Self.stopwords
+        let words = MemoryStore.normalize(query).split(separator: " ").filter { $0.count >= 3 && !skipped.contains(String($0)) }
         guard !words.isEmpty else { return [] }
         let match = words.map { "\"\($0.prefix(max(3, $0.count - 2)))\"*" }.joined(separator: " OR ")
         lock.lock(); defer { lock.unlock() }
@@ -81,4 +82,11 @@ public final class ConversationIndex: @unchecked Sendable {
     static let stopwords: Set<String> = ["che", "cosa", "come", "per", "con", "del", "della", "dei", "delle", "una", "uno", "gli", "le", "abbiamo",
                                           "avevamo", "parlato", "detto", "deciso", "quando", "sulla", "sul", "nella", "nel", "alla", "allo", "questo",
                                           "questa", "quella", "quello", "anche", "ancora", "ricordi", "chat", "conversazione", "volta"]
+
+    /// In inglese si tolgono anche le parole inglesi che non dicono di cosa si parlava.
+    static let englishStopwords: Set<String> = stopwords.union([
+        "the", "and", "what", "when", "did", "you", "about", "talked", "talk", "discussed", "decided", "said", "told", "tell", "remember",
+        "conversation", "time", "last", "that", "this", "with", "for", "from", "was", "were", "have", "had", "our", "previous", "earlier",
+        "again", "which", "where", "how", "there",
+    ])
 }

@@ -293,7 +293,7 @@ struct CodeBlock: View {
                     copied = true
                     Task { try? await Task.sleep(for: .seconds(1.5)); copied = false }
                 } label: {
-                    Label(copied ? "Copiato" : "Copia", systemImage: copied ? "checkmark" : "doc.on.doc").font(.system(size: 10.5))
+                    Label(copied ? String(localized: "Copiato") : String(localized: "Copia"), systemImage: copied ? "checkmark" : "doc.on.doc").font(.system(size: 10.5))
                 }
                 .buttonStyle(.borderless)
             }
@@ -397,7 +397,7 @@ struct CopyOnHover: ViewModifier {
                             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DS.Radius.sm, style: .continuous))
                     }
                     .buttonStyle(.plain)
-                    .iconHelp(copied ? "Copiato" : "Copia la risposta")
+                    .iconHelp(copied ? String(localized: "Copiato") : String(localized: "Copia la risposta"))
                     .offset(y: 20)
                     .transition(.opacity)
                 }

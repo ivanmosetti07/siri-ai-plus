@@ -13,11 +13,11 @@ final class MCPRegistry {
 
         var label: String {
             switch self {
-            case .off: "Disattivato"
-            case .connecting: "Connessione…"
-            case .needsLogin: "Accesso richiesto"
-            case .loggingIn: "In attesa del login nel browser…"
-            case .ready(let n): n == 1 ? "1 strumento" : "\(n) strumenti"
+            case .off: String(localized: "Disattivato")
+            case .connecting: String(localized: "Connessione…")
+            case .needsLogin: String(localized: "Accesso richiesto")
+            case .loggingIn: String(localized: "In attesa del login nel browser…")
+            case .ready(let n): n == 1 ? String(localized: "1 strumento") : String(localized: "\(n) strumenti")
             case .failed(let message): message
             }
         }
@@ -243,7 +243,7 @@ final class MCPRegistry {
             }
             challenges[tool.serverID] = challenge
             status[tool.serverID] = .needsLogin
-            throw MCPError.server("serve un nuovo accesso a \(tool.serverName): aprilo in Connettori e premi «Accedi».")
+            throw MCPError.server(String(localized: "serve un nuovo accesso a \(tool.serverName): aprilo in Connettori e premi «Accedi»."))
         }
     }
 

@@ -7,16 +7,17 @@ public enum CellFormat: String, Codable, Sendable, CaseIterable {
 
     public var label: String {
         switch self {
-        case .automatic: "Automatico"
-        case .number: "Numero"
-        case .currency: "Valuta (€)"
-        case .percent: "Percentuale"
+        case .automatic: Language.t("Automatico", "Automatic")
+        case .number: Language.t("Numero", "Number")
+        case .currency: Language.t("Valuta (€)", "Currency (€)")
+        case .percent: Language.t("Percentuale", "Percent")
         }
     }
 
+    /// Numeri nel formato della lingua in uso ("1.234,50 €" in italiano, "€1,234.50" in inglese); la valuta resta l'euro.
     public func format(_ value: CellValue) -> String {
         guard case .number(let n) = value else { return value.display }
-        let locale = Locale(identifier: "it_IT")
+        let locale = Language.current.locale
         switch self {
         case .automatic: return FormulaEngine.format(n)
         case .number: return n.formatted(.number.precision(.fractionLength(2)).locale(locale))
@@ -84,7 +85,7 @@ public struct Sheet: Codable, Sendable, Equatable, Identifiable {
     public func summary(maxRows: Int = 15) -> String {
         let usedRows = (cells.keys.compactMap { CellRef($0)?.row }.max() ?? -1) + 1
         let usedCols = (cells.keys.compactMap { CellRef($0)?.col }.max() ?? -1) + 1
-        guard usedRows > 0 else { return "(foglio vuoto)" }
+        guard usedRows > 0 else { return Language.t("(foglio vuoto)", "(empty sheet)") }
         return (0..<min(usedRows, maxRows)).map { row in
             (0..<usedCols).map { display(CellRef(col: $0, row: row)) }.joined(separator: " | ")
         }.joined(separator: "\n")
@@ -99,13 +100,14 @@ public struct Spreadsheet: Codable, Sendable, Equatable {
         self.title = title; self.sheets = sheets
     }
 
-    /// Converte la bozza del modello: intestazioni, valori, colonna e riga dei totali con formule vere.
+    /// Converte la bozza del modello: intestazioni, valori, colonna e riga dei totali con formule vere (nella lingua della richiesta).
     public init(from draft: SheetDraft) {
-        var sheet = Sheet(name: "Foglio 1", columns: draft.columns.count + 2, rows: max(20, draft.rows.count + 4))
-        sheet.set(CellRef(col: 0, row: 0), "Voce")
+        let sum = Language.t("SOMMA", "SUM")
+        var sheet = Sheet(name: Language.t("Foglio 1", "Sheet 1"), columns: draft.columns.count + 2, rows: max(20, draft.rows.count + 4))
+        sheet.set(CellRef(col: 0, row: 0), Language.t("Voce", "Item"))
         for (i, column) in draft.columns.enumerated() { sheet.set(CellRef(col: i + 1, row: 0), column) }
         let totalCol = draft.columns.count + 1
-        sheet.set(CellRef(col: totalCol, row: 0), "Totale")
+        sheet.set(CellRef(col: totalCol, row: 0), Language.t("Totale", "Total"))
         for (r, row) in draft.rows.enumerated() {
             let rowIndex = r + 1
             sheet.set(CellRef(col: 0, row: rowIndex), row.label)
@@ -113,13 +115,13 @@ public struct Spreadsheet: Codable, Sendable, Equatable {
                 sheet.set(CellRef(col: c + 1, row: rowIndex), value.rounded() == value ? String(Int(value)) : String(value))
             }
             let first = CellRef(col: 1, row: rowIndex).name, last = CellRef(col: draft.columns.count, row: rowIndex).name
-            sheet.set(CellRef(col: totalCol, row: rowIndex), "=SOMMA(\(first):\(last))")
+            sheet.set(CellRef(col: totalCol, row: rowIndex), "=\(sum)(\(first):\(last))")
         }
         let totalRow = draft.rows.count + 1
-        sheet.set(CellRef(col: 0, row: totalRow), "Totale")
+        sheet.set(CellRef(col: 0, row: totalRow), Language.t("Totale", "Total"))
         for c in 1...totalCol where !draft.rows.isEmpty {
             let top = CellRef(col: c, row: 1).name, bottom = CellRef(col: c, row: draft.rows.count).name
-            sheet.set(CellRef(col: c, row: totalRow), "=SOMMA(\(top):\(bottom))")
+            sheet.set(CellRef(col: c, row: totalRow), "=\(sum)(\(top):\(bottom))")
         }
         if !draft.rows.isEmpty {
             let end = CellRef(col: draft.columns.count, row: draft.rows.count).name
@@ -136,9 +138,9 @@ public enum DeckTheme: String, Codable, Sendable, CaseIterable {
 
     public var label: String {
         switch self {
-        case .notte: "Notte"
-        case .chiaro: "Chiaro"
-        case .vivace: "Vivace"
+        case .notte: Language.t("Notte", "Night")
+        case .chiaro: Language.t("Chiaro", "Light")
+        case .vivace: Language.t("Vivace", "Vivid")
         }
     }
 }
@@ -148,10 +150,10 @@ public enum SlideLayout: String, Codable, Sendable, CaseIterable {
 
     public var label: String {
         switch self {
-        case .titolo: "Titolo"
-        case .titoloElenco: "Titolo ed elenco"
-        case .immagine: "Titolo e immagine"
-        case .vuota: "Vuota"
+        case .titolo: Language.t("Titolo", "Title")
+        case .titoloElenco: Language.t("Titolo ed elenco", "Title and bullets")
+        case .immagine: Language.t("Titolo e immagine", "Title and image")
+        case .vuota: Language.t("Vuota", "Blank")
         }
     }
 }

@@ -34,9 +34,24 @@ public struct ModelOption: Sendable, Hashable, Identifiable {
 }
 
 public enum ModelCatalog {
-    /// Nome italiano di un livello di ragionamento.
+    /// Nome di un livello di ragionamento, nella lingua in uso.
     public static func effortLabel(_ effort: String) -> String {
-        switch effort {
+        if Language.isEnglish {
+            return switch effort {
+            case "none": "None"
+            case "minimal": "Minimal"
+            case "low": "Low"
+            case "medium": "Medium"
+            case "high": "High"
+            case "xhigh": "Very high"
+            case "max": "Maximum"
+            case "ultra": "Ultra"
+            case "off": "Off"
+            case "on": "On"
+            default: effort.capitalized
+            }
+        }
+        return switch effort {
         case "none": "Nessuno"
         case "minimal": "Minimo"
         case "low": "Basso"

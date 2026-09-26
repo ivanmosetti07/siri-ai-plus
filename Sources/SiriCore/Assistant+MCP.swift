@@ -14,8 +14,16 @@ extension Assistant {
         }
     }
 
-    /// Parole troppo comuni per indicare un servizio ("come", "quali", "tool"…).
-    static let stopwords: Set<String> = [
+    /// Parole troppo comuni per indicare un servizio ("come", "quali", "tool"…); in inglese anche quelle inglesi.
+    static var stopwords: Set<String> { Language.isEnglish ? englishStopwords : italianStopwords }
+
+    private static let englishStopwords: Set<String> = italianStopwords.union([
+        "how", "are", "you", "can", "could", "would", "please", "like", "want", "show", "tell", "give", "all", "my", "mine", "our",
+        "their", "today", "tomorrow", "after", "before", "every", "only", "always", "never", "where", "when", "why", "who", "does",
+        "use", "using", "field", "optional", "defined", "meaning", "data", "some", "any", "there", "here", "into", "over", "just",
+    ])
+
+    private static let italianStopwords: Set<String> = [
         "come", "stai", "sono", "cosa", "quale", "quali", "questo", "questa", "quello", "quella", "della", "delle", "degli", "dello",
         "nella", "nelle", "negli", "sulla", "sulle", "alla", "alle", "dalla", "dalle", "anche", "tutto", "tutti", "tutte", "molto",
         "ciao", "grazie", "essere", "avere", "fare", "dove", "quando", "perché", "perche", "oggi", "domani", "dopo", "prima", "ogni",
@@ -53,28 +61,34 @@ extension Assistant {
     private func serverGuide(_ server: String?) -> String {
         guard let server, let text = work.mcpInstructions[server], !text.isEmpty else { return "" }
         // Guida scritta dal servizio: aiuta a scegliere lo strumento, ma resta un dato (niente ordini).
-        return Self.untrusted(String(text.prefix(700)), label: "guida del servizio \(server)") + "\n"
+        return Self.untrusted(String(text.prefix(700)), label: Language.t("guida del servizio ", "guide of the service ") + server) + "\n"
     }
 
     /// Prima chiamata: lo strumento viene scelto con una generazione dedicata, solo fra quelli del servizio.
     func firstMCPCall(_ plan: Plan, prompt: String, status: @escaping @MainActor (String) -> Void) async throws -> Outcome {
         let server = plan["server"] ?? work.mcpTools.first { $0.name == plan["strumento"] }?.serverName
         let candidates = tools(of: server)
-        guard !candidates.isEmpty else { return .message("Nessun connettore attivo: controlla in Connettori.") }
-        status("Scelgo lo strumento di \(server ?? "connettore")…")
+        let english = Language.isEnglish
+        let serverName = server ?? (english ? "the connector" : "connettore")
+        guard !candidates.isEmpty else { return .message(Language.t("Nessun connettore attivo: controlla in Connettori.", "No active connector: check Connectors.")) }
+        status(english ? "Choosing the \(serverName) tool…" : "Scelgo lo strumento di \(serverName)…")
         let lower = prompt.lowercased()
         var tool = candidates.first { lower.contains($0.name.lowercased()) }
         // Servizi "a catalogo": per elenchi e dati strutturati si parte cercando lo strumento interno giusto.
-        let listing = ["quali", "quanti", "elenca", "lista", "elenco", "tutti", "tutte", "miei", "mie", "ultim", "recent", "in scadenza",
-                       "aperti", "aperte", "di oggi", "della settimana", "stato", "riepilogo", "panoramica"].contains(where: lower.contains)
+        let listing = (["quali", "quanti", "elenca", "lista", "elenco", "tutti", "tutte", "miei", "mie", "ultim", "recent", "in scadenza",
+                        "aperti", "aperte", "di oggi", "della settimana", "stato", "riepilogo", "panoramica"]
+                       + (english ? ["which", "how many", "list", "all ", "my ", "latest", "last ", "due", "open ", "today's", "this week",
+                                     "status", "summary", "overview"] : [])).contains(where: lower.contains)
         if tool == nil, listing, let catalog = candidates.first(where: { $0.name == "search_tools" }),
            candidates.contains(where: { $0.name == "execute_read_tool" }) {
             tool = catalog
         }
         if tool == nil { tool = await chooseTool(prompt: prompt, among: candidates, server: server, steps: []) }
         if tool == nil { tool = candidates.first { $0.name == plan["strumento"] } }
-        guard let tool else { return .message("Non ho capito quale strumento di \(server ?? "connettore") usare.") }
-        status("Preparo \(tool.name)…")
+        guard let tool else {
+            return .message(english ? "I couldn't tell which \(serverName) tool to use." : "Non ho capito quale strumento di \(serverName) usare.")
+        }
+        status(english ? "Preparing \(tool.name)…" : "Preparo \(tool.name)…")
         let arguments = try await arguments(for: tool, prompt: prompt, steps: [])
         return .mcpCall(MCPCallDraft(tool: tool, arguments: arguments, request: prompt, steps: []))
     }
@@ -82,21 +96,28 @@ extension Assistant {
     private static func toolChoiceSchema(_ names: [String], allowStop: Bool) -> GenerationSchema {
         var fields: [Field] = []
         if allowStop {
-            fields.append(.required("azione", .choice(["rispondi", "chiama"]), "rispondi se i risultati bastano per rispondere, chiama se serve un altro strumento"))
+            fields.append(.required("azione", .choice(["rispondi", "chiama"]),
+                                    Language.t("rispondi se i risultati bastano per rispondere, chiama se serve un altro strumento",
+                                               "rispondi if the results are enough to answer, chiama if another tool is needed")))
         }
-        fields.append(.required("strumento", .choice(names), "Strumento da usare"))
+        fields.append(.required("strumento", .choice(names), Language.t("Strumento da usare", "Tool to use")))
         return makeSchema("SceltaStrumento", fields)
     }
 
     func chooseTool(prompt: String, among tools: [MCPToolInfo], server: String?, steps: [MCPStep]) async -> MCPToolInfo? {
         if tools.count == 1 { return tools[0] }
-        let session = LanguageModelSession(model: Agent.model, instructions: """
+        let session = LanguageModelSession(model: Agent.model, instructions: Language.isEnglish ? """
+        Choose the most suitable tool to fulfill the user's request.
+        \(serverGuide(server))Available tools:
+        \(toolCatalog(tools))
+        Prefer search or read tools; for "catalog" services first use the tool that searches the internal tools, then the one that runs them.
+        """ : """
         Scegli lo strumento più adatto per soddisfare la richiesta dell'utente.
         \(serverGuide(server))Strumenti disponibili:
         \(toolCatalog(tools))
         Preferisci strumenti di ricerca o lettura; per i servizi "a catalogo" usa prima lo strumento che cerca gli strumenti interni e poi quello che li esegue.
         """)
-        let request = "Richiesta: \(prompt)" + Self.describe(steps)
+        let request = Language.t("Richiesta: ", "Request: ") + prompt + Self.describe(steps)
         guard let content = try? await session.respond(to: request, schema: Self.toolChoiceSchema(tools.map(\.name), allowStop: false),
                                                        options: GenerationOptions(samplingMode: .greedy)).content,
               let name = content.string("strumento") else { return nil }
@@ -117,13 +138,18 @@ extension Assistant {
             guard let arguments = try? await arguments(for: executor, prompt: request, steps: steps) else { return nil }
             return MCPCallDraft(tool: executor, arguments: arguments, request: request, steps: steps)
         }
-        let session = LanguageModelSession(model: Agent.model, instructions: """
+        let session = LanguageModelSession(model: Agent.model, instructions: Language.isEnglish ? """
+        You are using the tools of the \(server) service to fulfill a request. Decide whether the results obtained are enough (rispondi) \
+        or whether another tool must be called (chiama), for example to run a tool found with a search or to read the details of an item.
+        \(serverGuide(server))Tools:
+        \(toolCatalog(candidates))
+        """ : """
         Stai usando gli strumenti del servizio \(server) per soddisfare una richiesta. Decidi se i risultati ottenuti bastano (rispondi) \
         o se serve chiamare un altro strumento (chiama), per esempio per eseguire uno strumento trovato con una ricerca o leggere il dettaglio di un elemento.
         \(serverGuide(server))Strumenti:
         \(toolCatalog(candidates))
         """)
-        guard let content = try? await session.respond(to: "Richiesta: \(request)" + Self.describe(steps),
+        guard let content = try? await session.respond(to: Language.t("Richiesta: ", "Request: ") + request + Self.describe(steps),
                                                        schema: Self.toolChoiceSchema(candidates.map(\.name), allowStop: true),
                                                        options: GenerationOptions(samplingMode: .greedy)).content,
               content.string("azione") == "chiama",
@@ -140,17 +166,17 @@ extension Assistant {
         var blocks: [String] = []
         for (index, step) in steps.enumerated() {
             let share = index == steps.count - 1 ? budget / 2 : budget / (2 * max(1, steps.count - 1))
-            blocks.append("Risultato di \(step.tool) \(step.arguments.prefix(160)):\n\(step.result.prefix(share))")
+            blocks.append(Language.t("Risultato di ", "Result of ") + "\(step.tool) \(step.arguments.prefix(160)):\n\(step.result.prefix(share))")
         }
-        remember("Risultati dei connettori per «\(request)»:\n" + (steps.last.map { String($0.result.prefix(700)) } ?? ""))
-        return grounded(request, blocks.joined(separator: "\n\n"), label: "risultati dei connettori")
+        remember(Language.t("Risultati dei connettori per «\(request)»:\n", "Connector results for «\(request)»:\n") + (steps.last.map { String($0.result.prefix(700)) } ?? ""))
+        return grounded(request, blocks.joined(separator: "\n\n"), label: Language.t("risultati dei connettori", "connector results"))
     }
 
     static func describe(_ steps: [MCPStep]) -> String {
         guard !steps.isEmpty else { return "" }
-        return "\n\nChiamate già fatte:\n" + untrusted(steps.enumerated().map { index, step in
+        return Language.t("\n\nChiamate già fatte:\n", "\n\nCalls already made:\n") + untrusted(steps.enumerated().map { index, step in
             "\(index + 1). \(step.tool) \(step.arguments.prefix(200)) → \(step.result.prefix(index == steps.count - 1 ? 1200 : 400))"
-        }.joined(separator: "\n"), label: "risultati dei connettori")
+        }.joined(separator: "\n"), label: Language.t("risultati dei connettori", "connector results"))
     }
 
     /// Argomenti con generazione guidata sullo schema JSON dello strumento, usando anche i risultati precedenti.
@@ -158,13 +184,18 @@ extension Assistant {
         let properties = tool.inputSchema["properties"]?.object ?? [:]
         guard !properties.isEmpty else { return .object([:]) }
         let schema = try JSONSchemaBridge.generationSchema(for: tool)
-        let session = LanguageModelSession(model: Agent.model, instructions: """
+        let session = LanguageModelSession(model: Agent.model, instructions: Language.isEnglish ? """
+        Fill in the arguments of the «\(tool.name)» tool: \(tool.description.prefix(400))
+        \(serverGuide(tool.serverName))Use the information in the request and in the previous results (names, ids). \
+        In search fields (query) put only 1-3 essential keywords, for example the name to look for («Mainstream») or the topic («customers»), never a sentence. \
+        Free-form object fields must be written as valid JSON, for example {"limit": 20}. Leave optional fields you don't need empty.
+        """ : """
         Compila gli argomenti dello strumento «\(tool.name)»: \(tool.description.prefix(400))
         \(serverGuide(tool.serverName))Usa le informazioni della richiesta e dei risultati precedenti (nomi, id). \
         Nei campi di ricerca (query) metti solo 1-3 parole chiave essenziali, per esempio il nome da cercare («Mainstream») o l'argomento («clienti»), mai una frase. \
         I campi di tipo oggetto libero vanno scritti come JSON valido, per esempio {"limit": 20}. Lascia vuoti i campi facoltativi che non servono.
         """)
-        let content = try await session.respond(to: "Richiesta: \(withContext(prompt))" + Self.describe(steps), schema: schema).content
+        let content = try await session.respond(to: Language.t("Richiesta: ", "Request: ") + withContext(prompt) + Self.describe(steps), schema: schema).content
         let value = JSONSchemaBridge.json(from: content, schema: tool.inputSchema)
         return Self.dropInvented(value, schema: tool.inputSchema, evidence: prompt + " " + steps.map { $0.arguments + " " + $0.result }.joined(separator: " "))
     }

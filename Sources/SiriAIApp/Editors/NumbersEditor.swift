@@ -20,7 +20,7 @@ struct NumbersEditor: View {
     private static let rowHeight: CGFloat = 26
     private static let headerWidth: CGFloat = 44
 
-    private var spreadsheet: Spreadsheet { artifact.spreadsheet ?? Spreadsheet(title: "", sheets: [Sheet(name: "Foglio 1")]) }
+    private var spreadsheet: Spreadsheet { artifact.spreadsheet ?? Spreadsheet(title: "", sheets: [Sheet(name: String(localized: "Foglio 1"))]) }
     private var index: Int { min(sheetIndex, spreadsheet.sheets.count - 1) }
     private var sheet: Sheet { spreadsheet.sheets[index] }
 
@@ -103,7 +103,7 @@ struct NumbersEditor: View {
             .help("Crea un grafico dall'intervallo selezionato (prima colonna etichette, prima riga nomi)")
             Spacer()
             Button {
-                state.send("Analizza i dati del foglio «\(sheet.name)» e dimmi cosa emerge")
+                state.send(String(localized: "Analizza i dati del foglio «\(sheet.name)» e dimmi cosa emerge"))
             } label: { Label("Analizza con Siri AI+", systemImage: "sparkles") }
         }
     }
@@ -223,7 +223,7 @@ struct NumbersEditor: View {
                             .onTapGesture(count: 2) { renaming = i }
                             .contextMenu {
                                 Button("Rinomina") { renaming = i }
-                                Button("Duplica") { mutate { var copy = $0.sheets[i]; copy.id = UUID(); copy.name += " copia"; $0.sheets.insert(copy, at: i + 1) } }
+                                Button("Duplica") { mutate { var copy = $0.sheets[i]; copy.id = UUID(); copy.name += String(localized: " copia"); $0.sheets.insert(copy, at: i + 1) } }
                                 if spreadsheet.sheets.count > 1 {
                                     Button("Elimina foglio", role: .destructive) {
                                         mutate { $0.sheets.remove(at: i) }
@@ -235,11 +235,11 @@ struct NumbersEditor: View {
                 }
             }
             Button {
-                mutate { $0.sheets.append(Sheet(name: "Foglio \($0.sheets.count + 1)", columns: 8, rows: 30)) }
+                mutate { $0.sheets.append(Sheet(name: String(localized: "Foglio \($0.sheets.count + 1)"), columns: 8, rows: 30)) }
                 sheetIndex = spreadsheet.sheets.count - 1
             } label: { Image(systemName: "plus") }
             .buttonStyle(.borderless)
-            .iconHelp("Nuovo foglio")
+            .iconHelp(String(localized: "Nuovo foglio"))
             Spacer()
             let numbers = selectedNumbers
             if numbers.count > 1 {
@@ -405,19 +405,19 @@ struct ChartBlock: View {
             Chart(points) { point in
                 switch spec.kind {
                 case .bar:
-                    BarMark(x: .value("Voce", point.label), y: .value("Valore", point.value))
-                        .foregroundStyle(by: .value("Serie", point.series))
-                        .position(by: .value("Serie", point.series))
+                    BarMark(x: .value(String(localized: "Voce"), point.label), y: .value(String(localized: "Valore"), point.value))
+                        .foregroundStyle(by: .value(String(localized: "Serie"), point.series))
+                        .position(by: .value(String(localized: "Serie"), point.series))
                         .cornerRadius(3)
                 case .line:
-                    LineMark(x: .value("Voce", point.label), y: .value("Valore", point.value))
-                        .foregroundStyle(by: .value("Serie", point.series))
-                        .symbol(by: .value("Serie", point.series))
+                    LineMark(x: .value(String(localized: "Voce"), point.label), y: .value(String(localized: "Valore"), point.value))
+                        .foregroundStyle(by: .value(String(localized: "Serie"), point.series))
+                        .symbol(by: .value(String(localized: "Serie"), point.series))
                         .interpolationMethod(.monotone)
                 case .pie:
                     if point.series == data.series.first?.name {
-                        SectorMark(angle: .value("Valore", max(0, point.value)), innerRadius: .ratio(0.5), angularInset: 1.5)
-                            .foregroundStyle(by: .value("Voce", point.label))
+                        SectorMark(angle: .value(String(localized: "Valore"), max(0, point.value)), innerRadius: .ratio(0.5), angularInset: 1.5)
+                            .foregroundStyle(by: .value(String(localized: "Voce"), point.label))
                             .cornerRadius(3)
                     }
                 }

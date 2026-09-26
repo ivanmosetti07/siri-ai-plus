@@ -11,11 +11,11 @@ struct RemindersAppView: View {
 
         var title: String {
             switch self {
-            case .today: "Oggi"
-            case .scheduled: "Programmati"
-            case .all: "Tutti"
-            case .priority: "Con priorità"
-            case .completed: "Completati"
+            case .today: String(localized: "Oggi")
+            case .scheduled: String(localized: "Programmati")
+            case .all: String(localized: "Tutti")
+            case .priority: String(localized: "Con priorità")
+            case .completed: String(localized: "Completati")
             }
         }
 
@@ -106,15 +106,15 @@ struct RemindersAppView: View {
     private var heading: (String, Color) {
         switch selection {
         case .smart(let smart): (smart.title, smart.colors.last ?? .primary)
-        case .list: (currentList?.title ?? "Lista", currentList.map { Color($0.color) } ?? .accentColor)
+        case .list: (currentList?.title ?? String(localized: "Lista"), currentList.map { Color($0.color) } ?? .accentColor)
         }
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            AppHeader(source: .reminders, title: "Promemoria", subtitle: subtitle, search: $search, searchPrompt: "Cerca promemoria",
+            AppHeader(source: .reminders, title: String(localized: "Promemoria"), subtitle: subtitle, search: $search, searchPrompt: String(localized: "Cerca promemoria"),
                       onRefresh: { Task { await reload() } }) {
-                AppIconButton(symbol: "plus", help: "Nuovo promemoria", prominent: true) { addFocused = true }
+                AppIconButton(symbol: "plus", help: String(localized: "Nuovo promemoria"), prominent: true) { addFocused = true }
                     .disabled(!state.canWrite(.reminders))
             }
             Divider()
@@ -148,13 +148,13 @@ struct RemindersAppView: View {
             Button("Elimina lista e promemoria", role: .destructive) { deleteList(list) }
         } message: { list in
             let count = open.filter { $0.listID == list.id }.count
-            Text("Verranno eliminati anche \(count == 1 ? "1 promemoria da fare" : "\(count) promemoria da fare") e quelli completati, su tutti i dispositivi.")
+            Text("Verranno eliminati anche \(count == 1 ? String(localized: "1 promemoria da fare") : String(localized: "\(count) promemoria da fare")) e quelli completati, su tutti i dispositivi.")
         }
     }
 
     private var subtitle: String {
         let today = items(for: .smart(.today)).count
-        return today == 0 ? "Niente in scadenza oggi" : today == 1 ? "1 promemoria per oggi" : "\(today) promemoria per oggi"
+        return today == 0 ? String(localized: "Niente in scadenza oggi") : today == 1 ? String(localized: "1 promemoria per oggi") : String(localized: "\(today) promemoria per oggi")
     }
 
     // MARK: Colonna delle liste
@@ -168,7 +168,7 @@ struct RemindersAppView: View {
                 .padding(.vertical, 4)
             }
             .selectionDisabled()
-            Section(SpaceScope.current.reminderLists == nil ? "Le mie liste" : "Liste di \(state.space.label)") {
+            Section(SpaceScope.current.reminderLists == nil ? String(localized: "Le mie liste") : String(localized: "Liste di \(state.space.label)")) {
                 ForEach(spaceLists) { list in listRow(list) }
             }
             if !otherLists.isEmpty {
@@ -245,13 +245,13 @@ struct RemindersAppView: View {
                         Image(systemName: showCompleted ? "eye.slash" : "eye")
                     }
                     .buttonStyle(.borderless)
-                    .iconHelp(showCompleted ? "Nascondi i completati" : "Mostra i completati")
+                    .iconHelp(showCompleted ? String(localized: "Nascondi i completati") : String(localized: "Mostra i completati"))
                 }
             }
             if entries.isEmpty {
                 AppPlaceholder(symbol: selection == .smart(.completed) ? "checkmark.circle" : "sparkles",
-                               title: search.isEmpty ? (selection == .smart(.completed) ? "Nessun promemoria completato" : "Tutto fatto") : "Nessun risultato",
-                               message: search.isEmpty && selection != .smart(.completed) ? "Scrivi qui sotto per aggiungere un promemoria." : nil)
+                               title: search.isEmpty ? (selection == .smart(.completed) ? String(localized: "Nessun promemoria completato") : String(localized: "Tutto fatto")) : String(localized: "Nessun risultato"),
+                               message: search.isEmpty && selection != .smart(.completed) ? String(localized: "Scrivi qui sotto per aggiungere un promemoria.") : nil)
             } else {
                 List(selection: $selectedID) {
                     ForEach(groups(entries), id: \.title) { group in
@@ -306,10 +306,10 @@ struct RemindersAppView: View {
         switch selection {
         case .smart(.scheduled):
             let overdue = entries.filter(\.isOverdue)
-            var result = overdue.isEmpty ? [] : [Group(title: "Scaduti", tint: .red, items: overdue)]
+            var result = overdue.isEmpty ? [] : [Group(title: String(localized: "Scaduti"), tint: .red, items: overdue)]
             let upcoming = Dictionary(grouping: entries.filter { !$0.isOverdue }) { cal.startOfDay(for: $0.due ?? .now) }
             for (day, items) in upcoming.sorted(by: { $0.key < $1.key }) {
-                let title = cal.isDateInToday(day) ? "Oggi" : cal.isDateInTomorrow(day) ? "Domani"
+                let title = cal.isDateInToday(day) ? String(localized: "Oggi") : cal.isDateInTomorrow(day) ? String(localized: "Domani")
                     : day.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Dates.locale)).capitalized
                 result.append(Group(title: title, tint: .primary, items: items))
             }
@@ -323,7 +323,7 @@ struct RemindersAppView: View {
         case .smart(.completed):
             let byDay = Dictionary(grouping: entries) { cal.startOfDay(for: $0.completedAt ?? .distantPast) }
             return byDay.sorted { $0.key > $1.key }.map { day, items in
-                Group(title: cal.isDateInToday(day) ? "Oggi" : cal.isDateInYesterday(day) ? "Ieri"
+                Group(title: cal.isDateInToday(day) ? String(localized: "Oggi") : cal.isDateInYesterday(day) ? String(localized: "Ieri")
                       : day.formatted(.dateTime.day().month(.wide).year().locale(Dates.locale)), tint: .secondary, items: items)
             }
         case .list:
@@ -332,7 +332,7 @@ struct RemindersAppView: View {
     }
 
     @ViewBuilder private func rowMenu(_ entry: ReminderEntry) -> some View {
-        Button(entry.isCompleted ? "Segna come da fare" : "Segna come completato") { toggle(entry) }
+        Button(entry.isCompleted ? String(localized: "Segna come da fare") : String(localized: "Segna come completato")) { toggle(entry) }
         Menu("Priorità") {
             ForEach(ReminderEntry.Priority.allCases, id: \.self) { priority in
                 Button(priority.label) { update(entry) { $0.priority = priority } }
@@ -385,27 +385,27 @@ struct RemindersAppView: View {
         do {
             let id = try ReminderStore.save(entry)
             newTitle = ""
-            state.log(icon: "source:reminders", title: "Promemoria aggiunto", detail: "\(title) · \(list.title)", status: .done)
+            state.log(icon: "source:reminders", title: String(localized: "Promemoria aggiunto"), detail: "\(title) · \(list.title)", status: .done)
             Task {
                 await reload()
                 selectedID = id
                 addFocused = true
             }
         } catch {
-            state.appFailed(.reminders, "Promemoria non aggiunto", error)
+            state.appFailed(.reminders, String(localized: "Promemoria non aggiunto"), error)
         }
     }
 
     private func toggle(_ entry: ReminderEntry) {
         do {
             try ReminderStore.setCompleted(entry.id, !entry.isCompleted)
-            state.log(icon: "source:reminders", title: entry.isCompleted ? "Promemoria riaperto" : "Promemoria completato", detail: entry.title, status: .done)
+            state.log(icon: "source:reminders", title: entry.isCompleted ? String(localized: "Promemoria riaperto") : String(localized: "Promemoria completato"), detail: entry.title, status: .done)
             Task {
                 try? await Task.sleep(for: .milliseconds(entry.isCompleted ? 0 : 450))
                 await reload()
             }
         } catch {
-            state.appFailed(.reminders, "Promemoria non aggiornato", error)
+            state.appFailed(.reminders, String(localized: "Promemoria non aggiornato"), error)
         }
     }
 
@@ -422,7 +422,7 @@ struct RemindersAppView: View {
             try ReminderStore.save(updated)
             Task { await reload() }
         } catch {
-            state.appFailed(.reminders, "Promemoria non aggiornato", error)
+            state.appFailed(.reminders, String(localized: "Promemoria non aggiornato"), error)
         }
     }
 
@@ -430,10 +430,10 @@ struct RemindersAppView: View {
         do {
             try ReminderStore.delete(entry.id)
             if selectedID == entry.id { selectedID = nil }
-            state.appDone(.reminders, "Promemoria eliminato", detail: entry.title)
+            state.appDone(.reminders, String(localized: "Promemoria eliminato"), detail: entry.title)
             Task { await reload() }
         } catch {
-            state.appFailed(.reminders, "Promemoria non eliminato", error)
+            state.appFailed(.reminders, String(localized: "Promemoria non eliminato"), error)
         }
     }
 
@@ -441,15 +441,15 @@ struct RemindersAppView: View {
         do {
             if let list {
                 try ReminderStore.updateList(list.id, title: title, color: color)
-                state.appDone(.reminders, "Lista aggiornata", detail: title)
+                state.appDone(.reminders, String(localized: "Lista aggiornata"), detail: title)
             } else {
                 let id = try ReminderStore.createList(title: title, color: color)
-                state.appDone(.reminders, "Lista creata", detail: title)
+                state.appDone(.reminders, String(localized: "Lista creata"), detail: title)
                 selection = .list(id)
             }
             Task { await reload() }
         } catch {
-            state.appFailed(.reminders, list == nil ? "Lista non creata" : "Lista non aggiornata", error)
+            state.appFailed(.reminders, list == nil ? String(localized: "Lista non creata") : String(localized: "Lista non aggiornata"), error)
         }
     }
 
@@ -457,10 +457,10 @@ struct RemindersAppView: View {
         do {
             try ReminderStore.deleteList(list.id)
             if selection == .list(list.id) { selection = .smart(.today) }
-            state.appDone(.reminders, "Lista eliminata", detail: list.title)
+            state.appDone(.reminders, String(localized: "Lista eliminata"), detail: list.title)
             Task { await reload() }
         } catch {
-            state.appFailed(.reminders, "Lista non eliminata", error)
+            state.appFailed(.reminders, String(localized: "Lista non eliminata"), error)
         }
     }
 }
@@ -486,7 +486,7 @@ private struct ListsMenu: View {
             .menuIndicator(.hidden)
             .buttonStyle(.borderless)
             .fixedSize()
-            .iconHelp("Liste")
+            .iconHelp(String(localized: "Liste"))
         }
     }
 }
@@ -515,7 +515,7 @@ private struct ReminderRow: View {
             }
             .buttonStyle(.plain)
             .disabled(!canWrite)
-            .iconHelp(entry.isCompleted ? "Segna come da fare" : "Segna come completato")
+            .iconHelp(entry.isCompleted ? String(localized: "Segna come da fare") : String(localized: "Segna come completato"))
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
                     if entry.priority != .none {
@@ -533,7 +533,7 @@ private struct ReminderRow: View {
                 if !entry.notes.isEmpty {
                     Text(entry.notes).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(2)
                 }
-                let details = [dueText, showsList ? entry.listTitle : nil, entry.isRecurring ? "si ripete" : nil].compactMap { $0 }
+                let details = [dueText, showsList ? entry.listTitle : nil, entry.isRecurring ? String(localized: "si ripete") : nil].compactMap { $0 }
                 if !details.isEmpty || !entry.url.isEmpty {
                     HStack(spacing: 6) {
                         if let dueText {
@@ -555,7 +555,7 @@ private struct ReminderRow: View {
 
     private var dueText: String? {
         guard let due = entry.due else { return nil }
-        if entry.isCompleted, let completed = entry.completedAt { return "Completato \(Dates.friendly(completed))" }
+        if entry.isCompleted, let completed = entry.completedAt { return String(localized: "Completato \(Dates.friendly(completed))") }
         return Dates.friendly(due, time: entry.dueHasTime)
     }
 }
@@ -586,12 +586,12 @@ private struct ReminderInspector: View {
                     HStack {
                         Text("Dettagli").font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
                         Spacer()
-                        Button(action: onClose) { Image(systemName: "xmark") }.buttonStyle(.borderless).iconHelp("Chiudi")
+                        Button(action: onClose) { Image(systemName: "xmark") }.buttonStyle(.borderless).iconHelp(String(localized: "Chiudi"))
                     }
                     TextField("Titolo", text: $draft.title, axis: .vertical)
                         .textFieldStyle(.plain)
                         .font(.system(size: 20, weight: .bold))
-                    InspectorGroup(title: "Note") {
+                    InspectorGroup(title: String(localized: "Note")) {
                         TextEditor(text: $draft.notes)
                             .font(.system(size: 13))
                             .scrollContentBackground(.hidden)
@@ -600,8 +600,8 @@ private struct ReminderInspector: View {
                         Divider().opacity(0.6)
                         TextField("Link", text: $draft.url).textFieldStyle(.plain).font(.system(size: 13)).padding(.vertical, 8)
                     }
-                    InspectorGroup(title: "Scadenza") {
-                        InspectorRow(label: "Data") {
+                    InspectorGroup(title: String(localized: "Scadenza")) {
+                        InspectorRow(label: String(localized: "Data")) {
                             Toggle("", isOn: Binding(get: { draft.due != nil }, set: { on in
                                 draft.due = on ? (draft.due ?? Calendar.current.startOfDay(for: .now)) : nil
                                 if !on { draft.dueHasTime = false }
@@ -609,11 +609,11 @@ private struct ReminderInspector: View {
                             .labelsHidden().toggleStyle(.switch).controlSize(.small)
                         }
                         if draft.due != nil {
-                            InspectorRow(label: "Giorno") {
+                            InspectorRow(label: String(localized: "Giorno")) {
                                 DatePicker("", selection: Binding(get: { draft.due ?? .now }, set: { draft.due = $0 }), displayedComponents: [.date])
                                     .labelsHidden().datePickerStyle(.field)
                             }
-                            InspectorRow(label: "Ora", divider: draft.dueHasTime) {
+                            InspectorRow(label: String(localized: "Ora"), divider: draft.dueHasTime) {
                                 Toggle("", isOn: Binding(get: { draft.dueHasTime }, set: { on in
                                     draft.dueHasTime = on
                                     if on, let due = draft.due, Calendar.current.component(.hour, from: due) == 0 {
@@ -623,7 +623,7 @@ private struct ReminderInspector: View {
                                 .labelsHidden().toggleStyle(.switch).controlSize(.small)
                             }
                             if draft.dueHasTime {
-                                InspectorRow(label: "Alle", divider: false) {
+                                InspectorRow(label: String(localized: "Alle"), divider: false) {
                                     DatePicker("", selection: Binding(get: { draft.due ?? .now }, set: { draft.due = $0 }), displayedComponents: [.hourAndMinute])
                                         .labelsHidden().datePickerStyle(.field)
                                 }
@@ -631,13 +631,13 @@ private struct ReminderInspector: View {
                         }
                     }
                     InspectorGroup {
-                        InspectorRow(label: "Priorità") {
+                        InspectorRow(label: String(localized: "Priorità")) {
                             Picker("", selection: $draft.priority) {
                                 ForEach(ReminderEntry.Priority.allCases, id: \.self) { Text($0.label).tag($0) }
                             }
                             .labelsHidden().fixedSize()
                         }
-                        InspectorRow(label: "Lista", divider: false) {
+                        InspectorRow(label: String(localized: "Lista"), divider: false) {
                             Picker("", selection: $draft.listID) {
                                 ForEach(lists) { list in
                                     Label { Text(list.title) } icon: { Image(systemName: "circle.fill").foregroundStyle(Color(list.color)) }.tag(list.id)
@@ -649,7 +649,7 @@ private struct ReminderInspector: View {
                     if let created = entry.created {
                         Text("Creato \(Dates.friendly(created))").font(.system(size: 11.5)).foregroundStyle(.tertiary)
                     }
-                    Button { state.send("Aiutami con il promemoria «\(entry.title)»: dividilo in passi e dimmi da dove partire") } label: {
+                    Button { state.send(String(localized: "Aiutami con il promemoria «\(entry.title)»: dividilo in passi e dimmi da dove partire")) } label: {
                         Label("Chiedi a Siri AI+", systemImage: "sparkle")
                     }
                     .buttonStyle(.link)
@@ -660,7 +660,7 @@ private struct ReminderInspector: View {
             }
             InspectorFooter {
                 Button(role: .destructive) { confirmDelete = true } label: { Image(systemName: "trash") }
-                    .iconHelp("Elimina promemoria")
+                    .iconHelp(String(localized: "Elimina promemoria"))
                     .disabled(!canWrite)
             } trailing: {
                 if dirty { Button("Annulla modifiche") { draft = entry } }
@@ -674,10 +674,10 @@ private struct ReminderInspector: View {
             Button("Elimina promemoria", role: .destructive) {
                 do {
                     try ReminderStore.delete(entry.id)
-                    state.appDone(.reminders, "Promemoria eliminato", detail: entry.title)
+                    state.appDone(.reminders, String(localized: "Promemoria eliminato"), detail: entry.title)
                     onClose()
                     onChange()
-                } catch { state.appFailed(.reminders, "Promemoria non eliminato", error) }
+                } catch { state.appFailed(.reminders, String(localized: "Promemoria non eliminato"), error) }
             }
         }
     }
@@ -685,10 +685,10 @@ private struct ReminderInspector: View {
     private func save() {
         do {
             try ReminderStore.save(draft)
-            state.appDone(.reminders, "Promemoria salvato", detail: draft.title)
+            state.appDone(.reminders, String(localized: "Promemoria salvato"), detail: draft.title)
             onChange()
         } catch {
-            state.appFailed(.reminders, "Promemoria non salvato", error)
+            state.appFailed(.reminders, String(localized: "Promemoria non salvato"), error)
         }
     }
 }
@@ -735,7 +735,7 @@ private struct ReminderListEditor: View {
             HStack {
                 Button("Annulla") { dismiss() }.keyboardShortcut(.cancelAction)
                 Spacer()
-                Button(list == nil ? "Crea lista" : "Salva", action: save)
+                Button(list == nil ? String(localized: "Crea lista") : String(localized: "Salva"), action: save)
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
                     .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)

@@ -3,6 +3,7 @@ import Foundation
 import Observation
 import Speech
 import SwiftUI
+import SiriCore
 
 /// Conversazione a voce continua, solo con componenti Apple: riconoscimento vocale sul dispositivo,
 /// Apple Intelligence per la risposta e voci di sistema per parlare. Ascolta → risponde → riascolta.
@@ -32,22 +33,32 @@ final class VoiceMode {
     }
 
     private var session: Session?
-    private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "it-IT"))
+    /// Riconoscimento e voce nella lingua dell'interfaccia.
+    private let recognizer = SFSpeechRecognizer(locale: Language.system.locale)
     private let synthesizer = AVSpeechSynthesizer()
     private let delegate = SpeechDelegate()
     private weak var state: AppState?
     private var lastChange = Date.distantPast
 
-    /// Voci italiane installate, dalla qualità migliore.
-    static var italianVoices: [AVSpeechSynthesisVoice] {
-        AVSpeechSynthesisVoice.speechVoices().filter { $0.language.hasPrefix("it") }
+    /// Voci installate nella lingua dell'interfaccia, dalla qualità migliore.
+    static var italianVoices: [AVSpeechSynthesisVoice] { voices(for: Language.system) }
+
+    static func voices(for language: Language) -> [AVSpeechSynthesisVoice] {
+        AVSpeechSynthesisVoice.speechVoices().filter { $0.language.hasPrefix(language.rawValue) }
             .sorted { $0.quality.rawValue > $1.quality.rawValue }
+    }
+
+    /// La voce scelta nelle Impostazioni se parla la lingua della risposta, altrimenti la migliore per quella lingua.
+    private func voice(for text: String) -> AVSpeechSynthesisVoice? {
+        let language = Language.detect(text, fallback: .system)
+        if let chosen = AVSpeechSynthesisVoice(identifier: voiceIdentifier), chosen.language.hasPrefix(language.rawValue) { return chosen }
+        return Self.voices(for: language).first ?? AVSpeechSynthesisVoice(language: language == .it ? "it-IT" : "en-US")
     }
 
     static func label(_ voice: AVSpeechSynthesisVoice) -> String {
         let quality = switch voice.quality {
-        case .premium: " (Premium)"
-        case .enhanced: " (Migliorata)"
+        case .premium: String(localized: " (Premium)")
+        case .enhanced: String(localized: " (Migliorata)")
         default: ""
         }
         return voice.name + quality
@@ -100,12 +111,12 @@ final class VoiceMode {
         phase = .listening
         Task {
             guard await Self.authorization() == .authorized else {
-                error = "Consenti il riconoscimento vocale in Impostazioni di Sistema › Privacy e sicurezza."
+                error = String(localized: "Consenti il riconoscimento vocale in Impostazioni di Sistema › Privacy e sicurezza.")
                 phase = .idle
                 return
             }
             guard let recognizer, recognizer.isAvailable else {
-                error = "Il riconoscimento vocale in italiano non è disponibile."
+                error = String(localized: "Il riconoscimento vocale in italiano non è disponibile.")
                 phase = .idle
                 return
             }
@@ -118,7 +129,7 @@ final class VoiceMode {
                 try session.engine.start()
             } catch {
                 session.engine.inputNode.removeTap(onBus: 0)
-                self.error = "Microfono non disponibile: \(error.localizedDescription)"
+                self.error = String(localized: "Microfono non disponibile: \(error.localizedDescription)")
                 phase = .idle
                 return
             }
@@ -183,20 +194,21 @@ final class VoiceMode {
             if case .text(let text) = message.content { return text }
             return nil
         }.joined(separator: "\n")
-        reply = answer.isEmpty ? "Ho preparato una scheda: controllala sullo schermo." : answer
+        reply = answer.isEmpty ? String(localized: "Ho preparato una scheda: controllala sullo schermo.") : answer
         speak(Self.spoken(reply))
     }
 
     private func speak(_ text: String) {
         phase = .speaking
         let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(identifier: voiceIdentifier) ?? Self.italianVoices.first ?? AVSpeechSynthesisVoice(language: "it-IT")
+        utterance.voice = voice(for: text)
         utterance.rate = AVSpeechUtteranceMinimumSpeechRate + (AVSpeechUtteranceMaximumSpeechRate - AVSpeechUtteranceMinimumSpeechRate) * Float(rate)
         synthesizer.speak(utterance)
     }
 
     func preview() {
-        let utterance = AVSpeechUtterance(string: "Ciao Ivan, sono Siri AI+. Come posso aiutarti?")
+        let utterance = AVSpeechUtterance(string: Assistant.userFirstName.map { String(localized: "Ciao \($0), sono Siri AI+. Come posso aiutarti?") }
+                                          ?? String(localized: "Ciao, sono Siri AI+. Come posso aiutarti?"))
         utterance.voice = AVSpeechSynthesisVoice(identifier: voiceIdentifier) ?? Self.italianVoices.first
         utterance.rate = AVSpeechUtteranceMinimumSpeechRate + (AVSpeechUtteranceMaximumSpeechRate - AVSpeechUtteranceMinimumSpeechRate) * Float(rate)
         synthesizer.speak(utterance)
@@ -266,7 +278,7 @@ struct VoiceModeView: View {
                     Button { voice.close() } label: { Image(systemName: "xmark.circle.fill").font(.system(size: 22)) }
                         .buttonStyle(.plain)
                         .keyboardShortcut(.escape, modifiers: [])
-                        .iconHelp("Chiudi (Esc)")
+                        .iconHelp(String(localized: "Chiudi (Esc)"))
                 }
                 Spacer()
                 Button { voice.interrupt() } label: {
@@ -275,7 +287,7 @@ struct VoiceModeView: View {
                         .animation(.easeOut(duration: 0.12), value: voice.level)
                 }
                 .buttonStyle(.plain)
-                .help(voice.phase == .speaking ? "Interrompi e parla" : "Tocca per inviare subito")
+                .help(voice.phase == .speaking ? String(localized: "Interrompi e parla") : String(localized: "Tocca per inviare subito"))
                 Text(caption(voice)).font(DS.Fonts.body).foregroundStyle(.secondary)
                 ScrollView {
                     VStack(spacing: 14) {
@@ -298,13 +310,13 @@ struct VoiceModeView: View {
                             .background(Color.primary.opacity(0.08), in: Circle())
                     }
                     .buttonStyle(.plain)
-                    .help(voice.muted ? "Riattiva il microfono" : "Silenzia il microfono")
+                    .help(voice.muted ? String(localized: "Riattiva il microfono") : String(localized: "Silenzia il microfono"))
                     Button { voice.close() } label: {
                         Image(systemName: "xmark").font(.system(size: 18, weight: .semibold)).foregroundStyle(.white).frame(width: 48, height: 48)
                             .background(Color.red, in: Circle())
                     }
                     .buttonStyle(.plain)
-                    .iconHelp("Termina")
+                    .iconHelp(String(localized: "Termina"))
                 }
                 Text("Tutto sul Mac: riconoscimento vocale e voce di sistema Apple.").font(DS.Fonts.caption).foregroundStyle(.tertiary)
             }
@@ -323,12 +335,12 @@ struct VoiceModeView: View {
     }
 
     private func caption(_ voice: VoiceMode) -> String {
-        if voice.muted { return "Microfono silenziato" }
+        if voice.muted { return String(localized: "Microfono silenziato") }
         switch voice.phase {
-        case .idle: return "Pronto"
-        case .listening: return voice.transcript.isEmpty ? "Ti ascolto…" : "Ti ascolto… (fai una pausa per inviare)"
-        case .thinking: return state.statusText.isEmpty ? "Sto pensando…" : state.statusText
-        case .speaking: return "Sto parlando — tocca l'orb per interrompere"
+        case .idle: return String(localized: "Pronto")
+        case .listening: return voice.transcript.isEmpty ? String(localized: "Ti ascolto…") : String(localized: "Ti ascolto… (fai una pausa per inviare)")
+        case .thinking: return state.statusText.isEmpty ? String(localized: "Sto pensando…") : state.statusText
+        case .speaking: return String(localized: "Sto parlando — tocca l'orb per interrompere")
         }
     }
 }

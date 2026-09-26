@@ -19,31 +19,31 @@ enum PermissionKind: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .calendar: "Calendario"
-        case .reminders: "Promemoria"
-        case .contacts: "Contatti"
-        case .mail: "Controllo di Mail"
-        case .notes: "Controllo di Note"
-        case .messages: "Controllo di Messaggi"
-        case .fullDisk: "Accesso completo al disco"
-        case .microphone: "Microfono"
-        case .speech: "Riconoscimento vocale"
-        case .location: "Posizione"
+        case .calendar: String(localized: "Calendario")
+        case .reminders: String(localized: "Promemoria")
+        case .contacts: String(localized: "Contatti")
+        case .mail: String(localized: "Controllo di Mail")
+        case .notes: String(localized: "Controllo di Note")
+        case .messages: String(localized: "Controllo di Messaggi")
+        case .fullDisk: String(localized: "Accesso completo al disco")
+        case .microphone: String(localized: "Microfono")
+        case .speech: String(localized: "Riconoscimento vocale")
+        case .location: String(localized: "Posizione")
         }
     }
 
     var purpose: String {
         switch self {
-        case .calendar: "Vedere, creare e modificare gli eventi."
-        case .reminders: "Vedere, creare, completare e modificare i promemoria e le liste."
-        case .contacts: "Trovare numeri ed email di chi vuoi contattare e mostrare i nomi nei messaggi."
-        case .mail: "Leggere il testo delle email, rispondere, inoltrare, spostare ed eliminare."
-        case .notes: "Vedere, creare, modificare e spostare le note."
-        case .messages: "Inviare messaggi dall'app Messaggi."
-        case .fullDisk: "Aprire Mail all'istante e leggere le conversazioni di Messaggi."
-        case .microphone: "Dettare le richieste e usare la modalità vocale."
-        case .speech: "Trascrivere la voce sul Mac."
-        case .location: "Il meteo della Home dove ti trovi (facoltativo)."
+        case .calendar: String(localized: "Vedere, creare e modificare gli eventi.")
+        case .reminders: String(localized: "Vedere, creare, completare e modificare i promemoria e le liste.")
+        case .contacts: String(localized: "Trovare numeri ed email di chi vuoi contattare e mostrare i nomi nei messaggi.")
+        case .mail: String(localized: "Leggere il testo delle email, rispondere, inoltrare, spostare ed eliminare.")
+        case .notes: String(localized: "Vedere, creare, modificare e spostare le note.")
+        case .messages: String(localized: "Inviare messaggi dall'app Messaggi.")
+        case .fullDisk: String(localized: "Aprire Mail all'istante e leggere le conversazioni di Messaggi.")
+        case .microphone: String(localized: "Dettare le richieste e usare la modalità vocale.")
+        case .speech: String(localized: "Trascrivere la voce sul Mac.")
+        case .location: String(localized: "Il meteo della Home dove ti trovi (facoltativo).")
         }
     }
 
@@ -210,7 +210,7 @@ struct PermissionsPanel: View {
                 }
                 Spacer()
                 Button { Task { await center.refresh() } } label: { Image(systemName: "arrow.clockwise") }
-                    .buttonStyle(.borderless).iconHelp("Controlla di nuovo")
+                    .buttonStyle(.borderless).iconHelp(String(localized: "Controlla di nuovo"))
             }
             VStack(spacing: 0) {
                 ForEach(Array(PermissionKind.allCases.enumerated()), id: \.element) { index, kind in
@@ -245,12 +245,12 @@ struct PermissionsPanel: View {
                     ProgressView().controlSize(.small)
                 case .appNotRunning:
                     Button("Consenti") { Task { await center.request(kind, state: state) } }.controlSize(.small)
-                        .help("Si verifica quando \(kind == .messages ? "Messaggi" : "l'app") è aperta")
+                        .help("Si verifica quando \(kind == .messages ? String(localized: "Messaggi") : String(localized: "l'app")) è aperta")
                 case .notDetermined, .unknown:
-                    Button(kind == .location ? "Impostazioni" : "Consenti") { Task { await center.request(kind, state: state) } }
+                    Button(kind == .location ? String(localized: "Impostazioni") : String(localized: "Consenti")) { Task { await center.request(kind, state: state) } }
                         .buttonStyle(.borderedProminent).controlSize(.small)
                 case .denied:
-                    Button(kind == .fullDisk ? "Concedi nelle Impostazioni" : "Apri Impostazioni") { PermissionCenter.openSettings(kind.pane) }
+                    Button(kind == .fullDisk ? String(localized: "Concedi nelle Impostazioni") : String(localized: "Apri Impostazioni")) { PermissionCenter.openSettings(kind.pane) }
                         .controlSize(.small)
                 }
             }

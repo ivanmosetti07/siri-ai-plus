@@ -11,34 +11,34 @@ import SwiftUI
 extension ArtifactKind {
     var newLabel: String {
         switch self {
-        case .pages: "Nuovo documento"
-        case .numbers: "Nuovo foglio di calcolo"
-        case .keynote: "Nuova presentazione"
+        case .pages: String(localized: "Nuovo documento")
+        case .numbers: String(localized: "Nuovo foglio di calcolo")
+        case .keynote: String(localized: "Nuova presentazione")
         }
     }
 
     func countLabel(_ count: Int) -> String {
         switch self {
-        case .pages: count == 0 ? "Nessun documento" : count == 1 ? "1 documento" : "\(count) documenti"
-        case .numbers: count == 0 ? "Nessun foglio di calcolo" : count == 1 ? "1 foglio di calcolo" : "\(count) fogli di calcolo"
-        case .keynote: count == 0 ? "Nessuna presentazione" : count == 1 ? "1 presentazione" : "\(count) presentazioni"
+        case .pages: count == 0 ? String(localized: "Nessun documento") : count == 1 ? String(localized: "1 documento") : String(localized: "\(count) documenti")
+        case .numbers: count == 0 ? String(localized: "Nessun foglio di calcolo") : count == 1 ? String(localized: "1 foglio di calcolo") : String(localized: "\(count) fogli di calcolo")
+        case .keynote: count == 0 ? String(localized: "Nessuna presentazione") : count == 1 ? String(localized: "1 presentazione") : String(localized: "\(count) presentazioni")
         }
     }
 
     var searchPrompt: String {
         switch self {
-        case .pages: "Cerca nei documenti"
-        case .numbers: "Cerca nei fogli"
-        case .keynote: "Cerca nelle presentazioni"
+        case .pages: String(localized: "Cerca nei documenti")
+        case .numbers: String(localized: "Cerca nei fogli")
+        case .keynote: String(localized: "Cerca nelle presentazioni")
         }
     }
 
     /// Inizio della richiesta quando lo si fa scrivere a Siri AI+.
     var assistantPrompt: String {
         switch self {
-        case .pages: "Scrivi un documento su "
-        case .numbers: "Crea un foglio di calcolo per "
-        case .keynote: "Crea una presentazione su "
+        case .pages: String(localized: "Scrivi un documento su ")
+        case .numbers: String(localized: "Crea un foglio di calcolo per ")
+        case .keynote: String(localized: "Crea una presentazione su ")
         }
     }
 
@@ -94,11 +94,11 @@ extension AppState {
         guard let conversation = conversation(containing: artifact),
               let index = conversation.messages.firstIndex(where: { if case .artifact(let item) = $0.content { item.id == artifact.id } else { false } })
         else { return }
-        let copy = ArtifactModel(kind: artifact.kind, title: "\(artifact.title) copia", content: artifact.content, projectID: artifact.projectID)
+        let copy = ArtifactModel(kind: artifact.kind, title: String(localized: "\(artifact.title) copia"), content: artifact.content, projectID: artifact.projectID)
         copy.modified = .now
         conversation.messages.insert(Message(content: .artifact(copy)), at: index + 1)
         saveConversations()
-        showToast("Copia creata: «\(copy.title)»", symbol: "plus.square.on.square")
+        showToast(String(localized: "Copia creata: «\(copy.title)»"), symbol: "plus.square.on.square")
     }
 
     /// Toglie il documento dall'elenco e dalla sua chat (i file già salvati o esportati restano dove sono).
@@ -109,8 +109,8 @@ extension AppState {
             conversation.messages.removeAll { if case .artifact(let item) = $0.content { item.id == artifact.id } else { false } }
         }
         saveConversations()
-        log(icon: "artifact:\(artifact.kind.rawValue)", title: "\(artifact.kind.noun) eliminat\(artifact.kind.ending)", detail: artifact.title, status: .done)
-        showToast("«\(artifact.title)» eliminat\(artifact.kind.ending)", symbol: "trash")
+        log(icon: "artifact:\(artifact.kind.rawValue)", title: String(localized: "\(artifact.kind.noun) eliminat\(artifact.kind.ending)"), detail: artifact.title, status: .done)
+        showToast(String(localized: "«\(artifact.title)» eliminat\(artifact.kind.ending)"), symbol: "trash")
     }
 
     /// Porta nella colonna destra la chat in cui è nato il documento.
@@ -180,7 +180,7 @@ struct DocumentsAppView: View {
                 .padding(.horizontal, 24)
                 .padding(.vertical, 22)
                 if entries.isEmpty {
-                    Text(search.isEmpty ? "Quelli che crei qui o chiedi nella chat compaiono in questo elenco." : "Nessun risultato per «\(search)».")
+                    Text(search.isEmpty ? String(localized: "Quelli che crei qui o chiedi nella chat compaiono in questo elenco.") : String(localized: "Nessun risultato per «\(search)»."))
                         .font(DS.Fonts.caption)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity)
@@ -244,7 +244,7 @@ private struct DocumentCard: View {
                     .shadow(color: .black.opacity(hovering ? 0.24 : 0.14), radius: hovering ? 10 : 5, y: hovering ? 5 : 2)
                     .scaleEffect(hovering ? 1.03 : 1)
                 VStack(spacing: 2) {
-                    Text(entry.artifact.title.isEmpty ? "Senza titolo" : entry.artifact.title)
+                    Text(entry.artifact.title.isEmpty ? String(localized: "Senza titolo") : entry.artifact.title)
                         .font(.system(size: 12.5, weight: .semibold))
                         .lineLimit(2)
                         .multilineTextAlignment(.center)
@@ -262,7 +262,7 @@ private struct DocumentCard: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .animation(DS.Motion.quick, value: hovering)
-        .help(open ? "Già aperto in una scheda" : "Apri")
+        .help(open ? String(localized: "Già aperto in una scheda") : String(localized: "Apri"))
     }
 }
 
@@ -427,9 +427,9 @@ struct DocumentTab: View {
         if let artifact = state.artifact(id) {
             ArtifactEditor(artifact: artifact)
         } else {
-            AppPlaceholder(symbol: "doc.questionmark", title: "Documento non trovato",
-                           message: "È stato eliminato, oppure la chat in cui era è stata cancellata.",
-                           actionTitle: "Chiudi la scheda") { state.closeTab(.document(id)) }
+            AppPlaceholder(symbol: "doc.questionmark", title: String(localized: "Documento non trovato"),
+                           message: String(localized: "È stato eliminato, oppure la chat in cui era è stata cancellata."),
+                           actionTitle: String(localized: "Chiudi la scheda")) { state.closeTab(.document(id)) }
                 .clipShape(.rect(cornerRadius: 26))
                 .glassCard(radius: 26)
                 .padding(.horizontal, 14)

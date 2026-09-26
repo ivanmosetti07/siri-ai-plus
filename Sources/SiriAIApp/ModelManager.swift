@@ -42,16 +42,16 @@ final class ModelManager {
     }
 
     func refresh() async {
-        brewAvailable = await ExternalEngine.shell("command -v brew", timeout: 10).status == 0
-        let llama = await ExternalEngine.shell("command -v llama-server", timeout: 10)
+        brewAvailable = await ExternalEngine.shell(String(localized: "command -v brew"), timeout: 10).status == 0
+        let llama = await ExternalEngine.shell(String(localized: "command -v llama-server"), timeout: 10)
         llamaInstalled = llama.status == 0
         llamaPath = llamaInstalled ? llama.output.split(separator: "\n").last.map { String($0).trimmingCharacters(in: .whitespaces) } : nil
         gemmaRunning = await ExternalEngine.gemmaRunning()
         if !gemmaRunning { gemmaLoaded = nil }
         revision += 1
-        codexInstalled = await ExternalEngine.shell("command -v codex", timeout: 10).status == 0
+        codexInstalled = await ExternalEngine.shell(String(localized: "command -v codex"), timeout: 10).status == 0
         if codexInstalled {
-            let status = await ExternalEngine.shell("codex login status", timeout: 20)
+            let status = await ExternalEngine.shell(String(localized: "codex login status"), timeout: 20)
             codexLoggedIn = status.status == 0 && !status.output.lowercased().contains("not logged")
         }
         codexModels = ModelCatalog.chatGPT()
@@ -69,7 +69,7 @@ final class ModelManager {
     /// Esegue un comando nella shell di login mostrando l'avanzamento.
     private func run(_ key: String, _ command: String) {
         guard jobs[key] == nil else { return }
-        jobs[key] = "Avvio…"
+        jobs[key] = String(localized: "Avvio…")
         errors[key] = nil
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
@@ -93,7 +93,7 @@ final class ModelManager {
                 pipe.fileHandleForReading.readabilityHandler = nil
                 let last = self.jobs[key] ?? ""
                 self.jobs[key] = nil
-                if status != 0 { self.errors[key] = "Non riuscito (\(status)): \(last)" }
+                if status != 0 { self.errors[key] = String(localized: "Non riuscito (\(status)): \(last)") }
                 await self.refresh()
             }
         }
@@ -110,7 +110,7 @@ final class ModelManager {
     /// Motore llama.cpp (con Homebrew): esegue i file GGUF sul Mac con la GPU.
     func installLlama() {
         if brewAvailable {
-            run("llama", "brew install llama.cpp")
+            run("llama", String(localized: "brew install llama.cpp"))
         } else {
             NSWorkspace.shared.open(URL(string: "https://github.com/ggml-org/llama.cpp/releases")!)
         }
@@ -128,7 +128,7 @@ final class ModelManager {
             var failure = error?.localizedDescription
             if let temporary, failure == nil {
                 if let code = (response as? HTTPURLResponse)?.statusCode, code != 200 {
-                    failure = "Hugging Face ha risposto con errore \(code)."
+                    failure = String(localized: "Hugging Face ha risposto con errore \(code).")
                 } else {
                     try? FileManager.default.removeItem(at: destination)
                     do { try FileManager.default.moveItem(at: temporary, to: destination) } catch { failure = error.localizedDescription }
@@ -194,7 +194,7 @@ final class ModelManager {
         if !llamaInstalled { await refresh() }
         guard llamaInstalled else { return false }
         guard let llamaPath else { return false }
-        jobs["gemma-start"] = "Carico \(variant.label)…"
+        jobs["gemma-start"] = String(localized: "Carico \(variant.label)…")
         stopOwnGemmaServer()
         try? await Task.sleep(for: .milliseconds(400))
         // Avvio diretto con gli argomenti separati: nessun problema di spazi o apostrofi nei percorsi.
@@ -210,7 +210,7 @@ final class ModelManager {
             try? String(process.processIdentifier).write(to: Self.gemmaPIDFile, atomically: true, encoding: .utf8)
         } catch {
             jobs["gemma-start"] = nil
-            errors["gemma-start"] = "llama-server non si avvia: \(error.localizedDescription)"
+            errors["gemma-start"] = String(localized: "llama-server non si avvia: \(error.localizedDescription)")
             return false
         }
         for _ in 0..<120 {
@@ -223,36 +223,36 @@ final class ModelManager {
             try? await Task.sleep(for: .milliseconds(500))
         }
         jobs["gemma-start"] = nil
-        errors["gemma-start"] = "Il server di Gemma non è partito: controlla di avere abbastanza memoria libera."
+        errors["gemma-start"] = String(localized: "Il server di Gemma non è partito: controlla di avere abbastanza memoria libera.")
         return false
     }
 
     // MARK: ChatGPT (CLI ufficiale Codex, accesso con l'account ChatGPT)
 
     func installCodex() {
-        run("codex", brewAvailable ? "brew install codex || npm install -g @openai/codex" : "npm install -g @openai/codex")
+        run("codex", brewAvailable ? String(localized: "brew install codex || npm install -g @openai/codex") : String(localized: "npm install -g @openai/codex"))
     }
 
     /// Apre il login di ChatGPT nel browser (gestito dalla CLI Codex).
     func loginCodex() {
-        run("codex-login", "codex login")
+        run("codex-login", String(localized: "codex login"))
     }
 
     func logoutCodex() {
-        run("codex-login", "codex logout")
+        run("codex-login", String(localized: "codex logout"))
     }
 
     // MARK: Claude (CLI ufficiale Claude Code, accesso con l'account Claude)
 
     /// Installazione nativa di Anthropic (in ~/.local/bin, si aggiorna da sola).
     func installClaude() {
-        run("claude", "curl -fsSL https://claude.ai/install.sh | bash")
+        run("claude", String(localized: "curl -fsSL https://claude.ai/install.sh | bash"))
     }
 
     /// Il login di Claude si apre nel Terminale: il browser chiede di autorizzare l'account e, se serve, si incolla il codice lì.
     func loginClaude() {
-        let command = "\(ClaudeCLI.command) auth login"
-        let script = "tell application \"Terminal\"\nactivate\ndo script \(appleScriptString(command))\nend tell"
+        let command = String(localized: "\(ClaudeCLI.command) auth login")
+        let script = String(localized: "tell application \"Terminal\"\nactivate\ndo script \(appleScriptString(command))\nend tell")
         Task {
             _ = await ExternalEngine.shell("osascript -e \(Shell.quote(script))", timeout: 20)
             // Il login finisce nel Terminale: lo stato si aggiorna quando si torna all'app.
@@ -264,7 +264,7 @@ final class ModelManager {
     }
 
     func logoutClaude() {
-        run("claude-login", "\(ClaudeCLI.command) auth logout")
+        run("claude-login", String(localized: "\(ClaudeCLI.command) auth logout"))
     }
 
     private func appleScriptString(_ text: String) -> String {
@@ -284,6 +284,6 @@ final class ModelManager {
     }
 
     func startDS4() {
-        run("ds4-start", "cd \(Shell.quote(Self.ds4Folder.path)) && (nohup ./ds4-server --ctx 32768 > \"$TMPDIR/ds4-server.log\" 2>&1 &) ; sleep 5")
+        run("ds4-start", String(localized: "cd \(Shell.quote(Self.ds4Folder.path)) && (nohup ./ds4-server --ctx 32768 > \"$TMPDIR/ds4-server.log\" 2>&1 &) ; sleep 5"))
     }
 }

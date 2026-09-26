@@ -41,6 +41,16 @@ public enum LocalCodeAgent {
 
     /// Istruzioni dell'agente, con le regole del progetto (AGENTS.md) se ci sono.
     static func instructions(folder: URL, mode: CodeMode, compact: Bool, checksPages: Bool = false) -> String {
+        var text = Language.isEnglish ? englishInstructions(folder: folder, mode: mode, checksPages: checksPages)
+                                      : italianInstructions(folder: folder, mode: mode, checksPages: checksPages)
+        let agents = folder.appending(path: "AGENTS.md")
+        if let rules = try? String(contentsOf: agents, encoding: .utf8), !rules.isEmpty {
+            text += Language.t("\n\nRegole del progetto (AGENTS.md):\n", "\n\nProject rules (AGENTS.md):\n") + String(rules.prefix(compact ? 700 : 5000))
+        }
+        return text
+    }
+
+    private static func italianInstructions(folder: URL, mode: CodeMode, checksPages: Bool) -> String {
         var text = """
         Sei l'agente di programmazione di Siri AI+ e lavori nel progetto «\(folder.lastPathComponent)». Adesso è \(Dates.format(.now)).
         Usa gli strumenti per capire il codice: elenca_file, leggi_file e cerca. I percorsi sono relativi alla cartella del progetto.
@@ -63,21 +73,57 @@ public enum LocalCodeAgent {
             text += "\nModalità «chiedi prima»: non modificare nulla. Studia il progetto e proponi un piano chiaro, a punti, con i file da toccare."
         }
         text += "\nNon inventare file, codice o risultati che gli strumenti non hanno restituito. Alla fine rispondi in italiano con un breve riepilogo di cosa hai fatto."
-        let agents = folder.appending(path: "AGENTS.md")
-        if let rules = try? String(contentsOf: agents, encoding: .utf8), !rules.isEmpty {
-            text += "\n\nRegole del progetto (AGENTS.md):\n" + String(rules.prefix(compact ? 700 : 5000))
+        return text
+    }
+
+    /// Le stesse istruzioni in inglese: gli strumenti mantengono i loro nomi.
+    private static func englishInstructions(folder: URL, mode: CodeMode, checksPages: Bool) -> String {
+        var text = """
+        You are the Siri AI+ coding agent and you work in the project “\(folder.lastPathComponent)”. It is now \(Dates.format(.now)).
+        Use the tools to understand the code: elenca_file (list the files), leggi_file (read a file) and cerca (search). Paths are relative to the project folder.
+        """
+        if mode == .edit {
+            text += """
+
+            To change an existing file use modifica_file (it replaces an exact piece of text, copied from leggi_file); \
+            for new files, or files to rewrite completely, use scrivi_file. With esegui_comando you run builds, tests and project commands \
+            (they can only write inside the project folder and have no internet access).
+            Read a file before changing it, make small and precise changes, and if there is a verification command, run it after your changes.
+            Files are created and changed only by calling the tools: writing code in your reply changes nothing.
+            Work on your own until the end: don't ask for permission to read or change the project files, just do it. \
+            If you're told that something doesn't work, read the files involved, find the cause, fix it and verify.
+            """
+            if checksPages {
+                text += "\nFor websites: after your changes open the page with controlla_pagina (usually index.html) and fix the errors it finds, until there are none left."
+            }
+        } else {
+            text += "\n“Ask first” mode: don't change anything. Study the project and propose a clear plan, in bullet points, with the files to touch."
         }
+        text += "\nDon't make up files, code or results that the tools didn't return. At the end, reply in English with a short summary of what you did."
         return text
     }
 
     /// La richiesta chiede di cambiare il progetto (non solo di spiegarlo).
     static func asksForChanges(_ prompt: String) -> Bool {
-        prompt.lowercased().range(of: #"\b(?:crea|creare|aggiungi|modifica|cambia|sistema|correggi|scrivi|rendi|metti|togli|rimuovi|elimina|implementa|costruisci|fai|sostituisci|traduci|aggiorna|sposta|rinomina)\b"#,
-                                  options: .regularExpression) != nil
+        let text = prompt.lowercased()
+        if text.range(of: #"\b(?:crea|creare|aggiungi|modifica|cambia|sistema|correggi|scrivi|rendi|metti|togli|rimuovi|elimina|implementa|costruisci|fai|sostituisci|traduci|aggiorna|sposta|rinomina)\b"#,
+                      options: .regularExpression) != nil { return true }
+        // In inglese contano anche i verbi inglesi.
+        return Language.isEnglish
+            && text.range(of: #"\b(?:create|add|edit|modify|change|fix|write|rewrite|make|put|remove|delete|implement|build|replace|translate|update|move|rename|insert|refactor|convert|generate|set\s+up)\b"#,
+                          options: .regularExpression) != nil
     }
 
     /// Il modello ha risposto senza toccare nessun file, ma la richiesta chiedeva di cambiarli: glielo si chiede di nuovo.
-    static let nudge = "Non hai ancora creato né modificato nessun file: descrivere il lavoro non basta. Fallo adesso con gli strumenti, un file alla volta (scrivi_file per i file nuovi, modifica_file per quelli esistenti), poi rispondi con il riepilogo."
+    static var nudge: String {
+        Language.t("Non hai ancora creato né modificato nessun file: descrivere il lavoro non basta. Fallo adesso con gli strumenti, un file alla volta (scrivi_file per i file nuovi, modifica_file per quelli esistenti), poi rispondi con il riepilogo.",
+                   "You haven't created or changed any file yet: describing the work isn't enough. Do it now with the tools, one file at a time (scrivi_file for new files, modifica_file for existing ones), then reply with the summary.")
+    }
+
+    /// Cosa vede la chat quando si chiede al modello di fare davvero il lavoro.
+    static var nudgeNotice: String {
+        Language.t("Nessun file cambiato: chiedo di fare il lavoro con gli strumenti.", "No files changed: asking the model to do the work with the tools.")
+    }
 
     // MARK: Gemma e ds4 (tool calling OpenAI)
 
@@ -92,7 +138,7 @@ public enum LocalCodeAgent {
         let wantsChanges = toolbox.mode == .edit && asksForChanges(prompt)
         var nudges = 0
         for round in 0..<maxRounds {
-            if Task.isCancelled { return CodeAgent.Outcome(ok: false, error: "Richiesta interrotta.") }
+            if Task.isCancelled { return CodeAgent.Outcome(ok: false, error: CodeAgent.interrupted) }
             compact(&messages, characters: budget)
             var body: [String: JSONValue] = ["model": .string(name), "stream": .bool(true), "messages": .array(messages), "temperature": .number(0.2)]
             if round < maxRounds - 1 { body["tools"] = .array(tools) }
@@ -116,7 +162,7 @@ public enum LocalCodeAgent {
                         compact(&messages, characters: budget / 2)
                         continue
                     }
-                    return CodeAgent.Outcome(ok: false, error: "\(label) non risponde: \(detail.prefix(200))")
+                    return CodeAgent.Outcome(ok: false, error: Language.t("\(label) non risponde: \(detail.prefix(200))", "\(label) isn't responding: \(detail.prefix(200))"))
                 }
                 var lastSent = 0
                 for try await line in bytes.lines where line.hasPrefix("data:") {
@@ -145,9 +191,10 @@ public enum LocalCodeAgent {
                     }
                 }
             } catch {
-                if Task.isCancelled { return CodeAgent.Outcome(ok: false, error: "Richiesta interrotta.") }
+                if Task.isCancelled { return CodeAgent.Outcome(ok: false, error: CodeAgent.interrupted) }
                 return CodeAgent.Outcome(ok: false, error: (error as? URLError) != nil
-                                         ? "\(label) non è in esecuzione: avvialo in Impostazioni › Modelli." : error.localizedDescription)
+                                         ? Language.t("\(label) non è in esecuzione: avvialo in Impostazioni › Modelli.", "\(label) isn't running: start it in Settings › Models.")
+                                         : error.localizedDescription)
             }
             // Modelli piccoli: a volte scrivono la chiamata come testo.
             if calls.isEmpty, let parsed = ExternalAgent.textualToolCalls(in: text, known: Set(toolbox.specs.map(\.name))), !parsed.calls.isEmpty {
@@ -158,7 +205,7 @@ public enum LocalCodeAgent {
             let visible = text.trimmingCharacters(in: .whitespacesAndNewlines)
             if calls.isEmpty, wantsChanges, toolbox.changes == 0, nudges < 2 {
                 nudges += 1
-                onEvent(CodeEvent(key: key, kind: .thinking, text: visible.isEmpty ? "Nessun file cambiato: chiedo di fare il lavoro con gli strumenti." : visible))
+                onEvent(CodeEvent(key: key, kind: .thinking, text: visible.isEmpty ? nudgeNotice : visible))
                 messages.append(.object(["role": .string("assistant"), "content": .string(text)]))
                 messages.append(.object(["role": .string("user"), "content": .string(nudge)]))
                 continue
@@ -180,7 +227,8 @@ public enum LocalCodeAgent {
                                          "content": .string(result)]))
             }
         }
-        onEvent(CodeEvent(kind: .text, text: "Mi sono fermato dopo \(maxRounds) passaggi: scrivimi se devo continuare."))
+        onEvent(CodeEvent(kind: .text, text: Language.t("Mi sono fermato dopo \(maxRounds) passaggi: scrivimi se devo continuare.",
+                                                        "I stopped after \(maxRounds) steps: tell me if I should continue.")))
         return CodeAgent.Outcome(ok: true)
     }
 
@@ -192,7 +240,10 @@ public enum LocalCodeAgent {
         // Istruzioni e ultimi scambi restano interi.
         for index in messages.indices.dropFirst().dropLast(4) where total > characters {
             guard let content = messages[index]["content"]?.string, content.count > 300, var object = messages[index].object else { continue }
-            let note = messages[index]["role"]?.string == "tool" ? "[risultato già letto, tolto per fare spazio: se serve, richiama lo strumento]" : String(content.prefix(300)) + "…"
+            let note = messages[index]["role"]?.string == "tool"
+                ? Language.t("[risultato già letto, tolto per fare spazio: se serve, richiama lo strumento]",
+                             "[result already read, removed to make room: call the tool again if you need it]")
+                : String(content.prefix(300)) + "…"
             object["content"] = .string(note)
             messages[index] = .object(object)
             total -= content.count - note.count
@@ -211,7 +262,8 @@ public enum LocalCodeAgent {
         // La finestra di Apple Intelligence è piccola: dell'ultimo scambio solo l'essenziale.
         var request = prompt
         if let last = history.last(where: { $0.role == .assistant }) {
-            request = "Prima hai risposto: «\(last.text.prefix(500))»\n\nNuova richiesta: \(prompt)"
+            request = Language.t("Prima hai risposto: «\(last.text.prefix(500))»\n\nNuova richiesta: \(prompt)",
+                                 "Earlier you replied: “\(last.text.prefix(500))”\n\nNew request: \(prompt)")
         }
         let wantsChanges = toolbox.mode == .edit && asksForChanges(prompt)
         var session = LanguageModelSession(model: Agent.model, tools: tools, instructions: system)
@@ -224,33 +276,48 @@ public enum LocalCodeAgent {
                 if wantsChanges, toolbox.changes == 0, nudges < 2 {
                     // Ha descritto il lavoro senza farlo: si continua nella stessa sessione, con la richiesta di usare gli strumenti.
                     nudges += 1
-                    onEvent(CodeEvent(kind: .thinking, text: text.isEmpty ? "Nessun file cambiato: chiedo di fare il lavoro con gli strumenti." : text))
+                    onEvent(CodeEvent(kind: .thinking, text: text.isEmpty ? nudgeNotice : text))
                     request = nudge
                     continue
                 }
-                onEvent(CodeEvent(kind: .text, text: text.isEmpty ? "Fatto." : text))
+                onEvent(CodeEvent(kind: .text, text: text.isEmpty ? Language.t("Fatto.", "Done.") : text))
                 return CodeAgent.Outcome(ok: true)
             } catch LanguageModelSession.GenerationError.exceededContextWindowSize where restarts < 3 {
                 // Finestra piena: si riparte con il riassunto di ciò che è già stato fatto.
                 restarts += 1
-                onEvent(CodeEvent(kind: .thinking, text: "La finestra di contesto di Apple Intelligence è piena: riparto dal riassunto del lavoro fatto."))
+                onEvent(CodeEvent(kind: .thinking, text: Language.t("La finestra di contesto di Apple Intelligence è piena: riparto dal riassunto del lavoro fatto.",
+                                                                    "Apple Intelligence's context window is full: starting again from a summary of the work done.")))
                 session = LanguageModelSession(model: Agent.model, tools: tools, instructions: system)
-                request = """
-                Richiesta: \(prompt.prefix(900))
+                if Language.isEnglish {
+                    request = """
+                    Request: \(prompt.prefix(900))
 
-                Lavoro già fatto:
-                \(toolbox.journal(limit: 900))
+                    Work already done:
+                    \(toolbox.journal(limit: 900))
 
-                Continua da qui senza ripetere il lavoro già fatto; se è tutto fatto, scrivi il riepilogo finale.
-                """
+                    Continue from here without repeating the work already done; if everything is done, write the final summary.
+                    """
+                } else {
+                    request = """
+                    Richiesta: \(prompt.prefix(900))
+
+                    Lavoro già fatto:
+                    \(toolbox.journal(limit: 900))
+
+                    Continua da qui senza ripetere il lavoro già fatto; se è tutto fatto, scrivi il riepilogo finale.
+                    """
+                }
             } catch LanguageModelSession.GenerationError.exceededContextWindowSize {
-                return CodeAgent.Outcome(ok: false, error: "Apple Intelligence ha una finestra di contesto piccola e non è riuscito a finire: prova una richiesta più piccola o un modello più grande.")
+                return CodeAgent.Outcome(ok: false, error: Language.t(
+                    "Apple Intelligence ha una finestra di contesto piccola e non è riuscito a finire: prova una richiesta più piccola o un modello più grande.",
+                    "Apple Intelligence has a small context window and couldn't finish: try a smaller request or a bigger model."))
             } catch {
                 if Task.isCancelled { break }
-                return CodeAgent.Outcome(ok: false, error: "Apple Intelligence si è fermato: \(error.localizedDescription)")
+                return CodeAgent.Outcome(ok: false, error: Language.t("Apple Intelligence si è fermato: \(error.localizedDescription)",
+                                                                      "Apple Intelligence stopped: \(error.localizedDescription)"))
             }
         }
-        return CodeAgent.Outcome(ok: false, error: "Richiesta interrotta.")
+        return CodeAgent.Outcome(ok: false, error: CodeAgent.interrupted)
     }
 }
 
@@ -275,6 +342,8 @@ public final class CodeToolbox: @unchecked Sendable {
     let onEvent: @Sendable (CodeEvent) -> Void
     /// Apre una pagina del progetto come in un browser e restituisce gli errori della console (dall'app).
     let pageChecker: CodeAgent.PageChecker?
+    /// Lingua della richiesta che usa gli strumenti: Apple Intelligence può chiamarli fuori dal suo ambito.
+    let language: Language
     private let lock = NSLock()
     private var done: [String] = []
     private var changed = 0
@@ -292,6 +361,7 @@ public final class CodeToolbox: @unchecked Sendable {
         self.compact = compact
         self.pageChecker = checkPage
         self.onEvent = onEvent
+        language = Language.current
     }
 
     /// Lo strumento `controlla_pagina` c'è solo se l'app sa aprire le pagine e il progetto ha una pagina HTML (o è ancora vuoto).
@@ -311,40 +381,57 @@ public final class CodeToolbox: @unchecked Sendable {
 
     struct Parameter { let name: String; let type: String; let description: String; let required: Bool }
 
+    /// Gli strumenti per il modello: i nomi (e quelli dei parametri) restano in italiano, le descrizioni seguono la lingua.
     var specs: [ToolSpec] {
+        let path = Language.t("Percorso del file, relativo al progetto", "File path, relative to the project")
         var list = [
-            spec("elenca_file", "Elenca i file del progetto (senza dipendenze e cartelle di build).", [
-                Parameter(name: "cartella", type: "string", description: "Sottocartella da elencare (vuoto: tutto il progetto)", required: false),
-                Parameter(name: "filtro", type: "string", description: "Parte del nome o schema come *.swift", required: false),
+            spec("elenca_file", Language.t("Elenca i file del progetto (senza dipendenze e cartelle di build).",
+                                           "Lists the project files (without dependencies and build folders)."), [
+                Parameter(name: "cartella", type: "string", description: Language.t("Sottocartella da elencare (vuoto: tutto il progetto)",
+                                                                                     "Subfolder to list (empty: the whole project)"), required: false),
+                Parameter(name: "filtro", type: "string", description: Language.t("Parte del nome o schema come *.swift",
+                                                                                   "Part of the name, or a pattern like *.swift"), required: false),
             ]),
-            spec("leggi_file", "Legge un file di testo del progetto, con i numeri di riga.", [
-                Parameter(name: "percorso", type: "string", description: "Percorso del file, relativo al progetto", required: true),
-                Parameter(name: "da_riga", type: "integer", description: "Prima riga da leggere (per i file lunghi)", required: false),
-                Parameter(name: "a_riga", type: "integer", description: "Ultima riga da leggere", required: false),
+            spec("leggi_file", Language.t("Legge un file di testo del progetto, con i numeri di riga.",
+                                          "Reads a text file of the project, with line numbers."), [
+                Parameter(name: "percorso", type: "string", description: path, required: true),
+                Parameter(name: "da_riga", type: "integer", description: Language.t("Prima riga da leggere (per i file lunghi)",
+                                                                                     "First line to read (for long files)"), required: false),
+                Parameter(name: "a_riga", type: "integer", description: Language.t("Ultima riga da leggere", "Last line to read"), required: false),
             ]),
-            spec("cerca", "Cerca un testo in tutti i file del progetto: restituisce file, riga e contenuto.", [
-                Parameter(name: "testo", type: "string", description: "Testo da cercare (maiuscole e minuscole indifferenti)", required: true),
-                Parameter(name: "cartella", type: "string", description: "Sottocartella in cui cercare", required: false),
+            spec("cerca", Language.t("Cerca un testo in tutti i file del progetto: restituisce file, riga e contenuto.",
+                                     "Searches for a text in all the project files: returns file, line and content."), [
+                Parameter(name: "testo", type: "string", description: Language.t("Testo da cercare (maiuscole e minuscole indifferenti)",
+                                                                                  "Text to search for (case-insensitive)"), required: true),
+                Parameter(name: "cartella", type: "string", description: Language.t("Sottocartella in cui cercare", "Subfolder to search in"), required: false),
             ]),
         ]
         if checksPages {
-            list.append(spec("controlla_pagina", "Apre una pagina HTML del progetto come in un browser e restituisce gli errori della console (JavaScript, file che mancano). Usalo dopo aver modificato un sito.", [
-                Parameter(name: "percorso", type: "string", description: "Pagina HTML, relativa al progetto (vuoto: index.html)", required: false),
+            list.append(spec("controlla_pagina", Language.t(
+                "Apre una pagina HTML del progetto come in un browser e restituisce gli errori della console (JavaScript, file che mancano). Usalo dopo aver modificato un sito.",
+                "Opens an HTML page of the project as in a browser and returns the console errors (JavaScript, missing files). Use it after changing a website."), [
+                Parameter(name: "percorso", type: "string", description: Language.t("Pagina HTML, relativa al progetto (vuoto: index.html)",
+                                                                                     "HTML page, relative to the project (empty: index.html)"), required: false),
             ]))
         }
         guard mode == .edit else { return list }
         list += [
-            spec("modifica_file", "Modifica un file esistente sostituendo un pezzo di testo esatto con quello nuovo.", [
-                Parameter(name: "percorso", type: "string", description: "Percorso del file, relativo al progetto", required: true),
-                Parameter(name: "vecchio_testo", type: "string", description: "Testo da sostituire, copiato esattamente dal file (unico nel file)", required: true),
-                Parameter(name: "nuovo_testo", type: "string", description: "Testo che prende il suo posto", required: true),
+            spec("modifica_file", Language.t("Modifica un file esistente sostituendo un pezzo di testo esatto con quello nuovo.",
+                                             "Edits an existing file by replacing an exact piece of text with the new one."), [
+                Parameter(name: "percorso", type: "string", description: path, required: true),
+                Parameter(name: "vecchio_testo", type: "string", description: Language.t("Testo da sostituire, copiato esattamente dal file (unico nel file)",
+                                                                                          "Text to replace, copied exactly from the file (unique in the file)"), required: true),
+                Parameter(name: "nuovo_testo", type: "string", description: Language.t("Testo che prende il suo posto", "Text that takes its place"), required: true),
             ]),
-            spec("scrivi_file", "Crea un file nuovo o lo riscrive tutto con il contenuto indicato.", [
-                Parameter(name: "percorso", type: "string", description: "Percorso del file, relativo al progetto", required: true),
-                Parameter(name: "contenuto", type: "string", description: "Contenuto completo del file", required: true),
+            spec("scrivi_file", Language.t("Crea un file nuovo o lo riscrive tutto con il contenuto indicato.",
+                                           "Creates a new file, or rewrites it completely, with the given content."), [
+                Parameter(name: "percorso", type: "string", description: path, required: true),
+                Parameter(name: "contenuto", type: "string", description: Language.t("Contenuto completo del file", "Full content of the file"), required: true),
             ]),
-            spec("esegui_comando", "Esegue un comando della shell nella cartella del progetto (build, test, npm…). Scrive solo nel progetto, senza internet.", [
-                Parameter(name: "comando", type: "string", description: "Comando da eseguire, per esempio «npm run build»", required: true),
+            spec("esegui_comando", Language.t("Esegue un comando della shell nella cartella del progetto (build, test, npm…). Scrive solo nel progetto, senza internet.",
+                                              "Runs a shell command in the project folder (build, test, npm…). It can only write inside the project, with no internet access."), [
+                Parameter(name: "comando", type: "string", description: Language.t("Comando da eseguire, per esempio «npm run build»",
+                                                                                    "Command to run, for example “npm run build”"), required: true),
             ]),
         ]
         return list
@@ -397,8 +484,13 @@ public final class CodeToolbox: @unchecked Sendable {
 
     // MARK: Esecuzione
 
+    /// Esegue uno strumento: risultati ed eventi nella lingua della richiesta, anche se la chiamata arriva da fuori.
     func run(_ name: String, _ arguments: [String: String]) async -> String {
-        if Task.isCancelled { return "Richiesta interrotta." }
+        await Language.$scoped.withValue(language) { await perform(name, arguments) }
+    }
+
+    private func perform(_ name: String, _ arguments: [String: String]) async -> String {
+        if Task.isCancelled { return CodeAgent.interrupted }
         switch name {
         case "elenca_file": return list(folder: arguments["cartella"], filter: arguments["filtro"])
         case "leggi_file": return read(arguments["percorso"], from: arguments["da_riga"].flatMap { Int($0) }, to: arguments["a_riga"].flatMap { Int($0) })
@@ -407,8 +499,12 @@ public final class CodeToolbox: @unchecked Sendable {
         case "modifica_file" where mode == .edit: return edit(arguments["percorso"], old: arguments["vecchio_testo"], new: arguments["nuovo_testo"])
         case "scrivi_file" where mode == .edit: return write(arguments["percorso"], content: arguments["contenuto"])
         case "esegui_comando" where mode == .edit: return await command(arguments["comando"])
-        case "modifica_file", "scrivi_file", "esegui_comando": return "Errore: in modalità «chiedi prima» non si modifica nulla. Proponi il piano."
-        default: return "Errore: lo strumento «\(name)» non esiste. Strumenti: \(specs.map(\.name).joined(separator: ", "))."
+        case "modifica_file", "scrivi_file", "esegui_comando":
+            return Language.t("Errore: in modalità «chiedi prima» non si modifica nulla. Proponi il piano.",
+                              "Error: in “ask first” mode nothing gets changed. Propose the plan.")
+        default:
+            let tools = specs.map(\.name).joined(separator: ", ")
+            return Language.t("Errore: lo strumento «\(name)» non esiste. Strumenti: \(tools).", "Error: the tool “\(name)” doesn't exist. Tools: \(tools).")
         }
     }
 
@@ -416,7 +512,7 @@ public final class CodeToolbox: @unchecked Sendable {
     func journal(limit: Int) -> String {
         let lines = lock.withLock { done }
         let text = lines.suffix(30).map { "- " + $0 }.joined(separator: "\n")
-        return text.isEmpty ? "- ancora niente" : String(text.suffix(limit))
+        return text.isEmpty ? Language.t("- ancora niente", "- nothing yet") : String(text.suffix(limit))
     }
 
     private func note(_ line: String) { lock.withLock { done.append(line) } }
@@ -436,9 +532,12 @@ public final class CodeToolbox: @unchecked Sendable {
         url.path == root.path ? "." : String(url.path.dropFirst(root.path.count + 1))
     }
 
+    private var folderOutside: String { Language.t("Errore: la cartella è fuori dal progetto.", "Error: the folder is outside the project.") }
+    private var pathOutside: String { Language.t("Errore: il percorso è fuori dal progetto.", "Error: the path is outside the project.") }
+
     private func list(folder: String?, filter: String?) -> String {
-        guard let start = resolve(folder) else { return "Errore: la cartella è fuori dal progetto." }
-        onEvent(CodeEvent(kind: .tool, text: "Elenca i file" + (folder.map { $0.isEmpty ? "" : " di \($0)" } ?? "")))
+        guard let start = resolve(folder) else { return folderOutside }
+        onEvent(CodeEvent(kind: .tool, text: Language.t("Elenca i file", "List files") + (folder.map { $0.isEmpty ? "" : Language.t(" di \($0)", " in \($0)") } ?? "")))
         let pattern = filter?.trimmingCharacters(in: .whitespaces).lowercased() ?? ""
         var files: [String] = []
         var total = 0
@@ -458,20 +557,27 @@ public final class CodeToolbox: @unchecked Sendable {
             total += 1
             if files.count < listLimit { files.append(path) }
         }
-        note("elencati i file (\(total))")
-        guard !files.isEmpty else { return "Nessun file trovato." }
-        return files.sorted().joined(separator: "\n") + (total > files.count ? "\n… e altri \(total - files.count) file (usa filtro o cartella)." : "")
+        note(Language.t("elencati i file (\(total))", "listed the files (\(total))"))
+        guard !files.isEmpty else { return Language.t("Nessun file trovato.", "No files found.") }
+        let more = total - files.count
+        return files.sorted().joined(separator: "\n")
+            + (more > 0 ? Language.t("\n… e altri \(more) file (usa filtro o cartella).", "\n… and \(more) more files (use filtro or cartella).") : "")
     }
 
     private func read(_ path: String?, from: Int?, to: Int?) -> String {
-        guard let url = resolve(path) else { return "Errore: il percorso è fuori dal progetto." }
-        guard let data = try? Data(contentsOf: url) else { return "Errore: il file «\(path ?? "")» non esiste. Usa elenca_file per vedere i file." }
-        guard let text = String(data: data, encoding: .utf8) else { return "Il file «\(relative(url))» non è di testo (\(data.count) byte)." }
-        onEvent(CodeEvent(kind: .tool, text: "Legge \(relative(url))"))
+        guard let url = resolve(path) else { return pathOutside }
+        guard let data = try? Data(contentsOf: url) else {
+            return Language.t("Errore: il file «\(path ?? "")» non esiste. Usa elenca_file per vedere i file.",
+                              "Error: the file “\(path ?? "")” doesn't exist. Use elenca_file to see the files.")
+        }
+        guard let text = String(data: data, encoding: .utf8) else {
+            return Language.t("Il file «\(relative(url))» non è di testo (\(data.count) byte).", "The file “\(relative(url))” isn't a text file (\(data.count) bytes).")
+        }
+        onEvent(CodeEvent(kind: .tool, text: Language.t("Legge \(relative(url))", "Read \(relative(url))")))
         let lines = text.components(separatedBy: "\n")
         let first = max(1, from ?? 1)
         let last = min(lines.count, max(first, to ?? lines.count))
-        guard first <= lines.count else { return "Il file ha solo \(lines.count) righe." }
+        guard first <= lines.count else { return Language.t("Il file ha solo \(lines.count) righe.", "The file only has \(lines.count) lines.") }
         var output = ""
         var shown = first - 1
         for number in first...last {
@@ -480,15 +586,20 @@ public final class CodeToolbox: @unchecked Sendable {
             output += line
             shown = number
         }
-        note("letto \(relative(url)) (righe \(first)-\(shown))")
-        if shown < last { output += "… (il file ha \(lines.count) righe: continua con da_riga=\(shown + 1))" }
-        return output.isEmpty ? "(file vuoto)" : output
+        note(Language.t("letto \(relative(url)) (righe \(first)-\(shown))", "read \(relative(url)) (lines \(first)-\(shown))"))
+        if shown < last {
+            output += Language.t("… (il file ha \(lines.count) righe: continua con da_riga=\(shown + 1))",
+                                 "… (the file has \(lines.count) lines: continue with da_riga=\(shown + 1))")
+        }
+        return output.isEmpty ? Language.t("(file vuoto)", "(empty file)") : output
     }
 
     private func search(_ query: String?, folder: String?) -> String {
-        guard let query = query?.trimmingCharacters(in: .whitespacesAndNewlines), !query.isEmpty else { return "Errore: manca il testo da cercare." }
-        guard let start = resolve(folder) else { return "Errore: la cartella è fuori dal progetto." }
-        onEvent(CodeEvent(kind: .tool, text: "Cerca «\(query)»"))
+        guard let query = query?.trimmingCharacters(in: .whitespacesAndNewlines), !query.isEmpty else {
+            return Language.t("Errore: manca il testo da cercare.", "Error: the text to search for is missing.")
+        }
+        guard let start = resolve(folder) else { return folderOutside }
+        onEvent(CodeEvent(kind: .tool, text: Language.t("Cerca «\(query)»", "Search “\(query)”")))
         var results: [String] = []
         var total = 0
         let enumerator = FileManager.default.enumerator(at: start, includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey], options: [.skipsPackageDescendants])
@@ -506,25 +617,30 @@ public final class CodeToolbox: @unchecked Sendable {
                 }
             }
         }
-        note("cercato «\(query)» (\(total) risultati)")
-        guard !results.isEmpty else { return "Nessun risultato per «\(query)»." }
-        return results.joined(separator: "\n") + (total > results.count ? "\n… e altri \(total - results.count) risultati." : "")
+        note(Language.t("cercato «\(query)» (\(total) risultati)", "searched “\(query)” (\(total) results)"))
+        guard !results.isEmpty else { return Language.t("Nessun risultato per «\(query)».", "No results for “\(query)”.") }
+        let more = total - results.count
+        return results.joined(separator: "\n") + (more > 0 ? Language.t("\n… e altri \(more) risultati.", "\n… and \(more) more results.") : "")
     }
 
     private func checkPage(_ path: String?) async -> String {
-        guard let pageChecker else { return "Errore: il controllo delle pagine non è disponibile." }
+        guard let pageChecker else { return Language.t("Errore: il controllo delle pagine non è disponibile.", "Error: page checking isn't available.") }
         let target = path.flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 } ?? "index.html"
         guard let url = resolve(target), FileManager.default.fileExists(atPath: url.path) else {
-            return "Errore: la pagina «\(target)» non esiste. Usa elenca_file per vedere le pagine del progetto."
+            return Language.t("Errore: la pagina «\(target)» non esiste. Usa elenca_file per vedere le pagine del progetto.",
+                              "Error: the page “\(target)” doesn't exist. Use elenca_file to see the project's pages.")
         }
         let key = "pagina-\(UUID().uuidString)"
-        onEvent(CodeEvent(key: key, kind: .tool, text: "Apre \(relative(url)) nel browser", status: .running))
+        let page = relative(url)
+        onEvent(CodeEvent(key: key, kind: .tool, text: Language.t("Apre \(page) nel browser", "Open \(page) in the browser"), status: .running))
         let errors = await pageChecker(url)
-        onEvent(CodeEvent(key: key, kind: .tool, text: errors.isEmpty ? "\(relative(url)): nessun errore" : "\(relative(url)): \(errors.count) errori nella console",
+        let count = errors.count == 1 ? "1 error" : "\(errors.count) errors"
+        let found = Language.t("\(page): \(errors.count) errori nella console", "\(page): \(count) in the console")
+        onEvent(CodeEvent(key: key, kind: .tool, text: errors.isEmpty ? Language.t("\(page): nessun errore", "\(page): no errors") : found,
                           status: errors.isEmpty ? .ok : .failed))
-        note("controllata \(relative(url)) (\(errors.count) errori)")
-        guard !errors.isEmpty else { return "Nessun errore nella console di \(relative(url))." }
-        return "Errori nella console di \(relative(url)):\n" + errors.prefix(15).map { "- " + $0 }.joined(separator: "\n")
+        note(Language.t("controllata \(page) (\(errors.count) errori)", "checked \(page) (\(count))"))
+        guard !errors.isEmpty else { return Language.t("Nessun errore nella console di \(page).", "No errors in the console of \(page).") }
+        return Language.t("Errori nella console di \(page):\n", "Errors in the console of \(page):\n") + errors.prefix(15).map { "- " + $0 }.joined(separator: "\n")
     }
 
     /// I modelli piccoli a volte scrivono «\n» letterali al posto degli a capo.
@@ -534,39 +650,50 @@ public final class CodeToolbox: @unchecked Sendable {
     }
 
     private func edit(_ path: String?, old: String?, new: String?) -> String {
-        guard let url = resolve(path), url != root else { return "Errore: il percorso è fuori dal progetto." }
-        guard let original = try? String(contentsOf: url, encoding: .utf8) else { return "Errore: il file «\(path ?? "")» non esiste. Per un file nuovo usa scrivi_file." }
-        guard var old, !old.isEmpty else { return "Errore: manca vecchio_testo (il pezzo da sostituire)." }
+        guard let url = resolve(path), url != root else { return pathOutside }
+        guard let original = try? String(contentsOf: url, encoding: .utf8) else {
+            return Language.t("Errore: il file «\(path ?? "")» non esiste. Per un file nuovo usa scrivi_file.",
+                              "Error: the file “\(path ?? "")” doesn't exist. For a new file use scrivi_file.")
+        }
+        guard var old, !old.isEmpty else { return Language.t("Errore: manca vecchio_testo (il pezzo da sostituire).", "Error: vecchio_testo is missing (the piece to replace).") }
         var new = new ?? ""
         if !original.contains(old), original.contains(Self.unescaped(old)) {
             old = Self.unescaped(old)
             new = Self.unescaped(new)
         }
         let count = original.components(separatedBy: old).count - 1
-        guard count > 0 else { return "Errore: vecchio_testo non si trova in \(relative(url)). Rileggi il file con leggi_file e copia il pezzo esatto." }
-        guard count == 1 else { return "Errore: vecchio_testo compare \(count) volte in \(relative(url)): aggiungi qualche riga intorno per renderlo unico." }
+        guard count > 0 else {
+            return Language.t("Errore: vecchio_testo non si trova in \(relative(url)). Rileggi il file con leggi_file e copia il pezzo esatto.",
+                              "Error: vecchio_testo isn't in \(relative(url)). Read the file again with leggi_file and copy the exact piece.")
+        }
+        guard count == 1 else {
+            return Language.t("Errore: vecchio_testo compare \(count) volte in \(relative(url)): aggiungi qualche riga intorno per renderlo unico.",
+                              "Error: vecchio_testo appears \(count) times in \(relative(url)): add a few lines around it to make it unique.")
+        }
         let updated = original.replacingOccurrences(of: old, with: new)
-        do { try updated.write(to: url, atomically: true, encoding: .utf8) } catch { return "Errore: \(error.localizedDescription)" }
-        onEvent(CodeEvent(kind: .file, text: "Modifica", path: relative(url)))
-        note("modificato \(relative(url))")
+        do { try updated.write(to: url, atomically: true, encoding: .utf8) } catch { return Language.t("Errore: ", "Error: ") + error.localizedDescription }
+        onEvent(CodeEvent(kind: .file, text: Language.t("Modifica", "Edit"), path: relative(url)))
+        note(Language.t("modificato \(relative(url))", "edited \(relative(url))"))
         lock.withLock { changed += 1 }
-        return "Fatto: \(relative(url)) modificato."
+        return Language.t("Fatto: \(relative(url)) modificato.", "Done: \(relative(url)) edited.")
     }
 
     private func write(_ path: String?, content: String?) -> String {
-        guard let url = resolve(path), url != root else { return "Errore: il percorso è fuori dal progetto." }
+        guard let url = resolve(path), url != root else { return pathOutside }
         let existed = FileManager.default.fileExists(atPath: url.path)
         let text = Self.unescaped(content ?? "")
         do {
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try text.write(to: url, atomically: true, encoding: .utf8)
         } catch {
-            return "Errore: \(error.localizedDescription)"
+            return Language.t("Errore: ", "Error: ") + error.localizedDescription
         }
-        onEvent(CodeEvent(kind: .file, text: existed ? "Modifica" : "Crea", path: relative(url)))
-        note("\(existed ? "riscritto" : "creato") \(relative(url))")
+        onEvent(CodeEvent(kind: .file, text: existed ? Language.t("Modifica", "Edit") : Language.t("Crea", "Create"), path: relative(url)))
+        note(existed ? Language.t("riscritto \(relative(url))", "rewrote \(relative(url))") : Language.t("creato \(relative(url))", "created \(relative(url))"))
         lock.withLock { changed += 1 }
-        return "Fatto: \(relative(url)) \(existed ? "riscritto" : "creato") (\(text.components(separatedBy: "\n").count) righe)."
+        let lines = text.components(separatedBy: "\n").count
+        return existed ? Language.t("Fatto: \(relative(url)) riscritto (\(lines) righe).", "Done: \(relative(url)) rewritten (\(lines) lines).")
+                       : Language.t("Fatto: \(relative(url)) creato (\(lines) righe).", "Done: \(relative(url)) created (\(lines) lines).")
     }
 
     /// Recinto dei comandi: si scrive solo nel progetto, nelle cartelle temporanee e nelle cache; la rete solo in locale.
@@ -578,7 +705,9 @@ public final class CodeToolbox: @unchecked Sendable {
     """
 
     private func command(_ command: String?) async -> String {
-        guard let command = command?.trimmingCharacters(in: .whitespacesAndNewlines), !command.isEmpty else { return "Errore: manca il comando." }
+        guard let command = command?.trimmingCharacters(in: .whitespacesAndNewlines), !command.isEmpty else {
+            return Language.t("Errore: manca il comando.", "Error: the command is missing.")
+        }
         let key = "comando-\(UUID().uuidString)"
         onEvent(CodeEvent(key: key, kind: .command, text: command, status: .running))
         let home = FileManager.default.homeDirectoryForCurrentUser.path
@@ -587,8 +716,9 @@ public final class CodeToolbox: @unchecked Sendable {
         let result = await Shell.run(line, timeout: 180)
         let output = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
         onEvent(CodeEvent(key: key, kind: .command, text: command, detail: String(output.suffix(4000)), status: result.status == 0 ? .ok : .failed))
-        note("eseguito `\(command.prefix(80))` (\(result.status == 0 ? "riuscito" : "errore \(result.status)"))")
+        note(Language.t("eseguito `\(command.prefix(80))` (\(result.status == 0 ? "riuscito" : "errore \(result.status)"))",
+                        "ran `\(command.prefix(80))` (\(result.status == 0 ? "succeeded" : "error \(result.status)"))"))
         let tail = output.count > outputLimit ? "…" + output.suffix(outputLimit) : output
-        return "Codice di uscita \(result.status).\n" + (tail.isEmpty ? "(nessuna uscita)" : tail)
+        return Language.t("Codice di uscita \(result.status).\n", "Exit code \(result.status).\n") + (tail.isEmpty ? Language.t("(nessuna uscita)", "(no output)") : tail)
     }
 }

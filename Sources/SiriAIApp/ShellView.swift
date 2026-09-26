@@ -221,7 +221,7 @@ struct ShellToolbar: ToolbarContent {
         }
         ToolbarItem(placement: .primaryAction) {
             Button { state.showCommandPalette = true } label: { Image(systemName: "magnifyingglass") }
-                .iconHelp("Cerca e vai a… (⌘K)")
+                .iconHelp(String(localized: "Cerca e vai a… (⌘K)"))
         }
         ToolbarItem(placement: .primaryAction) {
             Button {
@@ -230,7 +230,7 @@ struct ShellToolbar: ToolbarContent {
                 Label("Siri AI+", systemImage: "sidebar.right")
             }
             .disabled(state.section == .home)
-            .iconHelp(state.showAssistant ? "Nascondi l'assistente (⌥⌘S)" : "Mostra l'assistente (⌥⌘S)")
+            .iconHelp(state.showAssistant ? String(localized: "Nascondi l'assistente (⌥⌘S)") : String(localized: "Mostra l'assistente (⌥⌘S)"))
         }
     }
 
@@ -238,22 +238,22 @@ struct ShellToolbar: ToolbarContent {
         switch state.section {
         case .home:
             // Nella Home con una chat aperta il titolo è quello della chat, come in ChatGPT.
-            if let current = state.current, !current.messages.isEmpty { current.title } else { state.space == .codice ? "Programmazione" : "Home" }
+            if let current = state.current, !current.messages.isEmpty { current.title } else { state.space == .codice ? String(localized: "Programmazione") : String(localized: "Home") }
         case .app(let source): source.label
-        case .browser: state.browser.title.isEmpty ? "Safari" : state.browser.title
-        case .appLauncher: "App"
+        case .browser: state.browser.title.isEmpty ? String(localized: "Safari") : state.browser.title
+        case .appLauncher: String(localized: "App")
         case .file(let url): url.lastPathComponent
         case .chats(let group): state.title(of: .chats(group))
         case .documents(let kind): kind.app
-        case .project(let id): state.projects.first { $0.id == id }?.name ?? "Progetto"
-        case .artifact: state.openArtifact?.title ?? "Documento"
-        case .activity: "Attività e privacy"
-        case .automations: "Agenti"
-        case .connectors: "Connettori"
-        case .settings: "Impostazioni"
-        case .agents: "Agenti"
-        case .agent(let id): state.agent(id)?.displayName ?? "Agente"
-        case .schedule: "Programmazioni"
+        case .project(let id): state.projects.first { $0.id == id }?.name ?? String(localized: "Progetto")
+        case .artifact: state.openArtifact?.title ?? String(localized: "Documento")
+        case .activity: String(localized: "Attività e privacy")
+        case .automations: String(localized: "Genius")
+        case .connectors: String(localized: "Connettori")
+        case .settings: String(localized: "Impostazioni")
+        case .agents: String(localized: "Genius")
+        case .agent(let id): state.agent(id)?.displayName ?? String(localized: "Genius")
+        case .schedule: String(localized: "Programmazioni")
         }
     }
 }

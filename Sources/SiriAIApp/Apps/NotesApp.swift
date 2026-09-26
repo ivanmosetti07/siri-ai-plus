@@ -42,16 +42,16 @@ struct NotesAppView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            AppHeader(source: .notes, title: "Note", subtitle: "\(notes.count) note", search: $search, searchPrompt: "Cerca nelle note",
+            AppHeader(source: .notes, title: String(localized: "Note"), subtitle: String(localized: "\(notes.count) note"), search: $search, searchPrompt: String(localized: "Cerca nelle note"),
                       onRefresh: { Task { await reload() } }) {
-                AppIconButton(symbol: "square.and.pencil", help: "Nuova nota", prominent: true) { newNote() }
+                AppIconButton(symbol: "square.and.pencil", help: String(localized: "Nuova nota"), prominent: true) { newNote() }
                     .disabled(!state.canWrite(.notes) || currentFolder?.isTrash == true)
             }
             Divider()
             if let error, notes.isEmpty, folders.isEmpty {
-                AccessNotice(symbol: "note.text", title: "Note non risponde", message: error,
-                             primary: ("Riprova", { Task { await reload() } }),
-                             secondary: ("Permessi", { PermissionCenter.openSettings(.automation) }))
+                AccessNotice(symbol: "note.text", title: String(localized: "Note non risponde"), message: error,
+                             primary: (String(localized: "Riprova"), { Task { await reload() } }),
+                             secondary: (String(localized: "Permessi"), { PermissionCenter.openSettings(.automation) }))
             } else {
                 AppColumns(sourcesWidth: 210, itemsWidth: 300) {
                     folderList
@@ -70,9 +70,9 @@ struct NotesAppView: View {
                                    onDeleted: { openNote = nil; selectedID = nil; Task { await reload() } })
                             .id(open.key)
                     } else {
-                        AppPlaceholder(symbol: "note.text", title: "Nessuna nota selezionata",
-                                       message: "Scegli una nota da leggere e modificare, oppure creane una nuova.",
-                                       actionTitle: state.canWrite(.notes) ? "Nuova nota" : nil, action: newNote)
+                        AppPlaceholder(symbol: "note.text", title: String(localized: "Nessuna nota selezionata"),
+                                       message: String(localized: "Scegli una nota da leggere e modificare, oppure creane una nuova."),
+                                       actionTitle: state.canWrite(.notes) ? String(localized: "Nuova nota") : nil, action: newNote)
                     }
                 }
             }
@@ -105,7 +105,7 @@ struct NotesAppView: View {
                             presenting: deletingFolder) { folder in
             Button("Elimina cartella", role: .destructive) { deleteFolder(folder) }
         } message: { folder in
-            Text(folder.count == 0 ? "La cartella è vuota." : "Le sue \(folder.count) note finiscono in «Eliminate di recente» di Note, da cui si recuperano per 30 giorni.")
+            Text(folder.count == 0 ? String(localized: "La cartella è vuota.") : String(localized: "Le sue \(folder.count) note finiscono in «Eliminate di recente» di Note, da cui si recuperano per 30 giorni."))
         }
     }
 
@@ -119,13 +119,13 @@ struct NotesAppView: View {
     private var folderList: some View {
         List(selection: Binding(get: { selection }, set: { if let value = $0 { selection = value } })) {
             Section {
-                SourceRowLabel(title: "Tutte le note", symbol: "tray.full", tint: .orange,
+                SourceRowLabel(title: String(localized: "Tutte le note"), symbol: "tray.full", tint: .orange,
                                count: folders.filter { !$0.isTrash }.reduce(0) { $0 + $1.count }).tag(Folder.all)
             }
             ForEach(accounts, id: \.id) { account in
                 Section(account.name) {
                     ForEach(folders.filter { $0.accountID == account.id }.sorted { ($0.isTrash ? 1 : 0, $0.name) < ($1.isTrash ? 1 : 0, $1.name) }) { folder in
-                        SourceRowLabel(title: folder.isTrash ? "Eliminate di recente" : folder.name, symbol: folder.isTrash ? "trash" : "folder",
+                        SourceRowLabel(title: folder.isTrash ? String(localized: "Eliminate di recente") : folder.name, symbol: folder.isTrash ? "trash" : "folder",
                                        tint: folder.isTrash ? .secondary : .orange, count: folder.count)
                             .tag(Folder.folder(folder.id))
                             .contextMenu {
@@ -155,18 +155,18 @@ struct NotesAppView: View {
 
     private var noteList: some View {
         VStack(spacing: 0) {
-            ListHeading(title: currentFolder.map { $0.isTrash ? "Eliminate di recente" : $0.name } ?? "Tutte le note", tint: .orange,
+            ListHeading(title: currentFolder.map { $0.isTrash ? String(localized: "Eliminate di recente") : $0.name } ?? String(localized: "Tutte le note"), tint: .orange,
                         count: "\(visible.count)") {
                 FoldersMenu(folders: folders, selection: $selection)
             }
             if loading && notes.isEmpty {
                 ProgressView("Leggo le note…").frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if visible.isEmpty && !writingNewNote {
-                AppPlaceholder(symbol: search.isEmpty ? "note.text" : "magnifyingglass", title: search.isEmpty ? "Nessuna nota" : "Nessun risultato")
+                AppPlaceholder(symbol: search.isEmpty ? "note.text" : "magnifyingglass", title: search.isEmpty ? String(localized: "Nessuna nota") : String(localized: "Nessun risultato"))
             } else {
                 List(selection: $selectedID) {
                     if writingNewNote {
-                        NoteRow(title: "Nuova nota", date: .now, preview: "Scrivi qualcosa per salvarla in Note")
+                        NoteRow(title: String(localized: "Nuova nota"), date: .now, preview: String(localized: "Scrivi qualcosa per salvarla in Note"))
                             .listRowBackground(Color.accentColor.opacity(0.15))
                     }
                     ForEach(groups, id: \.title) { group in
@@ -189,11 +189,11 @@ struct NotesAppView: View {
     private var groups: [(title: String, notes: [NoteSummary])] {
         let cal = Calendar.current
         func bucket(_ date: Date) -> String {
-            if cal.isDateInToday(date) { return "Oggi" }
-            if cal.isDateInYesterday(date) { return "Ieri" }
+            if cal.isDateInToday(date) { return String(localized: "Oggi") }
+            if cal.isDateInYesterday(date) { return String(localized: "Ieri") }
             let days = cal.dateComponents([.day], from: cal.startOfDay(for: date), to: cal.startOfDay(for: .now)).day ?? 0
-            if days < 7 { return "Ultimi 7 giorni" }
-            if days < 30 { return "Ultimi 30 giorni" }
+            if days < 7 { return String(localized: "Ultimi 7 giorni") }
+            if days < 30 { return String(localized: "Ultimi 30 giorni") }
             return date.formatted(.dateTime.month(.wide).year().locale(Dates.locale)).capitalized
         }
         var order: [String] = []
@@ -221,7 +221,7 @@ struct NotesAppView: View {
     // MARK: Dati e azioni
 
     private func publishOverview(_ list: [NoteSummary]) {
-        state.publish(.notes(folder: currentFolder.map { "cartella «\($0.name)»" } ?? "tutte le note", notes: list), for: .app(.notes))
+        state.publish(.notes(folder: currentFolder.map { String(localized: "cartella «\($0.name)»") } ?? String(localized: "tutte le note"), notes: list), for: .app(.notes))
     }
 
     private func reload(keepSelection: Bool = false) async {
@@ -279,9 +279,9 @@ struct NotesAppView: View {
         Task {
             do {
                 try await NotesStore.move(note.id, to: folder.id)
-                state.appDone(.notes, "Nota spostata in «\(folder.name)»", detail: note.title)
+                state.appDone(.notes, String(localized: "Nota spostata in «\(folder.name)»"), detail: note.title)
                 await reload(keepSelection: true)
-            } catch { state.appFailed(.notes, "Nota non spostata", error) }
+            } catch { state.appFailed(.notes, String(localized: "Nota non spostata"), error) }
         }
     }
 
@@ -290,9 +290,9 @@ struct NotesAppView: View {
             do {
                 try await NotesStore.delete(note.id)
                 if selectedID == note.id { selectedID = nil }
-                state.appDone(.notes, "Nota eliminata", detail: note.title)
+                state.appDone(.notes, String(localized: "Nota eliminata"), detail: note.title)
                 await reload()
-            } catch { state.appFailed(.notes, "Nota non eliminata", error) }
+            } catch { state.appFailed(.notes, String(localized: "Nota non eliminata"), error) }
         }
     }
 
@@ -301,16 +301,16 @@ struct NotesAppView: View {
             do {
                 if let folder {
                     try await NotesStore.renameFolder(folder.id, to: name)
-                    state.appDone(.notes, "Cartella rinominata", detail: name)
+                    state.appDone(.notes, String(localized: "Cartella rinominata"), detail: name)
                 } else {
                     let id = try await NotesStore.createFolder(name, accountID: accountID)
-                    state.appDone(.notes, "Cartella creata", detail: name)
+                    state.appDone(.notes, String(localized: "Cartella creata"), detail: name)
                     await reload()
                     selection = .folder(id)
                     return
                 }
                 await reload(keepSelection: true)
-            } catch { state.appFailed(.notes, folder == nil ? "Cartella non creata" : "Cartella non rinominata", error) }
+            } catch { state.appFailed(.notes, folder == nil ? String(localized: "Cartella non creata") : String(localized: "Cartella non rinominata"), error) }
         }
     }
 
@@ -319,9 +319,9 @@ struct NotesAppView: View {
             do {
                 try await NotesStore.deleteFolder(folder.id)
                 if selection == .folder(folder.id) { selection = .all }
-                state.appDone(.notes, "Cartella eliminata", detail: folder.name)
+                state.appDone(.notes, String(localized: "Cartella eliminata"), detail: folder.name)
                 await reload()
-            } catch { state.appFailed(.notes, "Cartella non eliminata", error) }
+            } catch { state.appFailed(.notes, String(localized: "Cartella non eliminata"), error) }
         }
     }
 }
@@ -339,7 +339,7 @@ private struct FoldersMenu: View {
                 ForEach(folders) { folder in Button("\(folder.name) · \(folder.account)") { selection = .folder(folder.id) } }
             } label: { Image(systemName: "sidebar.left") }
             .menuStyle(.button).menuIndicator(.hidden).buttonStyle(.borderless).fixedSize()
-            .iconHelp("Cartelle")
+            .iconHelp(String(localized: "Cartelle"))
         }
     }
 }
@@ -354,7 +354,7 @@ private struct NoteRow: View {
             Text(title).font(.system(size: 13.5, weight: .semibold)).lineLimit(1)
             HStack(spacing: 6) {
                 Text(date.listStamp).font(.system(size: 12, weight: .medium))
-                Text(preview.isEmpty ? "Nessun altro testo" : preview).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
+                Text(preview.isEmpty ? String(localized: "Nessun altro testo") : preview).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
             }
         }
         .padding(.vertical, 4)
@@ -406,13 +406,13 @@ private struct NoteEditor: View {
             } else {
                 if !editable {
                     InlineBanner(symbol: "list.bullet.rectangle", tint: .blue,
-                                 text: "Questa nota ha liste, tabelle o allegati: Note li perderebbe se la riscrivessi da qui. Modificala nell'app Note.") {
+                                 text: String(localized: "Questa nota ha liste, tabelle o allegati: Note li perderebbe se la riscrivessi da qui. Modificala nell'app Note.")) {
                         Button("Apri in Note") { if let id { Task { await NotesService.open(id: id) } } }
                     }
                     .padding(10)
                 }
                 RichTextEditor(text: $text, editable: editable && canWrite && !conflict, controller: controller,
-                               placeholder: id == nil ? "Titolo della nuova nota" : nil) {
+                               placeholder: id == nil ? String(localized: "Titolo della nuova nota") : nil) {
                     dirty = true
                     scheduleSave()
                 }
@@ -454,18 +454,18 @@ private struct NoteEditor: View {
                 }
             } label: { Image(systemName: "textformat.size") }
             .menuStyle(.button).menuIndicator(.hidden).buttonStyle(.borderless).fixedSize()
-            .iconHelp("Stile del paragrafo")
+            .iconHelp(String(localized: "Stile del paragrafo"))
             .disabled(!editable || !canWrite)
-            AppIconButton(symbol: "bold", help: "Grassetto (⌘B)") { controller.toggle(.bold) }
+            AppIconButton(symbol: "bold", help: String(localized: "Grassetto (⌘B)")) { controller.toggle(.bold) }
                 .keyboardShortcut("b", modifiers: .command)
                 .disabled(!editable || !canWrite)
-            AppIconButton(symbol: "italic", help: "Corsivo (⌘I)") { controller.toggle(.italic) }
+            AppIconButton(symbol: "italic", help: String(localized: "Corsivo (⌘I)")) { controller.toggle(.italic) }
                 .keyboardShortcut("i", modifiers: .command)
                 .disabled(!editable || !canWrite)
-            AppIconButton(symbol: "underline", help: "Sottolineato (⌘U)") { controller.toggle(.underline) }
+            AppIconButton(symbol: "underline", help: String(localized: "Sottolineato (⌘U)")) { controller.toggle(.underline) }
                 .keyboardShortcut("u", modifiers: .command)
                 .disabled(!editable || !canWrite)
-            AppIconButton(symbol: "strikethrough", help: "Barrato") { controller.toggle(.strikethrough) }
+            AppIconButton(symbol: "strikethrough", help: String(localized: "Barrato")) { controller.toggle(.strikethrough) }
                 .disabled(!editable || !canWrite)
             Spacer()
             Text(status).font(.system(size: 11.5)).foregroundStyle(.secondary)
@@ -476,14 +476,14 @@ private struct NoteEditor: View {
                     }
                 } label: { Image(systemName: "folder") }
                 .menuStyle(.button).menuIndicator(.hidden).buttonStyle(.borderless).fixedSize()
-                .iconHelp("Sposta in un'altra cartella")
+                .iconHelp(String(localized: "Sposta in un'altra cartella"))
                 .disabled(!canWrite)
-                AppIconButton(symbol: "trash", help: "Elimina nota", role: .destructive) { confirmDelete = true }
+                AppIconButton(symbol: "trash", help: String(localized: "Elimina nota"), role: .destructive) { confirmDelete = true }
                     .disabled(!canWrite)
-                AppIconButton(symbol: "sparkle", help: "Chiedi a Siri AI+ di questa nota") {
-                    state.send("Riassumi la nota «\(text.string.components(separatedBy: "\n").first ?? "")» e dimmi cosa c'è da fare")
+                AppIconButton(symbol: "sparkle", help: String(localized: "Chiedi a Siri AI+ di questa nota")) {
+                    state.send(String(localized: "Riassumi la nota «\(text.string.components(separatedBy: "\n").first ?? "")» e dimmi cosa c'è da fare"))
                 }
-                AppIconButton(symbol: "arrow.up.forward.app", help: "Apri in Note") { Task { await NotesService.open(id: id) } }
+                AppIconButton(symbol: "arrow.up.forward.app", help: String(localized: "Apri in Note")) { Task { await NotesService.open(id: id) } }
             }
         }
         .disabled(loading)
@@ -500,7 +500,7 @@ private struct NoteEditor: View {
             text = NSAttributedString(string: "", attributes: NoteHTML.attributes(level: .title))
             html = ""
             editable = true
-            status = "Nuova nota"
+            status = String(localized: "Nuova nota")
             return
         }
         do {
@@ -509,7 +509,7 @@ private struct NoteEditor: View {
             editable = NotesStore.canRewrite(snapshot.html)
             text = editable ? NoteHTML.attributed(from: snapshot.html) : NoteHTML.preview(from: snapshot.html)
             dirty = false
-            status = editable ? "Salvata" : "Solo lettura"
+            status = editable ? String(localized: "Salvata") : String(localized: "Solo lettura")
         } catch {
             self.error = error.localizedDescription
         }
@@ -518,7 +518,7 @@ private struct NoteEditor: View {
     private func scheduleSave() {
         saveTask?.cancel()
         guard canWrite, editable, !conflict else { return }
-        status = "Modifiche…"
+        status = String(localized: "Modifiche…")
         saveTask = Task {
             try? await Task.sleep(for: .milliseconds(1100))
             if !Task.isCancelled { await save() }
@@ -532,7 +532,7 @@ private struct NoteEditor: View {
             if let id {
                 html = try await NotesStore.save(id: id, html: newHTML, expectedHTML: html)
                 dirty = false
-                status = "Salvata"
+                status = String(localized: "Salvata")
                 onChanged()
             } else {
                 guard !text.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
@@ -541,12 +541,12 @@ private struct NoteEditor: View {
                 id = created
                 html = (try? await NotesService.snapshot(id: created).html) ?? newHTML
                 dirty = false
-                status = "Salvata"
-                state.appDone(.notes, "Nota creata", detail: text.string.components(separatedBy: "\n").first ?? "")
+                status = String(localized: "Salvata")
+                state.appDone(.notes, String(localized: "Nota creata"), detail: text.string.components(separatedBy: "\n").first ?? "")
                 onCreated(created)
             }
         } catch {
-            status = "Non salvata"
+            status = String(localized: "Non salvata")
             self.error = error.localizedDescription
             if error.localizedDescription.contains("modificata") { conflict = true }
         }
@@ -561,7 +561,7 @@ private struct NoteEditor: View {
         html = snapshot.html
         editable = NotesStore.canRewrite(snapshot.html)
         text = editable ? NoteHTML.attributed(from: snapshot.html) : NoteHTML.preview(from: snapshot.html)
-        status = "Aggiornata da Note"
+        status = String(localized: "Aggiornata da Note")
     }
 
     private func move(_ id: String, to folder: NotesFolder) {
@@ -569,9 +569,9 @@ private struct NoteEditor: View {
             do {
                 if dirty { await save() }
                 try await NotesStore.move(id, to: folder.id)
-                state.appDone(.notes, "Nota spostata in «\(folder.name)»")
+                state.appDone(.notes, String(localized: "Nota spostata in «\(folder.name)»"))
                 onChanged()
-            } catch { state.appFailed(.notes, "Nota non spostata", error) }
+            } catch { state.appFailed(.notes, String(localized: "Nota non spostata"), error) }
         }
     }
 
@@ -582,9 +582,9 @@ private struct NoteEditor: View {
                 saveTask?.cancel()
                 dirty = false
                 try await NotesStore.delete(id)
-                state.appDone(.notes, "Nota eliminata")
+                state.appDone(.notes, String(localized: "Nota eliminata"))
                 onDeleted()
-            } catch { state.appFailed(.notes, "Nota non eliminata", error) }
+            } catch { state.appFailed(.notes, String(localized: "Nota non eliminata"), error) }
         }
     }
 }
@@ -601,7 +601,7 @@ private struct FolderEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(folder == nil ? "Nuova cartella" : "Rinomina cartella").font(.system(size: 15, weight: .semibold))
+            Text(folder == nil ? String(localized: "Nuova cartella") : String(localized: "Rinomina cartella")).font(.system(size: 15, weight: .semibold))
             TextField("Nome", text: $name).textFieldStyle(.roundedBorder).onSubmit(save)
             if folder == nil, accounts.count > 1 {
                 Picker("Account", selection: $accountID) {
@@ -611,7 +611,7 @@ private struct FolderEditor: View {
             HStack {
                 Button("Annulla") { dismiss() }.keyboardShortcut(.cancelAction)
                 Spacer()
-                Button(folder == nil ? "Crea" : "Rinomina", action: save).buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+                Button(folder == nil ? String(localized: "Crea") : String(localized: "Rinomina"), action: save).buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
                     .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
@@ -729,7 +729,7 @@ private struct RichTextEditor: NSViewRepresentable {
         view.textStorage?.setAttributedString(text)
         view.typingAttributes = NoteHTML.attributes(level: text.length == 0 ? .title : .body)
         view.isEditable = editable && context.environment.isEnabled
-        view.setAccessibilityLabel(placeholder ?? "Testo della nota")
+        view.setAccessibilityLabel(placeholder ?? String(localized: "Testo della nota"))
         controller.textView = view
         context.coordinator.placeholder(view, show: text.length == 0)
         if editable, text.length == 0 { DispatchQueue.main.async { view.window?.makeFirstResponder(view) } }

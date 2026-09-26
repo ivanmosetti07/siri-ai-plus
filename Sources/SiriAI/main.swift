@@ -137,7 +137,10 @@ let assistant = Assistant()
 }
 
 @MainActor func ask(_ prompt: String) async {
-    await show(await assistant.handle(prompt, enabled: enabled, picked: []) { _ in })
+    // Risposta nella lingua in cui si scrive, anche per il testo che arriva dopo la scelta dell'azione.
+    await Language.$scoped.withValue(assistant.language(for: prompt)) {
+        await show(await assistant.handle(prompt, enabled: enabled, picked: []) { _ in })
+    }
 }
 
 @MainActor func show(_ outcome: Outcome) async {

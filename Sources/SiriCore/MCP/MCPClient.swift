@@ -62,12 +62,12 @@ public enum MCPError: LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .notRunning: "Il server MCP non è avviato."
-        case .timeout: "Il server MCP non ha risposto in tempo."
-        case .server(let m): "Errore del server MCP: \(m)"
-        case .badResponse: "Risposta del server MCP non valida."
-        case .launch(let m): "Non riesco ad avviare il server MCP: \(m)"
-        case .unauthorized: "Accesso richiesto"
+        case .notRunning: Language.t("Il server MCP non è avviato.", "The MCP server isn't running.")
+        case .timeout: Language.t("Il server MCP non ha risposto in tempo.", "The MCP server didn't respond in time.")
+        case .server(let m): Language.t("Errore del server MCP: \(m)", "MCP server error: \(m)")
+        case .badResponse: Language.t("Risposta del server MCP non valida.", "Invalid response from the MCP server.")
+        case .launch(let m): Language.t("Non riesco ad avviare il server MCP: \(m)", "I can't start the MCP server: \(m)")
+        case .unauthorized: Language.t("Accesso richiesto", "Sign-in required")
         }
     }
 }
@@ -140,8 +140,8 @@ public actor MCPConnection {
         let parts = (result["content"]?.array ?? []).map { item -> String in
             switch item["type"]?.string {
             case "text": item["text"]?.string ?? ""
-            case "image": "[immagine]"
-            case "resource": item["resource"]?["text"]?.string ?? "[risorsa]"
+            case "image": Language.t("[immagine]", "[image]")
+            case "resource": item["resource"]?["text"]?.string ?? Language.t("[risorsa]", "[resource]")
             default: item.compactString
             }
         }
@@ -169,7 +169,8 @@ public actor MCPConnection {
                 try stdin.write(contentsOf: try message.data() + Data("\n".utf8))
             } catch {
                 pending.removeValue(forKey: id)
-                continuation.resume(throwing: MCPError.launch("il server non risponde: \(error.localizedDescription)"))
+                continuation.resume(throwing: MCPError.launch(Language.t("il server non risponde: \(error.localizedDescription)",
+                                                                         "the server isn't responding: \(error.localizedDescription)")))
                 return
             }
             timeouts[id] = Task { [weak self] in
@@ -236,7 +237,7 @@ public actor MCPConnection {
     }
 
     private func terminated() {
-        let reason = stderrTail.isEmpty ? "processo terminato" : stderrTail
+        let reason = stderrTail.isEmpty ? Language.t("processo terminato", "process terminated") : stderrTail
         for continuation in pending.values { continuation.resume(throwing: MCPError.launch(reason)) }
         pending = [:]
         for timer in timeouts.values { timer.cancel() }
@@ -274,7 +275,7 @@ public actor MCPConnection {
     // MARK: HTTP
 
     private func postHTTP(_ message: JSONValue, expectID: Int?) async throws -> JSONValue {
-        guard let url = URL(string: config.url) else { throw MCPError.launch("URL non valido") }
+        guard let url = URL(string: config.url) else { throw MCPError.launch(Language.t("URL non valido", "invalid URL")) }
         var request = URLRequest(url: url, timeoutInterval: 120)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

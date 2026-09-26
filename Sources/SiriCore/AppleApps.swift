@@ -27,7 +27,7 @@ public struct AppItems: Codable, Sendable, Equatable {
 
     /// Testo per il modello, con numeri brevi per i riferimenti successivi.
     public var digest: String {
-        rows.isEmpty ? "\(title): nessun risultato" : "\(title):\n" + rows.enumerated().map { index, row in
+        rows.isEmpty ? Language.t("\(title): nessun risultato", "\(title): no results") : "\(title):\n" + rows.enumerated().map { index, row in
             "\(index + 1). \(row.title) — \(row.subtitle)" + (row.detail.isEmpty ? "" : "\n   \(row.detail.prefix(360))")
         }.joined(separator: "\n")
     }
@@ -134,10 +134,19 @@ public enum AppleAppError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .script(let message): message
-        case .notAllowed(let app): "Siri AI+ non ha il permesso di usare \(app): Impostazioni di Sistema › Privacy e sicurezza › Automazione."
-        case .fullDiskAccess: "Per leggere i Messaggi serve l'accesso completo al disco per Siri AI+: Impostazioni di Sistema › Privacy e sicurezza › Accesso completo al disco."
-        case .noRecipient: "Non trovo il destinatario tra i Contatti: indica numero o email."
+        case .notAllowed(let app): Language.t("Siri AI+ non ha il permesso di usare \(app): Impostazioni di Sistema › Privacy e sicurezza › Automazione.",
+                                              "Siri AI+ doesn't have permission to use \(Self.appName(app)): System Settings › Privacy & Security › Automation.")
+        case .fullDiskAccess: Language.t("Per leggere i Messaggi serve l'accesso completo al disco per Siri AI+: Impostazioni di Sistema › Privacy e sicurezza › Accesso completo al disco.",
+                                         "To read Messages, Siri AI+ needs Full Disk Access: System Settings › Privacy & Security › Full Disk Access.")
+        case .noRecipient: Language.t("Non trovo il destinatario tra i Contatti: indica numero o email.",
+                                      "I can't find the recipient in Contacts: give a number or an email address.")
         }
+    }
+
+    /// Nome dell'app nei messaggi: chi usa AppleScript passa i nomi italiani («Note», «Messaggi»), in inglese diventano quelli di macOS.
+    static func appName(_ app: String, _ language: Language = Language.current) -> String {
+        guard language == .en else { return app }
+        return ["Note": "Notes", "Messaggi": "Messages", "Promemoria": "Reminders", "Calendario": "Calendar", "Contatti": "Contacts"][app] ?? app
     }
 }
 
@@ -164,6 +173,8 @@ public enum AppleScript {
     /// `osascript` si ferma: niente richieste lente che continuano in sottofondo.
     static func run(_ source: String, app: String, timeout: TimeInterval = 120) async throws -> String {
         let running = Running()
+        // I messaggi d'errore nascono su una coda di GCD, fuori dal compito: la lingua della richiesta si prende qui.
+        let language = Language.current
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 DispatchQueue.global(qos: .userInitiated).async {
@@ -185,7 +196,8 @@ public enum AppleScript {
                     process.waitUntilExit()
                     deadline.cancel()
                     if running.wasStopped {
-                        continuation.resume(throwing: AppleAppError.script("\(app) non ha risposto in tempo."))
+                        let message = language == .en ? "\(AppleAppError.appName(app, language)) didn't respond in time." : "\(app) non ha risposto in tempo."
+                        continuation.resume(throwing: AppleAppError.script(message))
                         return
                     }
                     if process.terminationStatus != 0 {
@@ -193,7 +205,7 @@ public enum AppleScript {
                         if errorText.contains("-1743") || errorText.contains("Not authorized") {
                             continuation.resume(throwing: AppleAppError.notAllowed(app))
                         } else {
-                            continuation.resume(throwing: AppleAppError.script("\(app): \(errorText.trimmingCharacters(in: .whitespacesAndNewlines).prefix(200))"))
+                            continuation.resume(throwing: AppleAppError.script("\(AppleAppError.appName(app, language)): \(errorText.trimmingCharacters(in: .whitespacesAndNewlines).prefix(200))"))
                         }
                         return
                     }
@@ -287,7 +299,12 @@ public enum NotesService {
             return AppItems.Row(id: f[0], title: f[1], subtitle: [f[2], shortDate(f[3])].filter { !$0.isEmpty }.joined(separator: " · "),
                                 detail: String(body.prefix(400)), reference: f[0])
         }
-        return AppItems(source: .notes, title: query.map { "Note su «\($0)»" } ?? "Note recenti", rows: rows)
+        return AppItems(source: .notes, title: listTitle(query), rows: rows)
+    }
+
+    /// Titolo dell'elenco: le note che contengono un testo, o le recenti.
+    static func listTitle(_ query: String?) -> String {
+        query.map { Language.t("Note su «\($0)»", "Notes about “\($0)”") } ?? Language.t("Note recenti", "Recent notes")
     }
 
     /// Testo completo di una nota.
@@ -328,7 +345,7 @@ public enum NotesService {
 
     /// Salva una nota testuale solo se il contenuto originale è ancora identico.
     public static func update(id: String, text: String, expectedHTML: String) async throws -> Snapshot {
-        guard !expectedHTML.isEmpty else { throw AppleAppError.script("Nota vuota o non leggibile: impossibile salvarla in sicurezza.") }
+        guard !expectedHTML.isEmpty else { throw AppleAppError.script(Language.t("Nota vuota o non leggibile: impossibile salvarla in sicurezza.", "Empty or unreadable note: it can't be saved safely.")) }
         let lines = text.components(separatedBy: "\n")
         func escape(_ value: String) -> String {
             value.replacingOccurrences(of: "&", with: "&amp;")
@@ -384,7 +401,7 @@ public enum NotesService {
 
     /// Sostituisce il contenuto della nota con `html` se è ancora `expectedHTML`.
     public static func replaceBody(id: String, html: String, expectedHTML: String) async throws -> Snapshot {
-        guard !expectedHTML.isEmpty else { throw AppleAppError.script("Nota vuota o non leggibile: impossibile modificarla in sicurezza.") }
+        guard !expectedHTML.isEmpty else { throw AppleAppError.script(Language.t("Nota vuota o non leggibile: impossibile modificarla in sicurezza.", "Empty or unreadable note: it can't be edited safely.")) }
         let script = """
         tell application "Notes"
             set nt to note id \(AppleScript.quote(id))
@@ -475,11 +492,17 @@ public enum MailReader {
             guard f.count >= 6 else { return nil }
             let unread = f[4] == "false" ? "● " : ""
             let preview = f[5].replacingOccurrences(of: "\n", with: " ").replacingOccurrences(of: "  ", with: " ")
-            return AppItems.Row(id: f[0], title: unread + (f[1].isEmpty ? "(senza oggetto)" : f[1]),
+            return AppItems.Row(id: f[0], title: unread + (f[1].isEmpty ? Language.t("(senza oggetto)", "(no subject)") : f[1]),
                                 subtitle: "\(senderName(f[2])) · \(shortDate(f[3]))", detail: String(preview.prefix(500)), reference: f[0])
         }
-        let title = unreadOnly ? "Email non lette" : query.map { "Email su «\($0)»" } ?? "Posta in arrivo"
-        return AppItems(source: .mail, title: account.map { "\(title) · \($0)" } ?? title, rows: rows)
+        return AppItems(source: .mail, title: listTitle(query: query, unreadOnly: unreadOnly, account: account), rows: rows)
+    }
+
+    /// Titolo dell'elenco: le non lette, quelle su un testo o la posta in arrivo, con l'account dello spazio.
+    static func listTitle(query: String?, unreadOnly: Bool, account: String?) -> String {
+        let title = unreadOnly ? Language.t("Email non lette", "Unread emails")
+            : query.map { Language.t("Email su «\($0)»", "Emails about “\($0)”") } ?? Language.t("Posta in arrivo", "Inbox")
+        return account.map { "\(title) · \($0)" } ?? title
     }
 
     /// Account configurati in Mail (per scegliere quello di ogni spazio).
@@ -573,7 +596,7 @@ public enum MailReader {
         """
         let output = try await AppleScript.run(script, app: "Mail")
         let parts = output.components(separatedBy: AppleScript.field)
-        guard parts.count >= 4 else { throw AppleAppError.script("Non riesco a leggere l'email.") }
+        guard parts.count >= 4 else { throw AppleAppError.script(Language.t("Non riesco a leggere l'email.", "I can't read the email.")) }
         return MailMessage(id: id, subject: parts[0], sender: parts[1], date: parts[2], content: parts[3...].joined(separator: AppleScript.field))
     }
 
@@ -655,7 +678,8 @@ public enum MailComposer {
     /// Citazione dell'email originale, come la scrive Mail.
     public static func quote(_ message: MailMessage) -> String {
         let lines = message.content.components(separatedBy: .newlines).prefix(120).map { "> " + $0 }
-        return "Il giorno \(message.shortDate), \(message.sender) ha scritto:\n\n" + lines.joined(separator: "\n")
+        return Language.t("Il giorno \(message.shortDate), \(message.sender) ha scritto:", "On \(message.shortDate), \(message.sender) wrote:")
+            + "\n\n" + lines.joined(separator: "\n")
     }
 }
 
@@ -694,8 +718,11 @@ public enum FileSearch {
         }
         // Prima i file modificati di recente.
         let sorted = rows.sorted { $0.1 > $1.1 }.prefix(limit).map(\.0)
-        return AppItems(source: .files, title: "File per «\(query)»", rows: Array(sorted))
+        return AppItems(source: .files, title: listTitle(query), rows: Array(sorted))
     }
+
+    /// Titolo dell'elenco dei file trovati.
+    static func listTitle(_ query: String) -> String { Language.t("File per «\(query)»", "Files for “\(query)”") }
 
     /// Testo di un file (txt, md, pdf, rtf, docx…), riusando il lettore dei progetti.
     public static func read(_ path: String, maxChars: Int = 2400) throws -> String {
@@ -737,7 +764,7 @@ public enum MessagesService {
         }
         sql += " ORDER BY m.date DESC LIMIT \(limit)"
         var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { throw AppleAppError.script("Database dei Messaggi non leggibile.") }
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { throw AppleAppError.script(Language.t("Database dei Messaggi non leggibile.", "The Messages database can't be read.")) }
         defer { sqlite3_finalize(statement) }
         let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
         if let query, !query.isEmpty {
@@ -756,10 +783,15 @@ public enum MessagesService {
             let chat = String(cString: sqlite3_column_text(statement, 5))
             let person = chat.isEmpty ? (names[handle] ?? Contacts.name(for: handle) ?? handle) : chat
             names[handle] = person
-            rows.append(AppItems.Row(id: String(sqlite3_column_int64(statement, 0)), title: fromMe ? "Tu → \(person)" : person,
+            rows.append(AppItems.Row(id: String(sqlite3_column_int64(statement, 0)), title: fromMe ? Language.t("Tu → \(person)", "You → \(person)") : person,
                                      subtitle: Dates.format(date), detail: text, reference: handle))
         }
-        return AppItems(source: .messages, title: query.map { "Messaggi con «\($0)»" } ?? "Messaggi recenti", rows: rows)
+        return AppItems(source: .messages, title: listTitle(query), rows: rows)
+    }
+
+    /// Titolo dell'elenco: i messaggi con una persona (o un testo), o i recenti.
+    static func listTitle(_ query: String?) -> String {
+        query.map { Language.t("Messaggi con «\($0)»", "Messages with “\($0)”") } ?? Language.t("Messaggi recenti", "Recent messages")
     }
 
     /// Invia un iMessage/SMS con l'app Messaggi (dopo la conferma nella scheda).
@@ -828,9 +860,13 @@ public enum Contacts {
     }
 }
 
-/// "lunedì 21 settembre 2026 alle ore 10:15:00" → "21 set 10:15"
+/// "lunedì 21 settembre 2026 alle ore 10:15:00" → "21 set 10:15"; su un Mac in inglese
+/// "Monday, September 21, 2026 at 10:15:00 AM" → "Sep 21 10:15 AM".
 func shortDate(_ appleScriptDate: String) -> String {
     let parts = appleScriptDate.replacingOccurrences(of: " alle ore ", with: " ").split(separator: " ")
+    if let g = Calculations.matches(#"^\p{L}+,? (\p{L}+) (\d{1,2}),? \d{4},? (?:at )?(\d{1,2}:\d{2})(?::\d{2})?(?:\s*([AaPp]\.?[Mm]\.?))?"#, in: appleScriptDate).first {
+        return "\(g[1].prefix(3)) \(g[2]) \(g[3])" + (g[4].isEmpty ? "" : " \(g[4].uppercased())")
+    }
     guard parts.count >= 4 else { return appleScriptDate }
     let time = parts.last.map { String($0.prefix(5)) } ?? ""
     return "\(parts[1]) \(parts[2].prefix(3)) \(time)"

@@ -18,7 +18,7 @@ private func fetchReminders(_ predicate: NSPredicate) async -> [ReminderInfo] {
             let infos = (reminders ?? []).map { r in
                 ReminderInfo(
                     identifier: r.calendarItemIdentifier,
-                    title: r.title ?? "(senza titolo)",
+                    title: r.title ?? Language.t("(senza titolo)", "(untitled)"),
                     list: r.calendar.title,
                     due: r.dueDateComponents?.date ?? r.dueDateComponents.flatMap { Calendar.current.date(from: $0) },
                     dueHasTime: r.dueDateComponents?.hour != nil,
@@ -153,7 +153,7 @@ struct CompleteReminderTool: Tool {
         guard let reminder = ek.calendarItem(withIdentifier: identifier) as? EKReminder else {
             return "Errore: promemoria non più presente."
         }
-        let title = reminder.title ?? "(senza titolo)"
+        let title = reminder.title ?? Language.t("(senza titolo)", "(untitled)")
         guard await Console.confirm("Segno come completato «\(title)»") else {
             return "L'utente ha annullato."
         }

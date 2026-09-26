@@ -52,17 +52,17 @@ public enum WeatherCondition: String, Codable, Sendable, CaseIterable {
 
     public var label: String {
         switch self {
-        case .clear: "Sereno"
-        case .mostlyClear: "Poco nuvoloso"
-        case .partlyCloudy: "Parzialmente nuvoloso"
-        case .cloudy: "Nuvoloso"
-        case .fog: "Nebbia"
-        case .drizzle: "Pioggerella"
-        case .rain: "Pioggia"
-        case .heavyRain: "Pioggia forte"
-        case .freezingRain: "Pioggia gelata"
-        case .snow: "Neve"
-        case .thunderstorm: "Temporale"
+        case .clear: Language.t("Sereno", "Clear")
+        case .mostlyClear: Language.t("Poco nuvoloso", "Mostly Clear")
+        case .partlyCloudy: Language.t("Parzialmente nuvoloso", "Partly Cloudy")
+        case .cloudy: Language.t("Nuvoloso", "Cloudy")
+        case .fog: Language.t("Nebbia", "Fog")
+        case .drizzle: Language.t("Pioggerella", "Drizzle")
+        case .rain: Language.t("Pioggia", "Rain")
+        case .heavyRain: Language.t("Pioggia forte", "Heavy Rain")
+        case .freezingRain: Language.t("Pioggia gelata", "Freezing Rain")
+        case .snow: Language.t("Neve", "Snow")
+        case .thunderstorm: Language.t("Temporale", "Thunderstorm")
         }
     }
 
@@ -221,63 +221,96 @@ extension WeatherSnapshot {
         let hour = calendar.component(.hour, from: now)
         let evening = hour >= 18 || hour < 5
         let t = Self.degrees(temperature)
-        let feels = abs(apparent - temperature) >= 3 ? ", percepiti \(Self.degrees(apparent))" : ""
-        func at(_ item: WeatherHour) -> String { "\(calendar.component(.hour, from: item.date))" }
+        let feels = abs(apparent - temperature) >= 3 ? Language.t(", percepiti \(Self.degrees(apparent))", ", feels like \(Self.degrees(apparent))") : ""
+        // In inglese l'ora nel formato della lingua («3 PM»).
+        func at(_ item: WeatherHour) -> String {
+            Language.isEnglish ? item.date.formatted(.dateTime.hour().locale(Dates.locale)) : "\(calendar.component(.hour, from: item.date))"
+        }
 
         if condition == .thunderstorm {
-            return WeatherInsight(title: "Temporale in corso", detail: "Pioggia forte e fulmini: meglio restare al riparo. Adesso \(t)\(feels).")
+            return WeatherInsight(title: Language.t("Temporale in corso", "Thunderstorm now"),
+                                  detail: Language.t("Pioggia forte e fulmini: meglio restare al riparo. Adesso \(t)\(feels).",
+                                                     "Heavy rain and lightning: best to stay indoors. It's \(t) now\(feels)."))
         }
         if let storm = next.first(where: { $0.condition == .thunderstorm }) {
-            return WeatherInsight(title: "Temporali in arrivo", detail: "Possibili temporali verso le \(at(storm)). Tieni l'ombrello a portata di mano.")
+            return WeatherInsight(title: Language.t("Temporali in arrivo", "Thunderstorms coming"),
+                                  detail: Language.t("Possibili temporali verso le \(at(storm)). Tieni l'ombrello a portata di mano.",
+                                                     "Thunderstorms possible around \(at(storm)). Keep an umbrella handy."))
         }
         if condition.isWet {
             if let dry = next.first(where: { !$0.condition.isWet && $0.precipitationChance < 35 }) {
-                return WeatherInsight(title: "Sta piovendo", detail: "Dovrebbe smettere verso le \(at(dry)). Adesso \(t)\(feels).")
+                return WeatherInsight(title: Language.t("Sta piovendo", "It's raining"),
+                                      detail: Language.t("Dovrebbe smettere verso le \(at(dry)). Adesso \(t)\(feels).",
+                                                         "It should stop around \(at(dry)). It's \(t) now\(feels)."))
             }
-            return WeatherInsight(title: "Pioggia per ore", detail: "Non smette prima di sera: porta l'ombrello. Adesso \(t)\(feels).")
+            return WeatherInsight(title: Language.t("Pioggia per ore", "Rain for hours"),
+                                  detail: Language.t("Non smette prima di sera: porta l'ombrello. Adesso \(t)\(feels).",
+                                                     "It won't stop before evening: take an umbrella. It's \(t) now\(feels)."))
         }
         if condition == .snow {
-            return WeatherInsight(title: "Nevica", detail: "Strade scivolose: esci con calma. Adesso \(t)\(feels).")
+            return WeatherInsight(title: Language.t("Nevica", "It's snowing"),
+                                  detail: Language.t("Strade scivolose: esci con calma. Adesso \(t)\(feels).",
+                                                     "Slippery roads: take it slow if you go out. It's \(t) now\(feels)."))
         }
         if let snow = next.first(where: { $0.condition == .snow }) {
-            return WeatherInsight(title: "Neve in arrivo", detail: "Possibile neve verso le \(at(snow)). Adesso \(t)\(feels).")
+            return WeatherInsight(title: Language.t("Neve in arrivo", "Snow coming"),
+                                  detail: Language.t("Possibile neve verso le \(at(snow)). Adesso \(t)\(feels).",
+                                                     "Snow possible around \(at(snow)). It's \(t) now\(feels)."))
         }
         if let rain = next.first(where: { $0.condition.isWet || $0.precipitationChance >= 50 }) {
-            return WeatherInsight(title: "Porta l'ombrello", detail: "Pioggia probabile verso le \(at(rain)) (\(rain.precipitationChance)%). Adesso \(t)\(feels).")
+            return WeatherInsight(title: Language.t("Porta l'ombrello", "Take an umbrella"),
+                                  detail: Language.t("Pioggia probabile verso le \(at(rain)) (\(rain.precipitationChance)%). Adesso \(t)\(feels).",
+                                                     "Rain likely around \(at(rain)) (\(rain.precipitationChance)%). It's \(t) now\(feels)."))
         }
         if condition == .fog {
-            return WeatherInsight(title: "Nebbia", detail: "Visibilità ridotta: se guidi, vai piano. Adesso \(t)\(feels).")
+            return WeatherInsight(title: Language.t("Nebbia", "Fog"),
+                                  detail: Language.t("Visibilità ridotta: se guidi, vai piano. Adesso \(t)\(feels).",
+                                                     "Low visibility: if you're driving, go slowly. It's \(t) now\(feels)."))
         }
         if evening, let tomorrow, let today {
             let difference = tomorrow.high - today.high
             if difference <= -4 {
-                return WeatherInsight(title: "Domani più fresco", detail: "Massima di \(Self.degrees(tomorrow.high)), \(Int(abs(difference).rounded()))° in meno di oggi. \(tomorrow.condition.label).")
+                return WeatherInsight(title: Language.t("Domani più fresco", "Cooler tomorrow"),
+                                      detail: Language.t("Massima di \(Self.degrees(tomorrow.high)), \(Int(abs(difference).rounded()))° in meno di oggi. \(tomorrow.condition.label).",
+                                                         "High of \(Self.degrees(tomorrow.high)), \(Int(abs(difference).rounded()))° lower than today. \(tomorrow.condition.label)."))
             }
             if difference >= 4 {
-                return WeatherInsight(title: "Domani più caldo", detail: "Massima di \(Self.degrees(tomorrow.high)), \(Int(difference.rounded()))° in più di oggi. \(tomorrow.condition.label).")
+                return WeatherInsight(title: Language.t("Domani più caldo", "Warmer tomorrow"),
+                                      detail: Language.t("Massima di \(Self.degrees(tomorrow.high)), \(Int(difference.rounded()))° in più di oggi. \(tomorrow.condition.label).",
+                                                         "High of \(Self.degrees(tomorrow.high)), \(Int(difference.rounded()))° higher than today. \(tomorrow.condition.label)."))
             }
         }
         if !evening, let today, today.high >= 31 {
-            return WeatherInsight(title: "Giornata calda", detail: "Fino a \(Self.degrees(today.high)) nel pomeriggio: bevi spesso e cerca l'ombra.")
+            return WeatherInsight(title: Language.t("Giornata calda", "Hot day"),
+                                  detail: Language.t("Fino a \(Self.degrees(today.high)) nel pomeriggio: bevi spesso e cerca l'ombra.",
+                                                     "Up to \(Self.degrees(today.high)) in the afternoon: drink often and look for shade."))
         }
         if isDay, let uv = today?.uvMax, uv >= 7 {
-            return WeatherInsight(title: "Sole forte", detail: "Indice UV \(Int(uv.rounded())): se stai fuori metti la crema solare.")
+            return WeatherInsight(title: Language.t("Sole forte", "Strong sun"),
+                                  detail: Language.t("Indice UV \(Int(uv.rounded())): se stai fuori metti la crema solare.",
+                                                     "UV index \(Int(uv.rounded())): if you're outside, put on sunscreen."))
         }
         switch condition {
         case .clear, .mostlyClear:
             if evening || !isDay {
-                let low = (tomorrow?.low ?? today?.low).map { " Minima di \(Self.degrees($0)) stanotte." } ?? ""
-                return WeatherInsight(title: "Cielo sereno", detail: "Serata limpida, nessuna pioggia in vista.\(low)")
+                let low = (tomorrow?.low ?? today?.low).map { Language.t(" Minima di \(Self.degrees($0)) stanotte.", " Low of \(Self.degrees($0)) tonight.") } ?? ""
+                return WeatherInsight(title: Language.t("Cielo sereno", "Clear skies"),
+                                      detail: Language.t("Serata limpida, nessuna pioggia in vista.\(low)", "Clear evening, no rain in sight.\(low)"))
             }
-            let high = today.map { " Massima di \(Self.degrees($0.high))." } ?? ""
-            return WeatherInsight(title: "Giornata di sole", detail: "Nessuna pioggia prevista.\(high)")
+            let high = today.map { Language.t(" Massima di \(Self.degrees($0.high)).", " High of \(Self.degrees($0.high)).") } ?? ""
+            return WeatherInsight(title: Language.t("Giornata di sole", "Sunny day"), detail: Language.t("Nessuna pioggia prevista.\(high)", "No rain expected.\(high)"))
         case .partlyCloudy:
             if evening || !isDay {
-                return WeatherInsight(title: "Qualche nuvola", detail: "Serata variabile ma asciutta. Adesso \(t)\(feels).")
+                return WeatherInsight(title: Language.t("Qualche nuvola", "A few clouds"),
+                                      detail: Language.t("Serata variabile ma asciutta. Adesso \(t)\(feels).", "Changeable but dry evening. It's \(t) now\(feels)."))
             }
-            return WeatherInsight(title: "Sole e nuvole", detail: "Cielo variabile ma asciutto nelle prossime ore. Adesso \(t)\(feels).")
+            return WeatherInsight(title: Language.t("Sole e nuvole", "Sun and clouds"),
+                                  detail: Language.t("Cielo variabile ma asciutto nelle prossime ore. Adesso \(t)\(feels).",
+                                                     "Changeable but dry skies over the next few hours. It's \(t) now\(feels)."))
         default:
-            return WeatherInsight(title: "Cielo coperto", detail: "Nuvole ma niente pioggia nelle prossime ore. Adesso \(t)\(feels).")
+            return WeatherInsight(title: Language.t("Cielo coperto", "Overcast"),
+                                  detail: Language.t("Nuvole ma niente pioggia nelle prossime ore. Adesso \(t)\(feels).",
+                                                     "Clouds but no rain over the next few hours. It's \(t) now\(feels)."))
         }
     }
 
@@ -315,8 +348,8 @@ public enum WeatherError: LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .http(let code): "Il servizio meteo non risponde (errore \(code))."
-        case .placeNotFound(let name): "Non trovo la città «\(name)»."
+        case .http(let code): Language.t("Il servizio meteo non risponde (errore \(code)).", "The weather service isn't responding (error \(code)).")
+        case .placeNotFound(let name): Language.t("Non trovo la città «\(name)».", "I can't find the city “\(name)”.")
         }
     }
 }
@@ -352,7 +385,7 @@ public enum WeatherService {
         components.queryItems = [
             URLQueryItem(name: "name", value: name.trimmingCharacters(in: .whitespacesAndNewlines)),
             URLQueryItem(name: "count", value: "1"),
-            URLQueryItem(name: "language", value: "it"),
+            URLQueryItem(name: "language", value: Language.current.rawValue),
             URLQueryItem(name: "format", value: "json"),
         ]
         let (data, response) = try await session.data(from: components.url!)

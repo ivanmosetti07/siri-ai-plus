@@ -5,6 +5,14 @@ import SwiftUI
 struct AssistantPanel: View {
     @Environment(AppState.self) private var state
 
+    private var currentGenius: AgentSpec? {
+        state.current?.agentID.flatMap { state.agent($0) }
+    }
+
+    private var geniusFirstName: String? {
+        currentGenius.map { $0.personName.isEmpty ? $0.name : $0.personName }
+    }
+
     /// Ciò che è aperto al centro: le app e i documenti con la loro icona, i progetti con la cartella.
     private enum ContextIcon {
         case tile(Tile)
@@ -15,13 +23,14 @@ struct AssistantPanel: View {
         switch state.section {
         // Con un elemento selezionato il riquadro dice quale («Fattura di marzo»): Siri AI+ lavora su quello.
         case .app(let source): (.tile(Tile(source, size: 14)), state.screenItem.flatMap { $0.kind == .overview ? nil : $0.title } ?? source.label)
-        case .browser: (.tile(.safari(size: 14)), state.browser.url == nil ? "Safari" : state.browser.title.isEmpty ? "questa pagina" : state.browser.title)
+        case .browser: (.tile(.safari(size: 14)), state.browser.url == nil ? String(localized: "Safari") : state.browser.title.isEmpty ? String(localized: "questa pagina") : state.browser.title)
         case .artifact: state.openArtifact.map { (.tile(Tile($0.kind, size: 14)), $0.title) }
         case .appLauncher: nil
         case .file(let url): (.symbol("doc.text"), url.lastPathComponent)
-        case .chats: (.symbol("bubble.left.and.bubble.right"), "chat affiancate")
+        case .chats: (.symbol("bubble.left.and.bubble.right"), String(localized: "chat affiancate"))
         case .documents(let kind): (.tile(Tile(kind, size: 14)), kind.app)
         case .project: state.currentProject.map { (.symbol("folder.fill"), $0.name) }
+        case .agent: nil
         default: state.currentProject.map { (.symbol("folder.fill"), $0.name) }
         }
     }
@@ -29,30 +38,32 @@ struct AssistantPanel: View {
     private var suggestions: [String] {
         if let item = state.screenItem, !item.suggestions.isEmpty { return item.suggestions }
         return switch state.section {
-        case .app(.calendar): ["Cosa ho questa settimana?", "Fissa una riunione domani alle 10", "Sono libero giovedì pomeriggio?"]
-        case .app(.reminders): ["Cosa devo fare oggi?", "Crea i promemoria per il lancio", "Ricordami di chiamare Marco venerdì alle 9"]
-        case .app(.mail): ["Scrivi un'email al team con gli aggiornamenti", "Prepara una risposta cortese per rimandare la call"]
-        case .documents(.pages): ["Scrivi una relazione sul lancio del prodotto", "Prepara una lettera di presentazione", "Scrivi il verbale della riunione di oggi"]
-        case .documents(.numbers): ["Crea un budget mensile con entrate e uscite", "Prepara una tabella per confrontare tre preventivi", "Crea un piano dei pagamenti per il 2027"]
-        case .documents(.keynote): ["Crea una presentazione sul progetto in 6 slide", "Prepara le slide per la riunione di lunedì", "Trasforma i miei appunti in una presentazione"]
+        case .app(.calendar): [String(localized: "Cosa ho questa settimana?"), String(localized: "Fissa una riunione domani alle 10"), String(localized: "Sono libero giovedì pomeriggio?")]
+        case .app(.reminders): [String(localized: "Cosa devo fare oggi?"), String(localized: "Crea i promemoria per il lancio"), String(localized: "Ricordami di chiamare Marco venerdì alle 9")]
+        case .app(.mail): [String(localized: "Scrivi un'email al team con gli aggiornamenti"), String(localized: "Prepara una risposta cortese per rimandare la call")]
+        case .documents(.pages): [String(localized: "Scrivi una relazione sul lancio del prodotto"), String(localized: "Prepara una lettera di presentazione"), String(localized: "Scrivi il verbale della riunione di oggi")]
+        case .documents(.numbers): [String(localized: "Crea un budget mensile con entrate e uscite"), String(localized: "Prepara una tabella per confrontare tre preventivi"), String(localized: "Crea un piano dei pagamenti per il 2027")]
+        case .documents(.keynote): [String(localized: "Crea una presentazione sul progetto in 6 slide"), String(localized: "Prepara le slide per la riunione di lunedì"), String(localized: "Trasforma i miei appunti in una presentazione")]
         case .artifact:
             switch state.openArtifact?.kind {
-            case .pages?: ["Aggiungi una sezione sui rischi", "Rendi il tono più formale", "Riassumi il documento in 5 punti"]
-            case .numbers?: ["Qual è la voce più costosa?", "Aggiungi un foglio con lo scenario pessimista"]
-            case .keynote?: ["Aggiungi due slide sui prossimi passi", "Genera un'immagine per la copertina"]
+            case .pages?: [String(localized: "Aggiungi una sezione sui rischi"), String(localized: "Rendi il tono più formale"), String(localized: "Riassumi il documento in 5 punti")]
+            case .numbers?: [String(localized: "Qual è la voce più costosa?"), String(localized: "Aggiungi un foglio con lo scenario pessimista")]
+            case .keynote?: [String(localized: "Aggiungi due slide sui prossimi passi"), String(localized: "Genera un'immagine per la copertina")]
             case nil: []
             }
         case .browser:
             state.browser.url == nil
-                ? ["Apri il sito del Post", "Cerca le recensioni del nuovo MacBook Air", "Quali sono le notizie di oggi?"]
-                : ["Riassumi questa pagina", "Quali sono i punti principali?", "Traduci in italiano i passaggi chiave"]
-        case .project: ["Quali file ci sono nel progetto?", "Riassumi il file AGENTS.md", "Crea un file note-riunione.md con l'ordine del giorno"]
+                ? [String(localized: "Apri il sito del Post"), String(localized: "Cerca le recensioni del nuovo MacBook Air"), String(localized: "Quali sono le notizie di oggi?")]
+                : [String(localized: "Riassumi questa pagina"), String(localized: "Quali sono i punti principali?"), String(localized: "Traduci in italiano i passaggi chiave")]
+        case .project: [String(localized: "Quali file ci sono nel progetto?"), String(localized: "Riassumi il file AGENTS.md"), String(localized: "Crea un file note-riunione.md con l'ordine del giorno")]
+        case .agent:
+            [String(localized: "Su cosa stai lavorando?"), String(localized: "Qual è la prossima programmazione?"), String(localized: "Cosa aspetta la mia approvazione?")]
         case .schedule, .agents:
-            ["Cosa fanno gli agenti stanotte?", "Crea un agente che ogni lunedì alle 9 prepara la settimana", "Quali agenti aspettano una mia approvazione?"]
+            [String(localized: "Cosa fanno i Genius stanotte?"), String(localized: "Crea un Genius che ogni lunedì alle 9 prepara la settimana"), String(localized: "Quali Genius aspettano una mia approvazione?")]
         default:
             state.space == .personale
-                ? ["Cosa ho oggi?", "Crea una nota con la lista della spesa", "Idee per il weekend"]
-                : ["Organizza la mia giornata", "Che tempo fa domani a \(state.weather.city)?", "Spiegami come funziona un mutuo a tasso variabile", "Genera un'immagine di un faro al tramonto"]
+                ? [String(localized: "Cosa ho oggi?"), String(localized: "Crea una nota con la lista della spesa"), String(localized: "Idee per il weekend")]
+                : [String(localized: "Organizza la mia giornata"), String(localized: "Che tempo fa domani a \(state.weather.city)?"), String(localized: "Spiegami come funziona un mutuo a tasso variabile"), String(localized: "Genera un'immagine di un faro al tramonto")]
         }
     }
 
@@ -66,8 +77,13 @@ struct AssistantPanel: View {
             } else {
                 VStack(alignment: .leading, spacing: 4) {
                     Spacer()
-                    OrbView(state: state.orb, size: 44).frame(maxWidth: .infinity).padding(.bottom, 10)
-                    Text("Chiedi a Siri AI+").font(DS.Fonts.section).frame(maxWidth: .infinity).padding(.bottom, 8)
+                    Group {
+                        if let currentGenius { AgentAvatar(agent: currentGenius, size: 44) }
+                        else { OrbView(state: state.orb, size: 44) }
+                    }
+                    .frame(maxWidth: .infinity).padding(.bottom, 10)
+                    Text(geniusFirstName.map { String(localized: "Scrivi a \($0)") } ?? String(localized: "Chiedi a Siri AI+"))
+                        .font(DS.Fonts.section).frame(maxWidth: .infinity).padding(.bottom, 8)
                     ForEach(suggestions, id: \.self) { text in
                         SuggestionRow(symbol: "sparkle", text: text) { state.send(text) }
                     }
@@ -80,18 +96,25 @@ struct AssistantPanel: View {
             if let item = state.screenItem, !item.suggestions.isEmpty, let conversation = state.current, !conversation.messages.isEmpty, !state.isResponding {
                 ScreenActionsRow(suggestions: Array(item.suggestions.prefix(3))) { state.send($0) }
             }
-            Composer(placeholder: contextLabel.map { "Chiedi a Siri AI+ su \($0.text)…" } ?? "Chiedi a Siri AI+…")
+            Composer(placeholder: geniusFirstName.map { String(localized: "Scrivi a \($0)…") }
+                     ?? contextLabel.map { String(localized: "Chiedi a Siri AI+ su \($0.text)…") } ?? String(localized: "Chiedi a Siri AI+…"))
         }
         .environment(\.compactLayout, true)
     }
 
     private var header: some View {
         HStack(spacing: 8) {
-            OrbView(state: state.orb, size: 18)
+            if let currentGenius { AgentAvatar(agent: currentGenius, size: 18) }
+            else { OrbView(state: state.orb, size: 18) }
             VStack(alignment: .leading, spacing: 0) {
-                Text(state.current?.title ?? "Siri AI+").font(DS.Fonts.bodyStrong).lineLimit(1)
+                Text(state.current?.title ?? String(localized: "Siri AI+")).font(DS.Fonts.bodyStrong).lineLimit(1)
                 // Chat di un progetto: il progetto resta il contesto anche con le app aperte, e si vede.
-                if let project = state.current?.projectID.flatMap({ id in state.projects.first { $0.id == id } }) {
+                if let currentGenius {
+                    Text("Genius · " + (state.runningAgents.contains(currentGenius.id) ? String(localized: "Al lavoro")
+                                         : state.pendingApprovals(for: currentGenius) > 0 ? String(localized: "Aspetta la tua approvazione")
+                                         : currentGenius.active ? String(localized: "Pronto") : String(localized: "In pausa")))
+                        .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                } else if let project = state.current?.projectID.flatMap({ id in state.projects.first { $0.id == id } }) {
                     (Text(Image(systemName: "folder.fill")) + Text(" \(project.name) · \(state.orbLabel)"))
                         .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
                         .help("Chat del progetto «\(project.name)»: la sua cartella resta il contesto, in lettura e scrittura, anche con le app aperte")
@@ -119,7 +142,11 @@ struct AssistantPanel: View {
             ContextRing(usage: state.contextUsage, threshold: state.compactionThreshold,
                         model: state.activeModelLabel, window: state.contextBudget.label)
             Menu {
-                Button("Nuova conversazione") { state.newConversationHere() }
+                if currentGenius != nil {
+                    Button("Nuova chat generale") { state.newConversation(in: nil) }
+                } else {
+                    Button("Nuova conversazione") { state.newConversationHere() }
+                }
                 Button("Nuova chat figlia…") { state.showChildSheet = true }
                     .disabled(state.current?.messages.isEmpty != false)
                 Button("Modalità vocale") { state.voice.start(with: state) }
@@ -127,7 +154,7 @@ struct AssistantPanel: View {
                     .disabled(state.isResponding || state.current?.messages.isEmpty != false)
                 Divider()
                 if let current = state.current, !current.messages.isEmpty {
-                    Button(current.pinned ? "Togli dai fissati" : "Fissa conversazione") { state.togglePin(current) }
+                    Button(current.pinned ? String(localized: "Togli dai fissati") : String(localized: "Fissa conversazione")) { state.togglePin(current) }
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
@@ -146,7 +173,7 @@ struct AssistantPanel: View {
 struct ContextRing: View {
     let usage: Double
     let threshold: Double
-    var model = "Apple Intelligence"
+    var model = String(localized: "Apple Intelligence")
     var window = ContextBudget.apple.label
 
     private var tint: Color { usage >= threshold ? .orange : usage >= threshold * 0.75 ? .yellow : .secondary }

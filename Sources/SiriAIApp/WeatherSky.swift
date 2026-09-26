@@ -240,7 +240,7 @@ final class SkyMetalView: MTKView {
         layer?.isOpaque = true
     }
 
-    required init(coder: NSCoder) { fatalError("init(coder:) non usato") }
+    required init(coder: NSCoder) { fatalError(String(localized: "init(coder:) non usato")) }
 
     isolated deinit { observers.forEach(NotificationCenter.default.removeObserver) }
 

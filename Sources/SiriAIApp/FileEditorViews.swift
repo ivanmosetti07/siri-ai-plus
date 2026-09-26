@@ -250,7 +250,7 @@ struct FileEditorView: View {
                 Button("Ricarica versione esterna") { load() }
                     .help("Sostituisce le modifiche non salvate con quelle presenti sul disco")
             } else if project.allowWrite {
-                Text(dirty ? "Salvataggio…" : "Salvato · Live")
+                Text(dirty ? String(localized: "Salvataggio…") : String(localized: "Salvato · Live"))
                     .font(DS.Fonts.caption).foregroundStyle(.secondary)
             }
             if hasPreview {
@@ -267,8 +267,8 @@ struct FileEditorView: View {
                 Button { state.openInBrowser(previewURL) } label: { Label("Apri nel browser", systemImage: "safari") }
             }
             Menu {
-                Button("Riassumi con Siri AI+") { state.send("Riassumi il file \(path)") }
-                Button("Migliora il testo con Siri AI+") { state.send("Migliora la scrittura del file \(path) mantenendo il contenuto") }
+                Button("Riassumi con Siri AI+") { state.send(String(localized: "Riassumi il file \(path)")) }
+                Button("Migliora il testo con Siri AI+") { state.send(String(localized: "Migliora la scrittura del file \(path) mantenendo il contenuto")) }
                 Divider()
                 if !startsInReading, let url { Button("Apri in una scheda") { state.openFile(url) } }
                 Button("Apri con l'app predefinita") { if let url { NSWorkspace.shared.open(url) } }
@@ -280,7 +280,7 @@ struct FileEditorView: View {
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut("s")
                 .disabled(!dirty || !project.allowWrite || conflicted || snapshot == nil)
-                .help(project.allowWrite ? "Salva (⌘S)" : "La scrittura è disattivata per questo progetto")
+                .help(project.allowWrite ? String(localized: "Salva (⌘S)") : String(localized: "La scrittura è disattivata per questo progetto"))
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -288,26 +288,26 @@ struct FileEditorView: View {
 
     private var markdownToolbar: some View {
         HStack(spacing: 2) {
-            toolbarButton("bold", "Grassetto (⌘B)") { controller.wrap("**", "**") }.keyboardShortcut("b")
-            toolbarButton("italic", "Corsivo (⌘I)") { controller.wrap("*", "*") }.keyboardShortcut("i")
-            toolbarButton("strikethrough", "Barrato") { controller.wrap("~~", "~~") }
-            toolbarButton("highlighter", "Evidenzia") { controller.wrap("==", "==") }
+            toolbarButton("bold", String(localized: "Grassetto (⌘B)")) { controller.wrap("**", "**") }.keyboardShortcut("b")
+            toolbarButton("italic", String(localized: "Corsivo (⌘I)")) { controller.wrap("*", "*") }.keyboardShortcut("i")
+            toolbarButton("strikethrough", String(localized: "Barrato")) { controller.wrap("~~", "~~") }
+            toolbarButton("highlighter", String(localized: "Evidenzia")) { controller.wrap("==", "==") }
             Divider().frame(height: 16).padding(.horizontal, 4)
             Menu {
                 Button("Titolo 1") { controller.prefixLines("# ") }
                 Button("Titolo 2") { controller.prefixLines("## ") }
                 Button("Titolo 3") { controller.prefixLines("### ") }
             } label: { Image(systemName: "textformat.size") }
-            .menuIndicator(.hidden).fixedSize().iconHelp("Titolo")
-            toolbarButton("list.bullet", "Elenco") { controller.prefixLines("- ") }
-            toolbarButton("list.number", "Elenco numerato") { controller.prefixLines("1. ") }
-            toolbarButton("checklist", "Casella da spuntare") { controller.prefixLines("- [ ] ") }
-            toolbarButton("text.quote", "Citazione") { controller.prefixLines("> ") }
+            .menuIndicator(.hidden).fixedSize().iconHelp(String(localized: "Titolo"))
+            toolbarButton("list.bullet", String(localized: "Elenco")) { controller.prefixLines("- ") }
+            toolbarButton("list.number", String(localized: "Elenco numerato")) { controller.prefixLines("1. ") }
+            toolbarButton("checklist", String(localized: "Casella da spuntare")) { controller.prefixLines("- [ ] ") }
+            toolbarButton("text.quote", String(localized: "Citazione")) { controller.prefixLines("> ") }
             Divider().frame(height: 16).padding(.horizontal, 4)
-            toolbarButton("link", "Link") { controller.wrap("[", "](https://)", placeholder: "testo del link") }
-            toolbarButton("chevron.left.forwardslash.chevron.right", "Codice") { controller.wrap("`", "`", placeholder: "codice") }
-            toolbarButton("tablecells", "Tabella") { controller.insert("\n| Colonna | Colonna |\n| --- | --- |\n| Valore | Valore |\n") }
-            toolbarButton("minus", "Linea") { controller.insert("\n---\n") }
+            toolbarButton("link", String(localized: "Link")) { controller.wrap("[", "](https://)", placeholder: String(localized: "testo del link")) }
+            toolbarButton("chevron.left.forwardslash.chevron.right", String(localized: "Codice")) { controller.wrap("`", "`", placeholder: "codice") }
+            toolbarButton("tablecells", String(localized: "Tabella")) { controller.insert(String(localized: "\n| Colonna | Colonna |\n| --- | --- |\n| Valore | Valore |\n")) }
+            toolbarButton("minus", String(localized: "Linea")) { controller.insert("\n---\n") }
             Spacer()
             Text("\(text.split(whereSeparator: \.isWhitespace).count) parole").font(DS.Fonts.caption).foregroundStyle(.secondary)
         }
@@ -425,7 +425,7 @@ struct WebsiteCard: View {
     let model: WebsiteCardModel
 
     var body: some View {
-        Card(title: model.draft.title, subtitle: model.savedFolder.map { $0.replacingOccurrences(of: NSHomeDirectory(), with: "~") } ?? "\(model.draft.folder)/ · index.html, style.css",
+        Card(title: model.draft.title, subtitle: model.savedFolder.map { $0.replacingOccurrences(of: NSHomeDirectory(), with: "~") } ?? String(localized: "\(model.draft.folder)/ · index.html, style.css"),
              status: model.status) {
             Image(systemName: "globe").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.accentColor).frame(width: 26)
         } content: {

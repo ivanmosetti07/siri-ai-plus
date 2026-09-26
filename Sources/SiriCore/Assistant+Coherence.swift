@@ -39,10 +39,29 @@ extension Assistant {
         .required("richiesta", .string, "La richiesta dell'ultimo messaggio resa autonoma e completa, con i riferimenti risolti. Se è già chiara da sola, ricopiala identica"),
     ])
 
+    private static let englishStandaloneSchema = makeSchema("Riformulazione", [
+        .required("richiesta", .string, "The request of the last message made self-contained and complete, with the references resolved. If it is already clear on its own, copy it unchanged"),
+    ])
+
+    private static let englishStandaloneInstructions = """
+    Rewrite the user's last message so that it can be understood on its own, replacing pronouns and references with what they refer to in the conversation \
+    and bringing in the names and numbers that are needed. Don't answer the question and don't put the assistant's answers in it: take \
+    from the conversation only what the message refers to. Keep the English language and the same form (question or request).
+    Examples:
+    - Conversation: «User: who is the president of France? / Siri AI+: Emmanuel Macron.» Last message: «and how old is he?» → «How old is Emmanuel Macron?»
+    - Conversation: «User: what is the capital of Portugal? / Siri AI+: Lisbon.» Last message: «and Spain's?» → «What is the capital of Spain?»
+    - Conversation: «User: write me an email for Mark about the quote / Siri AI+: Here is the draft…» Last message: «make it shorter» → «Make the email for Mark about the quote shorter»
+    - Conversation: «User: what's the weather like in Milan tomorrow?» Last message: «and in Rome?» → «What's the weather like in Rome tomorrow?»
+    - Conversation: «User: list the three largest lakes in Italy / Siri AI+: 1. Garda 2. Maggiore 3. Como» Last message: «how deep is the second one?» → «How deep is Lake Maggiore?»
+    - Conversation: «User: I bought 3 books at 12 euros each.» Last message: «how much did I spend in total?» → «How much did I spend in total on 3 books at 12 euros each?»
+    """
+
     /// Rende autonoma una richiesta che dipende da ciò che si è detto prima ("e lui?", "rendilo più corto", "e domani?").
     func standalone(_ prompt: String) async -> String {
         guard !turns.isEmpty, Self.dependsOnConversation(prompt) else { return prompt }
-        let session = LanguageModelSession(model: Agent.model, instructions: """
+        let english = Language.isEnglish
+        let session = english ? LanguageModelSession(model: Agent.model, instructions: Self.englishStandaloneInstructions)
+            : LanguageModelSession(model: Agent.model, instructions: """
         Riscrivi l'ultimo messaggio dell'utente in modo che si capisca da solo, sostituendo pronomi e riferimenti con ciò a cui si riferiscono nella conversazione \
         e riportando i nomi e i numeri che servono. Non rispondere alla domanda e non metterci le risposte dell'assistente: prendi \
         dalla conversazione solo ciò a cui il messaggio si riferisce. Mantieni la lingua italiana e la stessa forma (domanda o richiesta).
@@ -55,13 +74,14 @@ extension Assistant {
         - Conversazione: «Ivan: ho comprato 3 libri da 12 euro.» Ultimo messaggio: «quanto ho speso in tutto?» → «Quanto ho speso in tutto per 3 libri da 12 euro?»
         """)
         let conversation = recentConversation() ?? ""
-        guard let rewritten = try? await session.respond(to: "Conversazione:\n\(conversation)\n\nUltimo messaggio: \(prompt)", schema: Self.standaloneSchema,
+        let request = english ? "Conversation:\n\(conversation)\n\nLast message: \(prompt)" : "Conversazione:\n\(conversation)\n\nUltimo messaggio: \(prompt)"
+        guard let rewritten = try? await session.respond(to: request, schema: english ? Self.englishStandaloneSchema : Self.standaloneSchema,
                                                           options: GenerationOptions(samplingMode: .greedy)).content.string("richiesta"),
               !rewritten.isEmpty, rewritten.count < prompt.count * 6 + 200 else { return prompt }
         // I numeri possono venire da ciò che ha detto Ivan, non dai risultati delle risposte («con un incremento di 3.500»):
         // rimessi nella domanda, i conti li conterebbero due volte.
         let ivan = prompt + " " + ConversationMemory.exchanges(turns).suffix(4).map(\.user).joined(separator: " ")
-        let spelled = ivan.lowercased().split { !$0.isLetter }.compactMap { Calculations.smallNumbers[String($0)] }.map(Double.init)
+        let spelled = ivan.lowercased().split { !$0.isLetter }.compactMap { Calculations.spelledNumbers[String($0)] }.map(Double.init)
         let said = Set(Calculations.numbers(in: ivan) + spelled)
         if Calculations.numbers(in: rewritten).contains(where: { value in !said.contains { abs($0 - value) < 1e-9 } }) {
             Agent.log("RIFORMULAZIONE SCARTATA (numeri presi dalle risposte): \(rewritten)")
@@ -85,6 +105,7 @@ extension Assistant {
         guard words <= 14 else { return false }
         if lower.range(of: #"^ (ciao|grazie|ok|okay|perfetto|va bene|buongiorno|buonasera|buonanotte|salve|sì|si|no|bene|ottimo)\b[\s!.,]*$"#,
                        options: .regularExpression) != nil { return false }
+        if Language.isEnglish { return dependsOnConversationInEnglish(lower, words: words, prompt: prompt) }
         let strong = [" lui ", " lei ", " loro ", " esso ", " essa ", " questo ", " questa ", " quello ", " quella ", " quelli ", " quelle ",
                       " stesso ", " stessa ", "fallo", "falla", "rendilo", "rendila", "rifallo", "rifalla", "riscrivilo", "riscrivila",
                       "traducilo", "traducila", "spiegalo", "spiegala", "mandalo", "mandala", "approfondisci", "continua",
@@ -108,10 +129,38 @@ extension Assistant {
         return weak.contains(where: lower.contains) || trimmed.hasSuffix("?") || words <= 3
     }
 
+    /// Lo stesso controllo per i messaggi in inglese («and him?», «make it shorter», «the second one», «in total»).
+    nonisolated static func dependsOnConversationInEnglish(_ lower: String, words: Int, prompt: String) -> Bool {
+        if lower.range(of: #"^ (hi|hello|hey|thanks|thank you|ok|okay|perfect|great|good|yes|no|sure|fine|cool)\b[\s!.,]*$"#,
+                       options: .regularExpression) != nil { return false }
+        let strong = [" he ", " she ", " they ", " him ", " her ", " them ", " it ", " its ", " this ", " that ", " these ", " those ",
+                      " same ", "make it", "do it again", "redo it", "rewrite it", "translate it", "explain it", "send it", "go deeper",
+                      "continue", "and if ", "and for ", "and in ", "and then", "tell me more", "more detail", "shorter", "longer",
+                      " the first", " the second", " the third", " the last", "the latter", "the former", "above", "earlier",
+                      "in total", "altogether", " both", " all of them", " all three", "expand on", "summarize it", "shorten it",
+                      "fix it", "simplify it", "repeat it", "one more", "another one"]
+        if strong.contains(where: lower.contains) { return true }
+        let trimmed = lower.trimmingCharacters(in: .whitespaces)
+        if words <= 5, ["and ", "but ", "now ", "what about", "how about", "instead "].contains(where: trimmed.hasPrefix) { return true }
+        guard words <= 6 else { return false }
+        let hasName = prompt.split(separator: " ").dropFirst().contains { $0.first?.isUppercase == true && $0 != "I" }
+        let hasNumber = prompt.contains { $0.isNumber }
+        let topic = significant(MemoryStore.keywords(prompt)).filter { !Self.genericQuestionWords.contains($0) && !Self.englishGenericQuestionWords.contains($0) }
+        guard !hasName, !hasNumber, topic.count <= 1 else { return false }
+        let weak = [" one ", " also ", " instead ", " then ", " other ", " others ", " there ", " again "]
+        return weak.contains(where: lower.contains) || trimmed.hasSuffix("?") || words <= 3
+    }
+
+    /// Parole generiche delle domande brevi in inglese («What year was he born?», «How much does it cost?»).
+    nonisolated static let englishGenericQuestionWords: Set<String> = ["year", "born", "died", "cost", "costs", "last", "lasts", "long",
+        "tall", "big", "small", "old", "day", "when", "worth", "need", "needed", "mean", "means", "work", "works", "happen", "happens",
+        "called", "live", "lives", "lived", "increase", "decrease", "remain", "left", "total", "all", "ounces", "grams", "euros",
+        "dollars", "meters", "kilos", "liters", "people", "much", "many"]
+
     /// «Il secondo», «la terza», «l'ultimo» riferiti all'elenco appena scritto (da Ivan o nella risposta): l'app risolve
     /// il riferimento e lo scrive accanto («scelgo il secondo (Pepe)»), così il modello non deve contare.
     func resolvingOrdinals(_ prompt: String) -> String {
-        guard let regex = Self.ordinalRegex else { return prompt }
+        guard let regex = Language.isEnglish ? Self.englishOrdinalRegex : Self.ordinalRegex else { return prompt }
         let ns = prompt as NSString
         let found = regex.matches(in: prompt, range: NSRange(location: 0, length: ns.length))
         guard !found.isEmpty, let items = recentList() else { return prompt }
@@ -128,14 +177,17 @@ extension Assistant {
     /// Un ordinale usato come pronome («il secondo», «sulla terza»), non come aggettivo («il primo giorno», «secondo me»).
     nonisolated static let ordinalRegex = try? NSRegularExpression(pattern: #"(?i)(?:\b(?:il|la|lo|i|le|gli|al|alla|allo|del|della|dello|sul|sulla|sullo|nel|nella|nello|dal|dalla|dallo|col)\s+|\bl['’]\s*)(prim[oa]|second[oa]|terz[oa]|quart[oa]|quint[oa]|ultim[oa]|penultim[oa])(?=\s*(?:[?.!,;:]|$)|\s+(?:e|è|che|di|del|della|dei|delle|in|per|mi|ti|ci|lo|la|non|ha|era|sarà|costa|dura|mi)\b)"#)
 
+    /// Lo stesso in inglese: «the second one», «the last», «pick the third» (non «the first time», «second hand»).
+    nonisolated static let englishOrdinalRegex = try? NSRegularExpression(pattern: #"(?i)\b(?:the|about the|on the|in the|from the|with the|for the)\s+(first|second|third|fourth|fifth|last|penultimate)(?:\s+one)?(?=\s*(?:[?.!,;:]|$)|\s+(?:is|was|one|please|option|choice|costs?|lasts?|and|or|then|sounds|looks|seems)\b)"#)
+
     nonisolated static func ordinalPosition(_ word: String, count: Int) -> Int? {
         switch word.prefix(4) {
-        case "prim": 0
+        case "prim", "firs": 0
         case "seco": 1
-        case "terz": 2
-        case "quar": 3
-        case "quin": 4
-        case "ulti": count - 1
+        case "terz", "thir": 2
+        case "quar", "four": 3
+        case "quin", "fift": 4
+        case "ulti", "last": count - 1
         case "penu": count - 2
         default: nil
         }
@@ -164,7 +216,8 @@ extension Assistant {
     /// «tre opzioni: Orvieto, Tivoli e Sperlonga», «i nomi: Rocco, Pepe e Brio» (voci brevi, dopo i due punti se la frase è lunga).
     nonisolated static func inlineItems(in text: String) -> [String]? {
         let tail = text.range(of: ":").map { String(text[$0.upperBound...]) } ?? text
-        guard let match = Calculations.matches(#"([^,.;:!?]{1,40}(?:,\s*[^,.;:!?]{1,40})+)\s+(?:e|o|oppure)\s+([^,.;:!?]{1,40})"#, in: tail).first else { return nil }
+        let conjunctions = Language.isEnglish ? "(?:,\\s*)?(?:and|or)" : "(?:e|o|oppure)"
+        guard let match = Calculations.matches(#"([^,.;:!?]{1,40}(?:,\s*[^,.;:!?]{1,40})+)\s+"# + conjunctions + #"\s+([^,.;:!?]{1,40})"#, in: tail).first else { return nil }
         let items = (match[1].components(separatedBy: ",") + [match[2]]).map { $0.trimmingCharacters(in: .whitespaces) }
         guard (2...8).contains(items.count), items.allSatisfy({ !$0.isEmpty && $0.split(separator: " ").count <= 3 }) else { return nil }
         return items
@@ -176,9 +229,14 @@ extension Assistant {
         "significa", "funziona", "succede", "chiama", "chiamava", "trova", "abita", "vive", "viveva", "aumenta", "diminuisce", "resta",
         "restano", "manca", "mancano", "totale", "tutto", "tutti", "once", "grammi", "euro", "metri", "chili", "litri", "persone"]
 
-    private static let memorySchema = makeSchema("Ricordi", [
-        .required("fatti", .array(.string, max: 2), "Solo preferenze, abitudini o fatti personali che l'utente dichiara esplicitamente in questo messaggio, scritti in terza persona («Ivan preferisce…»). Lista vuota se non ce ne sono: mai richieste, domande o compiti"),
-    ])
+    private static var memorySchema: GenerationSchema {
+        let user = userFirstName ?? "l'utente"
+        return Language.isEnglish ? makeSchema("Ricordi", [
+            .required("fatti", .array(.string, max: 2), "Only preferences, habits or personal facts that the user explicitly states in this message, written in the third person («\(userFirstName ?? "The user") prefers…»). Empty list if there are none: never requests, questions or tasks"),
+        ]) : makeSchema("Ricordi", [
+            .required("fatti", .array(.string, max: 2), "Solo preferenze, abitudini o fatti personali che l'utente dichiara esplicitamente in questo messaggio, scritti in terza persona («\(user) preferisce…»). Lista vuota se non ce ne sono: mai richieste, domande o compiti"),
+        ])
+    }
 
     /// Frasi che di solito contengono una preferenza o un fatto personale da ricordare.
     public static func mayContainMemory(_ prompt: String) -> Bool {
@@ -187,25 +245,38 @@ extension Assistant {
                     "mi chiamo", "sono allergic", "vivo a ", "abito a ", "lavoro come", "lavoro per", "il mio compleanno", "mia moglie",
                     "mio marito", "mia figlia", "mio figlio", "i miei figli", "la mia compagna", "il mio compagno", "sono vegetarian",
                     "sono vegan", "non bevo", "non mangio", "il mio socio", "la mia socia", "il mio capo", "uso sempre", "di solito"]
+        if Language.isEnglish {
+            let english = ["i prefer", "i don't like", "i do not like", "i like", "i love ", "i hate ", "from now on", "call me",
+                           "my name is", "i'm allergic", "i am allergic", "i live in", "i work as", "i work for", "my birthday", "my wife",
+                           "my husband", "my daughter", "my son", "my kids", "my children", "my partner", "i'm vegetarian", "i am vegetarian",
+                           "i'm vegan", "i am vegan", "i don't drink", "i don't eat", "my boss", "my business partner", "i always use", "usually"]
+            return english.contains(where: lower.contains) && !lower.hasPrefix("remember")
+        }
         return cues.contains(where: lower.contains) && !lower.hasPrefix("ricordati") && !lower.hasPrefix("ricorda che")
     }
 
     /// "Nudge" di memoria: estrae dal messaggio le preferenze dichiarate da salvare (al massimo due).
     public func memoryWorthy(_ prompt: String) async -> [String] {
         guard Self.mayContainMemory(prompt) else { return [] }
-        let session = LanguageModelSession(model: Agent.model, instructions: "Individui solo preferenze e fatti personali dichiarati esplicitamente. Nel dubbio restituisci una lista vuota.")
-        let facts = (try? await session.respond(to: "Messaggio: \(prompt.prefix(600))", schema: Self.memorySchema,
+        let session = LanguageModelSession(model: Agent.model, instructions: Language.t(
+            "Individui solo preferenze e fatti personali dichiarati esplicitamente. Nel dubbio restituisci una lista vuota.",
+            "You identify only preferences and personal facts stated explicitly, written in English. When in doubt return an empty list."))
+        let facts = (try? await session.respond(to: Language.t("Messaggio: ", "Message: ") + prompt.prefix(600), schema: Self.memorySchema,
                                                  options: GenerationOptions(samplingMode: .greedy)).content.strings("fatti")) ?? []
         return facts.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { $0.count >= 8 && $0.count <= 240 }
     }
 
-    private static let parentSummarySchema = makeSchema("Riepilogo", [
-        .required("riepilogo", .string, "Cosa è stato fatto e concluso nella chat: risultati, decisioni, dati importanti e cose in sospeso, in 3-8 righe"),
-    ])
+    private static var parentSummarySchema: GenerationSchema {
+        makeSchema("Riepilogo", [
+            .required("riepilogo", .string, Language.t("Cosa è stato fatto e concluso nella chat: risultati, decisioni, dati importanti e cose in sospeso, in 3-8 righe",
+                                                       "What was done and concluded in the chat: results, decisions, important data and open items, in 3-8 lines")),
+        ])
+    }
 
     /// Riepilogo di una chat figlia da riportare alla chat madre.
     public func summarizeForParent(title: String, transcript: String) async throws -> String {
-        try await writer("Riassumi fedelmente il lavoro svolto in una conversazione, per chi non l'ha seguita.")
+        try await writer(Language.t("Riassumi fedelmente il lavoro svolto in una conversazione, per chi non l'ha seguita.",
+                                    "Faithfully summarize the work done in a conversation, for someone who didn't follow it. Write in English."))
             .respond(to: "Chat «\(title)»:\n\(transcript.suffix(5000))", schema: Self.parentSummarySchema).content.string("riepilogo") ?? ""
     }
 }

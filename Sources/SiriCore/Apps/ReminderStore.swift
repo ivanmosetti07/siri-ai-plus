@@ -20,10 +20,10 @@ public struct ReminderEntry: Identifiable, Sendable, Equatable {
 
         public var label: String {
             switch self {
-            case .none: "Nessuna"
-            case .low: "Bassa"
-            case .medium: "Media"
-            case .high: "Alta"
+            case .none: Language.t("Nessuna", "None")
+            case .low: Language.t("Bassa", "Low")
+            case .medium: Language.t("Media", "Medium")
+            case .high: Language.t("Alta", "High")
             }
         }
 
@@ -90,7 +90,7 @@ public enum ReminderStore {
     public static func lists() -> [ReminderListInfo] {
         ek.calendars(for: .reminder)
             .map { ReminderListInfo(id: $0.calendarIdentifier, title: $0.title, color: RGB($0.cgColor),
-                                    account: $0.source?.title ?? "Altro", writable: $0.allowsContentModifications) }
+                                    account: $0.source?.title ?? Language.t("Altro", "Other"), writable: $0.allowsContentModifications) }
             .sorted { ($0.account, $0.title) < ($1.account, $1.title) }
     }
 
@@ -137,15 +137,15 @@ public enum ReminderStore {
         if entry.isNew {
             reminder = EKReminder(eventStore: ek)
         } else {
-            guard let existing = ek.calendarItem(withIdentifier: entry.id) as? EKReminder else { throw storeError("Il promemoria non esiste più.") }
+            guard let existing = ek.calendarItem(withIdentifier: entry.id) as? EKReminder else { throw storeError(Language.t("Il promemoria non esiste più.", "The reminder no longer exists.")) }
             reminder = existing
         }
         guard let list = ek.calendar(withIdentifier: entry.listID) ?? ek.defaultCalendarForNewReminders() else {
-            throw storeError("Nessuna lista di promemoria disponibile.")
+            throw storeError(Language.t("Nessuna lista di promemoria disponibile.", "No reminder list available."))
         }
-        guard list.allowsContentModifications else { throw storeError("La lista «\(list.title)» è in sola lettura.") }
+        guard list.allowsContentModifications else { throw storeError(Language.t("La lista «\(list.title)» è in sola lettura.", "The list “\(list.title)” is read-only.")) }
         reminder.calendar = list
-        reminder.title = entry.title.trimmingCharacters(in: .whitespaces).isEmpty ? "Nuovo promemoria" : entry.title
+        reminder.title = entry.title.trimmingCharacters(in: .whitespaces).isEmpty ? Language.t("Nuovo promemoria", "New Reminder") : entry.title
         reminder.notes = entry.notes.isEmpty ? nil : entry.notes
         reminder.url = URL(string: entry.url.trimmingCharacters(in: .whitespaces)).flatMap { $0.scheme == nil ? URL(string: "https://" + $0.absoluteString) : $0 }
         reminder.priority = entry.priority.rawValue
@@ -172,7 +172,7 @@ public enum ReminderStore {
 
     public static func setCompleted(_ id: String, _ completed: Bool) throws {
         writeLock.lock(); defer { writeLock.unlock() }
-        guard let reminder = ek.calendarItem(withIdentifier: id) as? EKReminder else { throw storeError("Il promemoria non esiste più.") }
+        guard let reminder = ek.calendarItem(withIdentifier: id) as? EKReminder else { throw storeError(Language.t("Il promemoria non esiste più.", "The reminder no longer exists.")) }
         reminder.isCompleted = completed
         try ek.save(reminder, commit: true)
         Hooks.didModify()
@@ -180,7 +180,7 @@ public enum ReminderStore {
 
     public static func delete(_ id: String) throws {
         writeLock.lock(); defer { writeLock.unlock() }
-        guard let reminder = ek.calendarItem(withIdentifier: id) as? EKReminder else { throw storeError("Il promemoria non esiste più.") }
+        guard let reminder = ek.calendarItem(withIdentifier: id) as? EKReminder else { throw storeError(Language.t("Il promemoria non esiste più.", "The reminder no longer exists.")) }
         try ek.remove(reminder, commit: true)
         Hooks.didModify()
     }
@@ -192,10 +192,10 @@ public enum ReminderStore {
     public static func createList(title: String, color: RGB) throws -> String {
         writeLock.lock(); defer { writeLock.unlock() }
         let list = EKCalendar(for: .reminder, eventStore: ek)
-        list.title = title.trimmingCharacters(in: .whitespaces).isEmpty ? "Nuova lista" : title
+        list.title = title.trimmingCharacters(in: .whitespaces).isEmpty ? Language.t("Nuova lista", "New List") : title
         list.cgColor = CGColor(srgbRed: color.red, green: color.green, blue: color.blue, alpha: 1)
         guard let source = ek.defaultCalendarForNewReminders()?.source ?? ek.sources.first(where: { $0.sourceType == .calDAV || $0.sourceType == .local }) else {
-            throw storeError("Non trovo un account in cui creare la lista.")
+            throw storeError(Language.t("Non trovo un account in cui creare la lista.", "I can't find an account to create the list in."))
         }
         list.source = source
         try ek.saveCalendar(list, commit: true)
@@ -205,8 +205,8 @@ public enum ReminderStore {
 
     public static func updateList(_ id: String, title: String, color: RGB) throws {
         writeLock.lock(); defer { writeLock.unlock() }
-        guard let list = ek.calendar(withIdentifier: id) else { throw storeError("La lista non esiste più.") }
-        guard list.allowsContentModifications else { throw storeError("La lista «\(list.title)» non si può modificare.") }
+        guard let list = ek.calendar(withIdentifier: id) else { throw storeError(Language.t("La lista non esiste più.", "The list no longer exists.")) }
+        guard list.allowsContentModifications else { throw storeError(Language.t("La lista «\(list.title)» non si può modificare.", "The list “\(list.title)” can't be edited.")) }
         list.title = title.trimmingCharacters(in: .whitespaces).isEmpty ? list.title : title
         list.cgColor = CGColor(srgbRed: color.red, green: color.green, blue: color.blue, alpha: 1)
         try ek.saveCalendar(list, commit: true)
@@ -216,7 +216,7 @@ public enum ReminderStore {
     /// Elimina la lista con tutti i suoi promemoria.
     public static func deleteList(_ id: String) throws {
         writeLock.lock(); defer { writeLock.unlock() }
-        guard let list = ek.calendar(withIdentifier: id) else { throw storeError("La lista non esiste più.") }
+        guard let list = ek.calendar(withIdentifier: id) else { throw storeError(Language.t("La lista non esiste più.", "The list no longer exists.")) }
         try ek.removeCalendar(list, commit: true)
         Hooks.didModify()
     }

@@ -47,10 +47,10 @@ public enum ResponseProvider: String, Codable, CaseIterable, Sendable, Identifia
     public var label: String {
         switch self {
         case .apple: "Apple Intelligence"
-        case .gemma: "Gemma 4 (locale)"
-        case .ds4: "ds4 (locale)"
-        case .chatgpt: "ChatGPT (abbonamento)"
-        case .claude: "Claude (abbonamento)"
+        case .gemma: Language.t("Gemma 4 (locale)", "Gemma 4 (local)")
+        case .ds4: Language.t("ds4 (locale)", "ds4 (local)")
+        case .chatgpt: Language.t("ChatGPT (abbonamento)", "ChatGPT (subscription)")
+        case .claude: Language.t("Claude (abbonamento)", "Claude (subscription)")
         }
     }
 
@@ -98,7 +98,11 @@ public struct ContextBudget: Sendable, Equatable {
     public func scaled(_ base: Int) -> Int { base * scale }
 
     public var label: String {
-        tokens >= 1_000_000 ? (tokens / 1_000_000 == 1 ? "1 milione di token" : "\(tokens / 1_000_000) milioni di token") : "\(tokens.formatted(.number.locale(Locale(identifier: "it_IT")))) token"
+        if Language.isEnglish {
+            return tokens >= 1_000_000 ? (tokens / 1_000_000 == 1 ? "1 million tokens" : "\(tokens / 1_000_000) million tokens")
+                : "\(tokens.formatted(.number.locale(Language.en.locale))) tokens"
+        }
+        return tokens >= 1_000_000 ? (tokens / 1_000_000 == 1 ? "1 milione di token" : "\(tokens / 1_000_000) milioni di token") : "\(tokens.formatted(.number.locale(Locale(identifier: "it_IT")))) token"
     }
 
     /// Finestra per ciascun modello (Gemma dipende da quanta ne diamo al server locale).
@@ -203,7 +207,9 @@ public enum ExternalEngine {
                     if thinking { body["chat_template_kwargs"] = thinkingOption }
                     request.httpBody = try JSONValue.object(body).data()
                     let (bytes, response) = try await URLSession.shared.bytes(for: request)
-                    guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw EngineError.unavailable("Il modello locale non risponde.") }
+                    guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+                        throw EngineError.unavailable(Language.t("Il modello locale non risponde.", "The local model isn't responding."))
+                    }
                     var text = ""
                     for try await line in bytes.lines where line.hasPrefix("data:") {
                         let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
@@ -216,7 +222,8 @@ public enum ExternalEngine {
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: (error as? URLError) != nil
-                        ? EngineError.unavailable("Il modello locale non è in esecuzione: avvialo in Impostazioni › Modelli.") : error)
+                        ? EngineError.unavailable(Language.t("Il modello locale non è in esecuzione: avvialo in Impostazioni › Modelli.",
+                                                             "The local model isn't running: start it in Settings › Models.")) : error)
                 }
             }
             continuation.onTermination = { _ in task.cancel() }

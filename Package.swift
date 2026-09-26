@@ -25,6 +25,8 @@ let package = Package(
             name: "SiriAIApp",
             dependencies: ["SiriCore"],
             path: "Sources/SiriAIApp",
+            // Le traduzioni le compila Xcode (build.sh); la build SwiftPM di prova resta in italiano.
+            exclude: ["Localizable.xcstrings", "InfoPlist.xcstrings"],
             linkerSettings: [.linkedFramework("ImagePlayground")]
         ),
         .testTarget(name: "SiriCoreTests", dependencies: ["SiriCore"], path: "Tests/SiriCoreTests"),

@@ -36,17 +36,17 @@ struct AgentTemplate: Identifiable {
     var connectors = false
 
     static let all: [AgentTemplate] = [
-        AgentTemplate(person: "Giulia", name: "Rassegna stampa", goal: "Cerca le notizie più importanti su intelligenza artificiale e marketing digitale e riassumile in 5 punti con le fonti.",
+        AgentTemplate(person: String(localized: "Giulia"), name: String(localized: "Rassegna stampa"), goal: String(localized: "Cerca le notizie più importanti su intelligenza artificiale e marketing digitale e riassumile in 5 punti con le fonti."),
                       symbol: "newspaper.fill", color: "orange", schedule: AgentSchedule(kind: .giornaliero, hour: 8)),
-        AgentTemplate(person: "Marco", name: "Posta in ordine", goal: "Leggi le email non lette, dimmi a quali devo rispondere e prepara le bozze delle risposte più urgenti.",
+        AgentTemplate(person: String(localized: "Marco"), name: String(localized: "Posta in ordine"), goal: String(localized: "Leggi le email non lette, dimmi a quali devo rispondere e prepara le bozze delle risposte più urgenti."),
                       symbol: "envelope.fill", color: "blue", schedule: AgentSchedule(kind: .giornaliero, hour: 18)),
-        AgentTemplate(person: "Sofia", name: "Settimana pronta", goal: "Guarda calendario e promemoria della settimana, segnala sovrapposizioni e prepara un piano con le priorità.",
+        AgentTemplate(person: String(localized: "Sofia"), name: String(localized: "Settimana pronta"), goal: String(localized: "Guarda calendario e promemoria della settimana, segnala sovrapposizioni e prepara un piano con le priorità."),
                       symbol: "calendar", color: "red", schedule: AgentSchedule(kind: .settimanale, hour: 9, weekday: 2)),
-        AgentTemplate(person: "Luca", name: "Osservatore", goal: "Controlla le novità su un argomento che mi interessa e avvisami solo se cambia qualcosa di importante.",
+        AgentTemplate(person: String(localized: "Luca"), name: String(localized: "Osservatore"), goal: String(localized: "Controlla le novità su un argomento che mi interessa e avvisami solo se cambia qualcosa di importante."),
                       symbol: "binoculars.fill", color: "teal", schedule: AgentSchedule(kind: .giornaliero, hour: 12)),
-        AgentTemplate(person: "Elena", name: "Obiettivo", goal: "Aiutami a raggiungere un obiettivo: prepara un piano concreto, dividilo in passi e fallo avanzare un po' ogni giorno.",
+        AgentTemplate(person: String(localized: "Elena"), name: String(localized: "Obiettivo"), goal: String(localized: "Aiutami a raggiungere un obiettivo: prepara un piano concreto, dividilo in passi e fallo avanzare un po' ogni giorno."),
                       symbol: "target", color: "purple", schedule: AgentSchedule(kind: .giornaliero, hour: 9)),
-        AgentTemplate(person: "Davide", name: "Priorità agenzia", goal: "Controlla su Agency OS i task in scadenza e i clienti che richiedono attenzione e dimmi le priorità di oggi.",
+        AgentTemplate(person: String(localized: "Davide"), name: String(localized: "Priorità agenzia"), goal: String(localized: "Controlla su Agency OS i task in scadenza e i clienti che richiedono attenzione e dimmi le priorità di oggi."),
                       symbol: "briefcase.fill", color: "indigo", schedule: AgentSchedule(kind: .giornaliero, hour: 8, minute: 30), connectors: true),
     ]
 
@@ -94,7 +94,7 @@ struct AgentTile: View {
                 if !agent.personName.isEmpty {
                     Text(agent.name).font(.system(size: 11.5, weight: .semibold)).foregroundStyle(.white.opacity(0.9)).lineLimit(1)
                 }
-                Text(running ? "Al lavoro…" : agent.active ? agent.scheduleLabel : "In pausa")
+                Text(running ? String(localized: "Al lavoro…") : agent.active ? agent.scheduleLabel : String(localized: "In pausa"))
                     .font(.system(size: 11.5, weight: .medium)).foregroundStyle(.white.opacity(0.85)).lineLimit(1)
             }
             .padding(14)
@@ -103,10 +103,10 @@ struct AgentTile: View {
         .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .contextMenu {
             Button("Esegui ora") { state.runAgent(agent.id) }.disabled(running)
-            Button(agent.active ? "Metti in pausa" : "Riattiva") { state.toggleActive(agent.id) }
+            Button(agent.active ? String(localized: "Metti in pausa") : String(localized: "Riattiva")) { state.toggleActive(agent.id) }
             Button("Modifica…") { state.editingAgent = agent }
             Divider()
-            Button("Elimina agente", role: .destructive) { state.deleteAgent(agent.id) }
+            Button("Elimina Genius", role: .destructive) { state.deleteAgent(agent.id) }
         }
     }
 }
@@ -125,9 +125,9 @@ struct AgentsGallery: View {
     var body: some View {
         let selected = tab ?? initialTab
         GlassPage(maxWidth: 980) {
-            PageHeader(eyebrow: "Lavorano per te", title: "Agenti",
-                       subtitle: "Dai un obiettivo: l'agente prepara un piano, lavora da solo anche quando non ci sei e torna da te quando serve una conferma.") {
-                Button { state.editingAgent = AgentSpec(name: "", goal: "") } label: { Label("Nuovo agente", systemImage: "plus") }
+            PageHeader(eyebrow: String(localized: "Lavorano per te"), title: String(localized: "Genius"),
+                       subtitle: String(localized: "Dai un obiettivo a ogni Genius: prepara un piano, lavora anche quando non ci sei e torna da te quando serve una conferma.")) {
+                Button { state.editingAgent = AgentSpec(name: "", goal: "") } label: { Label("Nuovo Genius", systemImage: "plus") }
                     .buttonStyle(.glassProminent)
             }
             describeField
@@ -136,8 +136,8 @@ struct AgentsGallery: View {
                 switch selected {
                 case "programmazioni": ScheduleContent()
                 case "storico":
-                    RunHistoryView(items: HistoryItem.items(for: state.agents, dreams: true), showAgent: true,
-                                   emptyText: "Nessuna esecuzione finora. Qui trovi ogni lavoro fatto dagli agenti, programmato o avviato da te, con il suo esito.")
+                    RunHistoryView(items: HistoryItem.items(for: state.spaceAgents, dreams: true), showAgent: true,
+                                   emptyText: String(localized: "Nessuna esecuzione finora. Qui trovi ogni lavoro fatto dai Genius, programmato o avviato da te, con il suo esito."))
                 default: agentsTab
                 }
             }
@@ -147,16 +147,16 @@ struct AgentsGallery: View {
     }
 
     private var pills: [GlassPill] {
-        let pending = state.agents.reduce(0) { $0 + state.pendingApprovals(for: $1) }
-        let next = state.agents.compactMap(\.nextRun).min()
+        let pending = state.spaceAgents.reduce(0) { $0 + state.pendingApprovals(for: $1) }
+        let next = state.spaceAgents.compactMap(\.nextRun).min()
         let since = Calendar.current.date(byAdding: .day, value: -6, to: Calendar.current.startOfDay(for: .now)) ?? .now
-        let runs = state.agents.reduce(0) { $0 + $1.history.filter { $0.start >= since }.count }
+        let runs = state.spaceAgents.reduce(0) { $0 + $1.history.filter { $0.start >= since }.count }
         return [
-            GlassPill(id: "agenti", title: "I tuoi agenti", value: state.agents.isEmpty ? "Nessuno" : "\(state.agents.filter(\.active).count) attivi",
+            GlassPill(id: "agenti", title: String(localized: "I tuoi Genius"), value: state.spaceAgents.isEmpty ? String(localized: "Nessuno") : String(localized: "\(state.spaceAgents.filter(\.active).count) attivi"),
                       symbol: "person.2.fill", colors: Hue.purple, badge: pending),
-            GlassPill(id: "programmazioni", title: "Programmazioni", value: next.map { "Prossima \($0.formatted(.dateTime.hour().minute()))" } ?? "Nessuna",
+            GlassPill(id: "programmazioni", title: String(localized: "Programmazioni"), value: next.map { String(localized: "Prossima \($0.formatted(.dateTime.hour().minute()))") } ?? String(localized: "Nessuna"),
                       symbol: "calendar.badge.clock", colors: Hue.orange),
-            GlassPill(id: "storico", title: "Storico", value: "\(runs) in 7 giorni", symbol: "clock.arrow.circlepath", colors: Hue.blue),
+            GlassPill(id: "storico", title: String(localized: "Storico"), value: String(localized: "\(runs) in 7 giorni"), symbol: "clock.arrow.circlepath", colors: Hue.blue),
         ]
     }
 
@@ -164,7 +164,7 @@ struct AgentsGallery: View {
     private var describeField: some View {
         HStack(spacing: 10) {
             Image(systemName: "sparkles").font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.accentColor)
-            TextField("Descrivi un agente: «ogni mattina alle 8 fammi la rassegna stampa sull'AI»", text: $description)
+            TextField("Descrivi un Genius: «ogni mattina alle 8 fammi la rassegna stampa sull'AI»", text: $description)
                 .textFieldStyle(.plain)
                 .font(.system(size: 14))
                 .onSubmit(create)
@@ -181,21 +181,21 @@ struct AgentsGallery: View {
 
     @ViewBuilder
     private var agentsTab: some View {
-        if state.agents.isEmpty {
-            GlassEmptyState(symbol: "person.2.fill", title: "Il tuo primo agente",
-                            message: "Scegli un'idea qui sotto o descrivi cosa vuoi: l'agente lavora da solo agli orari che decidi tu e chiede conferma prima di scrivere o inviare.",
-                            colors: Hue.purple, actionTitle: "Nuovo agente") { state.editingAgent = AgentSpec(name: "", goal: "") }
+        if state.spaceAgents.isEmpty {
+            GlassEmptyState(symbol: "person.2.fill", title: String(localized: "Il tuo primo Genius"),
+                            message: String(localized: "Scegli un'idea qui sotto o descrivi cosa vuoi: il Genius lavora agli orari che decidi tu e chiede conferma prima di scrivere o inviare."),
+                            colors: Hue.purple, actionTitle: String(localized: "Nuovo Genius")) { state.editingAgent = AgentSpec(name: "", goal: "") }
         } else {
             VStack(alignment: .leading, spacing: 12) {
-                GroupTitle(text: "I tuoi agenti")
+                GroupTitle(text: String(localized: "I tuoi Genius"))
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 14) {
-                    ForEach(state.agents) { agent in
+                    ForEach(state.spaceAgents) { agent in
                         Button { state.openAgent(agent.id) } label: { AgentTile(agent: agent) }.buttonStyle(.plain)
                     }
                     Button { state.editingAgent = AgentSpec(name: "", goal: "") } label: {
                         VStack(spacing: 8) {
                             Image(systemName: "plus").font(.system(size: 22, weight: .semibold))
-                            Text("Nuovo agente").font(.system(size: 14, weight: .semibold))
+                            Text("Nuovo Genius").font(.system(size: 14, weight: .semibold))
                         }
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity).frame(height: 134)
@@ -207,7 +207,7 @@ struct AgentsGallery: View {
             }
         }
         VStack(alignment: .leading, spacing: 12) {
-            GroupTitle(text: "Idee per iniziare")
+            GroupTitle(text: String(localized: "Idee per iniziare"))
             LazyVGrid(columns: columns, alignment: .leading, spacing: 14) {
                 ForEach(AgentTemplate.all) { template in
                     Button { state.editingAgent = template.spec } label: {
@@ -251,8 +251,9 @@ struct AgentDetailView: View {
     @State private var newMemory = ""
     /// Sezioni del dettaglio: elenco a sinistra, come nelle Impostazioni di sistema.
     private static let sections: [(tag: Int, label: String, symbol: String)] = [
-        (0, "Attività", "clock.arrow.circlepath"), (4, "Programmazioni", "calendar.badge.clock"), (5, "Cartelle", "folder"),
-        (6, "Anima", "heart.text.square"), (7, "Sogni", "moon.stars"), (2, "Memoria", "brain"), (3, "Accessi", "lock.shield"),
+        (0, String(localized: "Attività"), "clock.arrow.circlepath"), (4, String(localized: "Programmazioni"), "calendar.badge.clock"),
+        (1, String(localized: "Cronologia"), "clock"), (8, String(localized: "Skill"), "wand.and.stars"), (5, String(localized: "Cartelle"), "folder"),
+        (6, String(localized: "Anima"), "heart.text.square"), (7, String(localized: "Sogni"), "moon.stars"), (2, String(localized: "Memoria"), "brain"), (3, String(localized: "Accessi"), "lock.shield"),
     ]
 
     var body: some View {
@@ -284,7 +285,9 @@ struct AgentDetailView: View {
     private static func colors(_ tag: Int) -> [Color] {
         switch tag {
         case 0: Hue.blue
+        case 1: Hue.blue
         case 4: Hue.orange
+        case 8: Hue.purple
         case 5: Hue.teal
         case 6: Hue.pink
         case 7: Hue.purple
@@ -294,9 +297,11 @@ struct AgentDetailView: View {
     }
 
     private func badge(_ tag: Int, _ agent: AgentSpec) -> Int {
-        switch tag {
+        _ = state.skillsRevision
+        return switch tag {
         case 0: state.pendingApprovals(for: agent)
         case 4: agent.routines.filter(\.enabled).count
+        case 8: SkillStore.forAgent(agent.id).count
         case 5: agent.folders.count
         default: 0
         }
@@ -306,14 +311,18 @@ struct AgentDetailView: View {
     private func content(_ agent: AgentSpec) -> some View {
                     switch tab {
                     case 0: activity(agent); lastWork(agent)
+                    case 1:
+                        RunHistoryView(items: HistoryItem.items(for: [agent], dreams: false),
+                                       emptyText: String(localized: "Nessuna esecuzione finora. Qui troverai i lavori programmati e quelli avviati da te."),
+                                       initialFilter: .programmate)
                     case 2: memory(agent)
                     case 4:
                         RoutinesEditor(routines: Binding(get: { state.agent(agentID)?.routines ?? [] },
                                                          set: { value in state.updateAgent(agentID) { $0.routines = value; $0.reschedule() } }),
                                        run: { routine in state.runAgent(agentID, routine: routine) })
-                        RunHistoryView(items: HistoryItem.items(for: [agent], dreams: false),
-                                       emptyText: agent.active ? "Nessuna esecuzione finora. Qui compariranno tutte quelle programmate e quelle che avvii tu."
-                                           : "Nessuna esecuzione finora. L'agente è in pausa: riattivalo perché le programmazioni partano.")
+                        Button { tab = 1 } label: { Label("Vedi cronologia", systemImage: "clock.arrow.circlepath") }
+                            .buttonStyle(.link)
+                    case 8: AgentSkillsView(agent: agent).id(agent.id)
                     case 5:
                         FoldersEditor(folders: Binding(get: { state.agent(agentID)?.folders ?? [] },
                                                        set: { value in state.updateAgent(agentID) { $0.folders = value } }))
@@ -341,14 +350,14 @@ struct AgentDetailView: View {
                     }
                 }
             VStack(alignment: .leading, spacing: 6) {
-                Text((running ? "Al lavoro" : agent.active ? "Attivo" : "In pausa").uppercased() + " · " + (Space(rawValue: agent.space)?.label.uppercased() ?? ""))
+                Text((running ? String(localized: "Al lavoro") : agent.active ? String(localized: "Attivo") : String(localized: "In pausa")).uppercased() + " · " + (Space(rawValue: agent.space)?.label.uppercased() ?? ""))
                     .font(.system(size: 13, weight: .semibold)).tracking(0.5)
                     .foregroundStyle(running ? agent.tint : .secondary)
                 Text(agent.displayName).font(.system(size: 30, weight: .bold)).tracking(-0.4).lineLimit(2)
                 Text(agent.goal).font(.system(size: 14)).foregroundStyle(.secondary).lineLimit(3)
                 HStack(spacing: 8) {
-                    chip(agent.active ? agent.scheduleLabel : "In pausa", symbol: agent.active ? "clock" : "pause.circle")
-                    if let next = agent.nextRun, agent.active { chip("Prossima \(Dates.friendly(next))", symbol: "arrow.forward.circle") }
+                    chip(agent.active ? agent.scheduleLabel : String(localized: "In pausa"), symbol: agent.active ? "clock" : "pause.circle")
+                    if let next = agent.nextRun, agent.active { chip(String(localized: "Prossima \(Dates.friendly(next))"), symbol: "arrow.forward.circle") }
                     if let project = agent.projectName { chip(project, symbol: "folder") }
                 }
                 .padding(.top, 2)
@@ -367,7 +376,7 @@ struct AgentDetailView: View {
                         .tint(agent.tint)
                 }
                 HStack(spacing: 6) {
-                    Button(agent.active ? "Pausa" : "Riattiva") { state.toggleActive(agent.id) }
+                    Button(agent.active ? String(localized: "Pausa") : String(localized: "Riattiva")) { state.toggleActive(agent.id) }
                     Button("Modifica") { state.editingAgent = agent }
                 }
                 .buttonStyle(.glass)
@@ -388,14 +397,14 @@ struct AgentDetailView: View {
     private func activity(_ agent: AgentSpec) -> some View {
         let pending = state.pendingApprovals(for: agent)
         if pending > 0 {
-            Label("\(pending) \(pending == 1 ? "azione aspetta" : "azioni aspettano") la tua approvazione nella chat a destra.", systemImage: "hand.raised.fill")
+            Label("\(pending) \(pending == 1 ? String(localized: "azione aspetta") : String(localized: "azioni aspettano")) la tua approvazione nella chat a destra.", systemImage: "hand.raised.fill")
                 .font(DS.Fonts.body).foregroundStyle(.orange)
                 .padding(12).frame(maxWidth: .infinity, alignment: .leading)
                 .glassEffect(.regular.tint(.orange.opacity(0.25)), in: .rect(cornerRadius: 18))
         }
         VStack(alignment: .leading, spacing: 0) {
             if agent.active, let next = agent.nextRun {
-                timelineRow(symbol: "calendar.badge.clock", tint: .secondary, title: "In programma", text: "Prossima esecuzione \(Dates.friendly(next))", date: nil)
+                timelineRow(symbol: "calendar.badge.clock", tint: .secondary, title: String(localized: "In programma"), text: String(localized: "Prossima esecuzione \(Dates.friendly(next))"), date: nil)
             }
             if agent.log.isEmpty {
                 Text("Nessuna attività. Premi «Esegui ora» per farlo lavorare subito.").font(DS.Fonts.body).foregroundStyle(.secondary).padding(.vertical, 12)
@@ -448,7 +457,7 @@ struct AgentDetailView: View {
     @ViewBuilder
     private func dreams(_ agent: AgentSpec) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Ogni notte l'agente «sogna»: rilegge quello che ha fatto, come hai risposto alle sue proposte e le tue indicazioni, scrive le lezioni nella sua anima e migliora le proprie istruzioni.")
+            Text("Ogni notte il Genius «sogna»: rilegge quello che ha fatto, come hai risposto alle sue proposte e le tue indicazioni, scrive le lezioni nella sua anima e migliora le proprie istruzioni.")
                 .font(DS.Fonts.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             HStack {
                 Toggle("Sogna ogni notte", isOn: Binding(get: { agent.dreamsEnabled }, set: { value in state.updateAgent(agent.id) { $0.dreamsEnabled = value } }))
@@ -471,7 +480,7 @@ struct AgentDetailView: View {
                 .glassCard(radius: 18)
             }
             if agent.dreams.isEmpty {
-                Text("Nessun sogno ancora: il primo arriva la notte dopo che l'agente ha lavorato.").font(DS.Fonts.body).foregroundStyle(.secondary).padding(.vertical, 8)
+                Text("Nessun sogno ancora: il primo arriva la notte dopo che il Genius ha lavorato.").font(DS.Fonts.body).foregroundStyle(.secondary).padding(.vertical, 8)
             }
             ForEach(agent.dreams.reversed()) { dream in
                 VStack(alignment: .leading, spacing: 8) {
@@ -506,7 +515,7 @@ struct AgentDetailView: View {
 
     @ViewBuilder
     private func memory(_ agent: AgentSpec) -> some View {
-        Text("Quello che l'agente deve ricordare. Si aggiorna anche quando gli dai indicazioni in chat («d'ora in poi includi anche…»).")
+        Text("Quello che il Genius deve ricordare. Si aggiorna anche quando gli dai indicazioni in chat («d'ora in poi includi anche…»).")
             .font(DS.Fonts.caption).foregroundStyle(.secondary)
         HStack {
             TextField("Aggiungi un'indicazione", text: $newMemory).textFieldStyle(.roundedBorder).onSubmit { addMemory(agent) }
@@ -531,7 +540,7 @@ struct AgentDetailView: View {
 
     @ViewBuilder
     private func access(_ agent: AgentSpec) -> some View {
-        Text("Scegli cosa può usare questo agente. Le azioni importanti (email, eventi, file, messaggi, connettori) chiedono sempre la tua conferma.")
+        Text("Scegli cosa può usare questo Genius. Le azioni importanti (email, eventi, file, messaggi, connettori) chiedono sempre la tua conferma.")
             .font(DS.Fonts.caption).foregroundStyle(.secondary)
         Toggle("Ricerca sul web", isOn: Binding(get: { agent.allowWeb }, set: { value in state.updateAgent(agent.id) { $0.allowWeb = value } }))
         Toggle(isOn: Binding(get: { agent.autoApprove }, set: { value in state.updateAgent(agent.id) { $0.autoApprove = value } })) {
@@ -583,15 +592,188 @@ struct AgentDetailView: View {
 
     private func title(_ kind: AgentEvent.Kind) -> String {
         switch kind {
-        case .avvio: "Al lavoro"
-        case .piano: "Piano"
-        case .passo: "Passo completato"
-        case .approvazione: "Serve la tua approvazione"
-        case .risultato: "Risultato"
-        case .errore: "Problema"
-        case .nota: "Nota"
-        case .sogno: "Sogno"
+        case .avvio: String(localized: "Al lavoro")
+        case .piano: String(localized: "Piano")
+        case .passo: String(localized: "Passo completato")
+        case .approvazione: String(localized: "Serve la tua approvazione")
+        case .risultato: String(localized: "Risultato")
+        case .errore: String(localized: "Problema")
+        case .nota: String(localized: "Nota")
+        case .sogno: String(localized: "Sogno")
         }
+    }
+}
+
+// MARK: - Skill del Genius
+
+private struct AgentSkillsView: View {
+    @Environment(AppState.self) private var state
+    let agent: AgentSpec
+    @State private var selection: String?
+    @State private var text = ""
+    @State private var confirmDelete = false
+
+    private var skills: [Skill] {
+        _ = state.skillsRevision
+        return SkillStore.forAgent(agent.id)
+    }
+    private var selected: Skill? { skills.first { $0.id == selection } }
+    private var reusableSkills: [Skill] {
+        let project = agent.projectName.flatMap { name in state.projects.first { $0.name == name && $0.exists }?.folder }
+        return SkillStore.all(project: project).filter { source in
+            !skills.contains { $0.name.localizedCaseInsensitiveCompare(source.name) == .orderedSame }
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Skill di \(agent.personName.isEmpty ? agent.name : agent.personName)").font(DS.Fonts.section)
+                    Text("Procedure private di questo Genius, salvate nella sua cartella.")
+                        .font(DS.Fonts.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Menu {
+                    Button("Nuova skill") { createSkill() }
+                    if !reusableSkills.isEmpty {
+                        Divider()
+                        ForEach(reusableSkills) { source in
+                            Button("Copia «\(source.name)»") { copySkill(source) }
+                        }
+                    }
+                } label: {
+                    Label("Aggiungi skill", systemImage: "plus")
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            Text("Si attivano quando il compito o un messaggio contiene il nome della skill o una parola in «cues». Le skill generali restano disponibili; una skill privata con lo stesso nome ha la precedenza.")
+                .font(DS.Fonts.caption).foregroundStyle(.secondary)
+
+            if skills.isEmpty {
+                ContentUnavailableView("Nessuna skill dedicata", systemImage: "wand.and.stars",
+                                       description: Text("Crea una procedura o copia una skill esistente per questo Genius."))
+                    .frame(maxWidth: .infinity, minHeight: 260)
+                    .glassCard(radius: 18)
+            } else {
+                HStack(alignment: .top, spacing: 14) {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 5) {
+                            ForEach(skills) { skill in
+                                Button {
+                                    selection = skill.id
+                                    text = skill.text
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(skill.name).font(DS.Fonts.bodyStrong).lineLimit(1)
+                                        if !skill.description.isEmpty {
+                                            Text(skill.description).font(DS.Fonts.caption)
+                                                .foregroundStyle(.secondary).lineLimit(2)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(9)
+                                    .background(selection == skill.id ? Color.accentColor.opacity(0.14) : Color.clear,
+                                                in: RoundedRectangle(cornerRadius: 10))
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityAddTraits(selection == skill.id ? .isSelected : [])
+                            }
+                        }
+                    }
+                    .frame(width: 220, height: 360)
+
+                    VStack(alignment: .leading, spacing: 9) {
+                        if let skill = selected {
+                            Text(skill.url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+                                .font(DS.Fonts.micro).foregroundStyle(.secondary).lineLimit(1)
+                            TextEditor(text: $text)
+                                .font(DS.Fonts.mono)
+                                .scrollContentBackground(.hidden)
+                                .padding(6)
+                                .frame(height: 280)
+                                .background(Color.surfaceSubtle, in: RoundedRectangle(cornerRadius: 10))
+                            HStack {
+                                Button("Sposta nel Cestino", role: .destructive) { confirmDelete = true }
+                                Spacer()
+                                Button("Salva") { saveSkill(skill) }
+                                    .buttonStyle(.borderedProminent)
+                                    .disabled(text == skill.text)
+                            }
+                        } else {
+                            ContentUnavailableView("Scegli una skill", systemImage: "wand.and.stars")
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(14)
+                .glassCard(radius: 18)
+            }
+            Button { showFolder() } label: { Label("Mostra cartella delle skill", systemImage: "folder") }
+                .buttonStyle(.link)
+        }
+        .onAppear { selectFirstIfNeeded() }
+        .onChange(of: state.skillsRevision) { _, _ in selectFirstIfNeeded() }
+        .confirmationDialog("Spostare «\(selected?.name ?? "")» nel Cestino?", isPresented: $confirmDelete) {
+            Button("Sposta nel Cestino", role: .destructive) {
+                guard let skill = selected else { return }
+                do {
+                    try SkillStore.delete(skill)
+                    state.skillsRevision += 1
+                    selection = nil
+                    selectFirstIfNeeded()
+                } catch {
+                    state.showToast(String(localized: "Skill non eliminata: \(error.localizedDescription)"), symbol: "exclamationmark.triangle.fill")
+                }
+            }
+        }
+    }
+
+    private func selectFirstIfNeeded() {
+        guard selected == nil else { return }
+        let first = skills.first
+        selection = first?.id
+        text = first?.text ?? ""
+    }
+
+    private func createSkill() {
+        do {
+            let skill = try SkillStore.save(name: String(localized: "Nuova skill"), description: String(localized: "Cosa fa questa procedura"), cues: [],
+                                            body: "## Procedura\n1. Primo passo\n2. Secondo passo", agent: agent.id)
+            state.skillsRevision += 1
+            selection = skill.id
+            text = skill.text
+        } catch {
+            state.showToast(String(localized: "Skill non creata: \(error.localizedDescription)"), symbol: "exclamationmark.triangle.fill")
+        }
+    }
+
+    private func copySkill(_ source: Skill) {
+        do {
+            let skill = try SkillStore.copy(source, toAgent: agent.id)
+            state.skillsRevision += 1
+            selection = skill.id
+            text = skill.text
+            state.showToast(String(localized: "Skill «\(skill.name)» aggiunta a \(agent.personName.isEmpty ? agent.name : agent.personName)"), symbol: "wand.and.stars")
+        } catch {
+            state.showToast(String(localized: "Skill non aggiunta: \(error.localizedDescription)"), symbol: "exclamationmark.triangle.fill")
+        }
+    }
+
+    private func saveSkill(_ skill: Skill) {
+        do {
+            try text.write(to: skill.url, atomically: true, encoding: .utf8)
+            state.skillsRevision += 1
+            state.showToast(String(localized: "Skill salvata"), symbol: "wand.and.stars")
+        } catch {
+            state.showToast(String(localized: "Skill non salvata: \(error.localizedDescription)"), symbol: "exclamationmark.triangle.fill")
+        }
+    }
+
+    private func showFolder() {
+        let folder = SkillStore.agentFolder(agent.id)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(folder)
     }
 }
 
@@ -610,7 +792,7 @@ struct AgentEditor: View {
             HStack(spacing: 12) {
                 AgentAvatar(agent: draft, size: 52)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(state.agent(draft.id) == nil ? "Nuovo agente" : "Modifica \(draft.displayName)").font(DS.Fonts.section)
+                    Text(state.agent(draft.id) == nil ? String(localized: "Nuovo Genius") : String(localized: "Modifica \(draft.displayName)")).font(DS.Fonts.section)
                     Text("Lavora da solo sull'obiettivo e ti chiede conferma prima delle azioni importanti.").font(DS.Fonts.caption).foregroundStyle(.secondary)
                 }
             }
@@ -641,7 +823,9 @@ struct AgentEditor: View {
                 FoldersEditor(folders: binding.folders).padding(.top, 6)
             }
             VStack(alignment: .leading, spacing: 8) {
-                Text("Aspetto").font(DS.Fonts.captionStrong).foregroundStyle(.secondary)
+                Text("Icona dietro al Genmoji").font(DS.Fonts.captionStrong).foregroundStyle(.secondary)
+                Text("Il primo simbolo sceglie automaticamente l'icona dal lavoro del Genius. Il ritratto davanti viene generato con Image Playground di Apple.")
+                    .font(DS.Fonts.caption).foregroundStyle(.secondary)
                 HStack(spacing: 8) {
                     ForEach(AgentSpec.colors, id: \.self) { color in
                         Circle().fill(AgentSpec.tint(named: color)).frame(width: 22, height: 22)
@@ -652,12 +836,14 @@ struct AgentEditor: View {
                 }
                 LazyVGrid(columns: Array(repeating: GridItem(.fixed(34)), count: 8), spacing: 8) {
                     ForEach(AgentSpec.symbols, id: \.self) { symbol in
-                        Image(systemName: symbol).font(.system(size: 14, weight: .semibold))
+                        Image(systemName: symbol == "sparkles" ? draft.roleSymbol : symbol)
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(draft.symbol == symbol ? .white : .secondary)
                             .frame(width: 32, height: 32)
                             .background(draft.symbol == symbol ? AnyShapeStyle(draft.gradient) : AnyShapeStyle(Color.primary.opacity(0.06)),
                                         in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                             .onTapGesture { draft.symbol = symbol }
+                            .help(symbol == "sparkles" ? String(localized: "Automatica, in base al lavoro del Genius") : symbol)
                     }
                 }
             }
@@ -667,7 +853,7 @@ struct AgentEditor: View {
                 }
                 Spacer()
                 Button("Annulla") { dismiss() }
-                Button(state.agent(draft.id) == nil ? "Crea agente" : "Salva") {
+                Button(state.agent(draft.id) == nil ? String(localized: "Crea Genius") : String(localized: "Salva")) {
                     let isNew = state.agent(draft.id) == nil
                     state.saveAgent(draft)
                     dismiss()
@@ -702,13 +888,13 @@ struct AgentDraftCard: View {
             .font(DS.Fonts.caption).foregroundStyle(.secondary)
             HStack {
                 if model.created {
-                    Label("Agente creato", systemImage: "checkmark.circle.fill").foregroundStyle(.green).font(DS.Fonts.caption)
+                    Label("Genius creato", systemImage: "checkmark.circle.fill").foregroundStyle(.green).font(DS.Fonts.caption)
                     Spacer()
                     Button("Apri") { state.openAgent(model.spec.id) }
                 } else {
                     Spacer()
                     Button("Modifica…") { state.editingAgent = model.spec }
-                    Button("Crea agente") { state.createAgent(from: model) }
+                    Button("Crea Genius") { state.createAgent(from: model) }
                         .buttonStyle(.borderedProminent).tint(model.spec.tint)
                 }
             }
@@ -728,7 +914,7 @@ struct RoutinesEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if routines.isEmpty {
-                Text("Nessuna programmazione: l'agente lavora solo quando premi «Esegui ora».").font(DS.Fonts.body).foregroundStyle(.secondary)
+                Text("Nessuna programmazione: il Genius lavora solo quando premi «Esegui ora».").font(DS.Fonts.body).foregroundStyle(.secondary)
             }
             ForEach($routines) { $routine in
                 VStack(alignment: .leading, spacing: 8) {
@@ -748,7 +934,7 @@ struct RoutinesEditor: View {
                         }
                         if routine.schedule.kind == .continuo {
                             Picker("", selection: Binding(get: { routine.schedule.interval }, set: { routine.schedule.intervalMinutes = $0 })) {
-                                ForEach([15, 30, 60, 120, 240], id: \.self) { Text($0 < 60 ? "ogni \($0) min" : "ogni \($0 / 60) h").tag($0) }
+                                ForEach([15, 30, 60, 120, 240], id: \.self) { Text($0 < 60 ? String(localized: "ogni \($0) min") : String(localized: "ogni \($0 / 60) h")).tag($0) }
                             }
                             .labelsHidden()
                             .frame(width: 110)
@@ -764,11 +950,11 @@ struct RoutinesEditor: View {
                         }
                         Spacer()
                         if let run {
-                            Button { run(routine.id) } label: { Image(systemName: "play.fill") }.buttonStyle(.borderless).iconHelp("Esegui ora questa programmazione")
+                            Button { run(routine.id) } label: { Image(systemName: "play.fill") }.buttonStyle(.borderless).iconHelp(String(localized: "Esegui ora questa programmazione"))
                         }
                         Button(role: .destructive) { routines.removeAll { $0.id == routine.id } } label: { Image(systemName: "trash") }
                             .buttonStyle(.borderless)
-                            .iconHelp("Elimina questa programmazione")
+                            .iconHelp(String(localized: "Elimina questa programmazione"))
                     }
                     TextField("Compito (vuoto = obiettivo principale)", text: $routine.task, axis: .vertical)
                         .textFieldStyle(.roundedBorder)
@@ -777,7 +963,7 @@ struct RoutinesEditor: View {
                         if let next = routine.nextRun, routine.enabled {
                             Label("Prossima: \(Dates.friendly(next))", systemImage: "arrow.forward.circle")
                         }
-                        Label(routine.lastRun.map { "Ultima: \(Dates.friendly($0))" } ?? "Mai eseguita", systemImage: "clock.arrow.circlepath")
+                        Label(routine.lastRun.map { String(localized: "Ultima: \(Dates.friendly($0))") } ?? String(localized: "Mai eseguita"), systemImage: "clock.arrow.circlepath")
                     }
                     .font(DS.Fonts.caption).foregroundStyle(.secondary)
                 }
@@ -801,7 +987,7 @@ struct FoldersEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("L'agente legge e cerca nei file di queste cartelle. Scrive, sposta o crea file solo in quelle con permesso di scrittura, e sempre dopo la tua conferma.")
+            Text("Il Genius legge e cerca nei file di queste cartelle. Scrive, sposta o crea file solo in quelle con permesso di scrittura, e sempre dopo la tua conferma.")
                 .font(DS.Fonts.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             ForEach($folders) { $folder in
                 HStack(spacing: 10) {
@@ -819,9 +1005,9 @@ struct FoldersEditor: View {
                     .labelsHidden()
                     .frame(width: 170)
                     Button { NSWorkspace.shared.activateFileViewerSelecting([folder.url]) } label: { Image(systemName: "magnifyingglass") }
-                        .buttonStyle(.borderless).iconHelp("Mostra nel Finder")
+                        .buttonStyle(.borderless).iconHelp(String(localized: "Mostra nel Finder"))
                     Button(role: .destructive) { folders.removeAll { $0.id == folder.id } } label: { Image(systemName: "minus.circle") }
-                        .buttonStyle(.borderless).iconHelp("Scollega")
+                        .buttonStyle(.borderless).iconHelp(String(localized: "Scollega"))
                 }
                 .padding(10)
                 .glassCard(radius: 18)
@@ -831,8 +1017,8 @@ struct FoldersEditor: View {
                 panel.canChooseDirectories = true
                 panel.canChooseFiles = false
                 panel.allowsMultipleSelection = true
-                panel.prompt = "Collega"
-                panel.message = "Scegli una o più cartelle per l'agente."
+                panel.prompt = String(localized: "Collega")
+                panel.message = String(localized: "Scegli una o più cartelle per il Genius.")
                 guard panel.runModal() == .OK else { return }
                 for url in panel.urls where !folders.contains(where: { $0.path == url.path }) {
                     folders.append(AgentFolder(path: url.path, writable: false))
@@ -858,7 +1044,7 @@ struct SoulEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("L'anima guida ogni lavoro dell'agente. I sogni aggiungono ciò che impara in «Cosa ho imparato»; il resto lo decidi tu.")
+                Text("L'anima guida ogni lavoro del Genius. I sogni aggiungono ciò che impara in «Cosa ho imparato»; il resto lo decidi tu.")
                     .font(DS.Fonts.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 Picker("", selection: $editing) {
@@ -901,22 +1087,52 @@ struct SoulEditor: View {
 
 // MARK: - Ritratto
 
-/// Ritratto dell'agente (Image Playground) o, se manca, il suo simbolo sul colore.
+/// Genmoji in primo piano e icona del lavoro su uno sfondo colorato.
 struct AgentAvatar: View {
     let agent: AgentSpec
     var size: CGFloat = 32
     /// Sulla tessera colorata: bordo bianco per staccare dal fondo.
     var onTile = false
 
+    private var glyph: NSAdaptiveImageGlyph? {
+        guard let path = agent.avatarPath, path.hasSuffix(".genmoji"),
+              let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return nil }
+        return NSAdaptiveImageGlyph(imageContent: data)
+    }
+
+    private var portrait: NSImage? {
+        guard let path = agent.avatarPath, !path.hasSuffix(".genmoji") else { return nil }
+        return NSImage(contentsOfFile: path)
+    }
+
     var body: some View {
-        Group {
-            if let path = agent.avatarPath, let image = NSImage(contentsOfFile: path) {
-                Image(nsImage: image).resizable().scaledToFill()
+        ZStack {
+            Circle().fill(agent.gradient)
+            Image(systemName: agent.roleSymbol)
+                .font(.system(size: size * 0.39, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.95))
+                .offset(x: -size * 0.22, y: -size * 0.19)
+            if let glyph {
+                Text(AttributedString(NSAttributedString(adaptiveImageGlyph: glyph,
+                                                         attributes: [.font: NSFont.systemFont(ofSize: size * 0.72)])))
+                    .font(.system(size: size * 0.72))
+                    .lineLimit(1)
+                    .frame(width: size * 0.77, height: size * 0.77)
+                    .background(.white.opacity(0.88), in: Circle())
+                    .offset(x: size * 0.12, y: size * 0.11)
+            } else if let portrait {
+                Image(nsImage: portrait).resizable().scaledToFill()
+                    .frame(width: size * 0.77, height: size * 0.77)
+                    .clipShape(Circle())
+                    .overlay(Circle().strokeBorder(.white.opacity(0.8), lineWidth: max(0.5, size * 0.018)))
+                    .offset(x: size * 0.12, y: size * 0.11)
             } else {
-                ZStack {
-                    agent.gradient
-                    Image(systemName: agent.symbol).font(.system(size: size * 0.45, weight: .semibold)).foregroundStyle(.white)
-                }
+                Image(systemName: "person.fill")
+                    .font(.system(size: size * 0.37, weight: .medium))
+                    .foregroundStyle(.white)
+                    .frame(width: size * 0.68, height: size * 0.68)
+                    .background(.white.opacity(0.24), in: Circle())
+                    .offset(x: size * 0.14, y: size * 0.13)
             }
         }
         .frame(width: size, height: size)
@@ -926,7 +1142,7 @@ struct AgentAvatar: View {
     }
 }
 
-/// Ritratto grande con il pulsante per crearlo o rifarlo con Image Playground.
+/// Genmoji grande, creato nel foglio nativo di Image Playground.
 struct PortraitButton: View {
     @Environment(AppState.self) private var state
     @Environment(\.supportsImagePlayground) private var supportsImagePlayground
@@ -938,11 +1154,13 @@ struct PortraitButton: View {
     var body: some View {
         if let agent = state.agent(agentID) {
             Menu {
-                Button(agent.avatarPath == nil ? "Crea il ritratto con Image Playground…" : "Nuovo ritratto con Image Playground…") { open(agent) }
+                Button(agent.hasGenmoji ? String(localized: "Rigenera con Image Playground…") : String(localized: "Genera Genmoji con Image Playground…")) { open(agent) }
                     .disabled(!supportsImagePlayground)
                 if agent.avatarPath != nil {
-                    Button("Togli il ritratto", role: .destructive) { state.updateAgent(agentID) { $0.avatarPath = nil } }
+                    Button(agent.hasGenmoji ? String(localized: "Togli il Genmoji") : String(localized: "Togli il ritratto"),
+                           role: .destructive) { state.removeAvatar(for: agentID) }
                 }
+                if !supportsImagePlayground { Text("Richiede Image Playground e Apple Intelligence") }
             } label: {
                 ZStack(alignment: .bottomTrailing) {
                     AgentAvatar(agent: agent, size: size)
@@ -957,9 +1175,27 @@ struct PortraitButton: View {
             .buttonStyle(.plain)
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("Ritratto di \(agent.displayName)")
-            .imagePlaygroundSheet(isPresented: $showSheet, concept: concept) { url in
-                state.setAvatar(url, for: agentID)
+            .help("Genmoji di \(agent.displayName) generato con Image Playground, con l'icona del suo lavoro sullo sfondo")
+            .imagePlaygroundSheet(isPresented: $showSheet, concept: concept,
+                                  onCompletion: { _ in
+                                      state.showToast(String(localized: "Image Playground ha creato una foto: scegli lo stile Genmoji e riprova"),
+                                                      symbol: "exclamationmark.triangle.fill")
+                                  },
+                                  onAdaptiveImageGlyphCreation: { glyph in state.setGenmoji(glyph, for: agentID) })
+            .imagePlaygroundGenerationStyle(.emoji, in: [.emoji])
+            .onChange(of: state.genmojiRequestAgentID, initial: true) { _, request in
+                guard request == agentID else { return }
+                state.genmojiRequestAgentID = nil
+                guard supportsImagePlayground else {
+                    state.showToast(String(localized: "Genmoji richiede Apple Intelligence attiva su questo Mac"), symbol: "exclamationmark.triangle.fill")
+                    return
+                }
+                Task {
+                    try? await Task.sleep(for: .milliseconds(350))
+                    guard case .agent(let visibleID) = state.section, visibleID == agentID,
+                          let current = state.agent(agentID), !current.hasGenmoji else { return }
+                    open(current)
+                }
             }
         }
     }

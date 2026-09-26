@@ -174,14 +174,14 @@ public enum VoiceMemosStore {
 
     /// File per una registrazione nuova: «Registrazione 23 set 2026 18.05.m4a».
     public static func newRecordingURL(now: Date = .now) -> URL {
-        let name = "Registrazione " + now.formatted(.dateTime.day().month(.abbreviated).year().hour().minute().locale(Dates.locale))
+        let name = Language.t("Registrazione ", "Recording ") + now.formatted(.dateTime.day().month(.abbreviated).year().hour().minute().locale(Dates.locale))
             .replacingOccurrences(of: ":", with: ".").replacingOccurrences(of: "/", with: "-")
         return FileStore.freeName(name, ext: "m4a", in: ownFolder)
     }
 
     /// Rinomina una registrazione fatta in Siri AI+ (con la sua trascrizione).
     public static func rename(_ memo: VoiceMemo, to name: String) throws -> URL {
-        guard memo.isOwn else { throw storeError("Le registrazioni di Memo Vocali si rinominano in Memo Vocali.") }
+        guard memo.isOwn else { throw storeError(Language.t("Le registrazioni di Memo Vocali si rinominano in Memo Vocali.", "Rename Voice Memos recordings in the Voice Memos app.")) }
         let transcript = savedTranscriptURL(id: memo.id, url: memo.url)
         let renamed = try FileStore.rename(memo.url, to: name)
         if FileManager.default.fileExists(atPath: transcript.path) {
@@ -192,7 +192,7 @@ public enum VoiceMemosStore {
 
     /// Nel Cestino (si recupera dal Finder), con la trascrizione.
     public static func trash(_ memo: VoiceMemo) throws {
-        guard memo.isOwn else { throw storeError("Le registrazioni di Memo Vocali si eliminano in Memo Vocali.") }
+        guard memo.isOwn else { throw storeError(Language.t("Le registrazioni di Memo Vocali si eliminano in Memo Vocali.", "Delete Voice Memos recordings in the Voice Memos app.")) }
         let transcript = savedTranscriptURL(id: memo.id, url: memo.url)
         try FileStore.trash(memo.url)
         if FileManager.default.fileExists(atPath: transcript.path) { try? FileStore.trash(transcript) }

@@ -44,7 +44,7 @@ final class WeatherModel: NSObject {
     override init() {
         let args = CommandLine.arguments
         city = args.firstIndex(of: "--weather-city").flatMap { args.indices.contains($0 + 1) ? args[$0 + 1] : nil }
-            ?? UserDefaults.standard.string(forKey: "weatherCity") ?? "Roma"
+            ?? UserDefaults.standard.string(forKey: "weatherCity") ?? String(localized: "Roma")
         usesLocation = UserDefaults.standard.bool(forKey: "weatherUsesLocation")
         super.init()
         if let index = args.firstIndex(of: "--weather-demo"), index + 1 < args.count {
@@ -119,7 +119,7 @@ final class WeatherModel: NSObject {
 
     private func currentPlace() async throws -> WeatherPlace {
         if usesLocation, persists, let location = await requestLocation() {
-            let name = await placeName(for: location) ?? "La mia posizione"
+            let name = await placeName(for: location) ?? String(localized: "La mia posizione")
             return WeatherPlace(name: name, latitude: location.coordinate.latitude, longitude: location.coordinate.longitude)
         }
         if let cached = cachedPlace, cached.query == city { return cached.place }
@@ -130,7 +130,7 @@ final class WeatherModel: NSObject {
 
     private func placeName(for location: CLLocation) async -> String? {
         guard let request = MKReverseGeocodingRequest(location: location) else { return nil }
-        request.preferredLocale = Locale(identifier: "it_IT")
+        request.preferredLocale = Language.system.locale
         let items = try? await request.mapItems
         return items?.first?.addressRepresentations?.cityName ?? items?.first?.name
     }

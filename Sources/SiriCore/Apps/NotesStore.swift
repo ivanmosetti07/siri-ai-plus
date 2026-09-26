@@ -88,7 +88,7 @@ public enum NotesStore {
             // L'anteprima è il testo dopo il titolo, su una riga.
             var body = f[3].components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
             if body.first == f[1] { body.removeFirst() }
-            return NoteSummary(id: f[0], title: f[1].isEmpty ? "Nuova nota" : f[1], modified: now.addingTimeInterval(-Double(Int(f[2]) ?? 0)),
+            return NoteSummary(id: f[0], title: f[1].isEmpty ? Language.t("Nuova nota", "New Note") : f[1], modified: now.addingTimeInterval(-Double(Int(f[2]) ?? 0)),
                                preview: body.joined(separator: " "), folderID: folderID)
         }
         .sorted { $0.modified > $1.modified }
@@ -141,7 +141,7 @@ public enum NotesStore {
             value.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;")
         }
         let paragraphs = body.components(separatedBy: "\n").map { $0.isEmpty ? "<div><br></div>" : "<div>\(escape($0))</div>" }.joined()
-        return "<div><h1>\(escape(title.isEmpty ? "Nuova nota" : title))</h1></div>" + paragraphs
+        return "<div><h1>\(escape(title.isEmpty ? Language.t("Nuova nota", "New Note") : title))</h1></div>" + paragraphs
     }
 
     /// Nel Cestino di Note («Eliminate di recente»): si recupera da lì per 30 giorni.

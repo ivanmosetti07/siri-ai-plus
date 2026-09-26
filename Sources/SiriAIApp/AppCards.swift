@@ -8,7 +8,7 @@ struct AppItemsCard: View {
     let items: AppItems
     @State private var expanded = false
     var body: some View {
-        Card(title: items.title, subtitle: items.rows.count == 1 ? "1 risultato" : "\(items.rows.count) risultati") {
+        Card(title: items.title, subtitle: items.rows.count == 1 ? String(localized: "1 risultato") : String(localized: "\(items.rows.count) risultati")) {
             Tile(items.source, size: 26)
         } content: {
             VStack(alignment: .leading, spacing: 0) {
@@ -21,7 +21,7 @@ struct AppItemsCard: View {
                     AppItemRow(source: items.source, row: row)
                 }
                 if items.rows.count > 5 {
-                    Button(expanded ? "Mostra meno" : "Mostra tutti (\(items.rows.count))") {
+                    Button(expanded ? String(localized: "Mostra meno") : String(localized: "Mostra tutti (\(items.rows.count))")) {
                         withAnimation { expanded.toggle() }
                     }
                     .buttonStyle(.link)
@@ -98,8 +98,8 @@ struct NoteDraftCard: View {
     @Bindable var model: NoteCardModel
 
     var body: some View {
-        Card(title: "Nuova nota", subtitle: "App Note", status: model.status,
-             statusLabel: model.status == .awaiting ? "Da confermare" : model.status == .done ? "Creata" : nil) {
+        Card(title: String(localized: "Nuova nota"), subtitle: String(localized: "App Note"), status: model.status,
+             statusLabel: model.status == .awaiting ? String(localized: "Da confermare") : model.status == .done ? String(localized: "Creata") : nil) {
             Tile(.notes, size: 26)
         } content: {
             VStack(alignment: .leading, spacing: 10) {
@@ -111,7 +111,7 @@ struct NoteDraftCard: View {
                         .padding(8)
                         .frame(minHeight: 90, maxHeight: 220)
                         .background(Color.surfaceSubtle, in: RoundedRectangle(cornerRadius: 8))
-                    CardActions(primary: "Crea nota", cancel: { model.status = .cancelled }) { state.create(model) }
+                    CardActions(primary: String(localized: "Crea nota"), cancel: { model.status = .cancelled }) { state.create(model) }
                 } else {
                     Text(model.draft.title).font(DS.Fonts.bodyStrong)
                     Text(model.draft.body).font(DS.Fonts.body).foregroundStyle(.secondary).lineLimit(6).textSelection(.enabled)
@@ -132,7 +132,7 @@ struct NoteAppendCard: View {
     @Bindable var model: NoteAppendCardModel
 
     var body: some View {
-        Card(title: "Nota «\(model.draft.title)»", subtitle: model.draft.manual ? "App Note · da incollare in fondo" : "App Note · aggiungo in fondo",
+        Card(title: String(localized: "Nota «\(model.draft.title)»"), subtitle: model.draft.manual ? String(localized: "App Note · da incollare in fondo") : String(localized: "App Note · aggiungo in fondo"),
              status: model.status, statusLabel: statusLabel) {
             Tile(.notes, size: 26)
         } content: {
@@ -156,9 +156,9 @@ struct NoteAppendCard: View {
                         .accessibilityLabel("Testo da aggiungere")
                     if model.draft.manual {
                         InlineBanner(symbol: "exclamationmark.triangle.fill", tint: .orange,
-                                     text: "Questa nota ha una lista con caselle, una tabella o degli allegati: modificandola da qui Note li perderebbe. Copio il testo e apro la nota: incollalo in fondo con ⌘V.") { EmptyView() }
+                                     text: String(localized: "Questa nota ha una lista con caselle, una tabella o degli allegati: modificandola da qui Note li perderebbe. Copio il testo e apro la nota: incollalo in fondo con ⌘V.")) { EmptyView() }
                     }
-                    CardActions(primary: model.draft.manual ? "Copia e apri la nota" : "Aggiungi alla nota", primaryDisabled: model.lines.isEmpty,
+                    CardActions(primary: model.draft.manual ? String(localized: "Copia e apri la nota") : String(localized: "Aggiungi alla nota"), primaryDisabled: model.lines.isEmpty,
                                 cancel: { model.status = .cancelled }) { state.append(model) }
                 } else {
                     VStack(alignment: .leading, spacing: 3) {
@@ -180,9 +180,9 @@ struct NoteAppendCard: View {
 
     private var statusLabel: String? {
         switch model.status {
-        case .awaiting: "Da confermare"
-        case .copied: "Copiato"
-        case .done: "Aggiunto"
+        case .awaiting: String(localized: "Da confermare")
+        case .copied: String(localized: "Copiato")
+        case .done: String(localized: "Aggiunto")
         default: nil
         }
     }
@@ -194,8 +194,8 @@ struct MailForwardCard: View {
     @Bindable var model: MailForwardCardModel
 
     var body: some View {
-        Card(title: "Inoltra «\(model.draft.subject.isEmpty ? "(senza oggetto)" : model.draft.subject)»",
-             subtitle: model.status == .opened || model.status == .done ? "Bozza aperta in Mail: invia da lì" : "Da \(model.draft.from) · \(model.draft.date)", status: model.status) {
+        Card(title: String(localized: "Inoltra «\(model.draft.subject.isEmpty ? String(localized: "(senza oggetto)") : model.draft.subject)»"),
+             subtitle: model.status == .opened || model.status == .done ? String(localized: "Bozza aperta in Mail: invia da lì") : String(localized: "Da \(model.draft.from) · \(model.draft.date)"), status: model.status) {
             Tile(.mail)
         } content: {
             VStack(alignment: .leading, spacing: 10) {
@@ -220,10 +220,10 @@ struct MailForwardCard: View {
                 }
                 if let error = model.error { Text(error).font(DS.Fonts.caption).foregroundStyle(.red) }
                 if model.status == .draft {
-                    CardActions(primary: "Inoltra…", cancel: { model.status = .cancelled }) { withAnimation(DS.Motion.standard) { model.status = .awaiting } }
+                    CardActions(primary: String(localized: "Inoltra…"), cancel: { model.status = .cancelled }) { withAnimation(DS.Motion.standard) { model.status = .awaiting } }
                 } else if model.status == .awaiting {
                     InlineBanner(symbol: "arrowshape.turn.up.right", tint: .orange,
-                                 text: "Aprirò in Mail l'inoltro con gli allegati\(model.draft.recipientAddress.isEmpty ? "" : " per \(model.draft.recipientAddress)"). L'invio parte solo quando premi Invia in Mail.") {
+                                 text: String(localized: "Aprirò in Mail l'inoltro con gli allegati\(model.draft.recipientAddress.isEmpty ? "" : String(localized: " per \(model.draft.recipientAddress)")). L'invio parte solo quando premi Invia in Mail.")) {
                         Button("Indietro") { withAnimation { model.status = .draft } }.controlSize(.small)
                         Button("Apri in Mail") { state.openForward(model) }.buttonStyle(.borderedProminent).controlSize(.small)
                     }
@@ -240,8 +240,8 @@ struct MessageDraftCard: View {
     @Bindable var model: MessageCardModel
     @State private var confirming = false
     var body: some View {
-        Card(title: "Messaggio a \(model.draft.recipient.isEmpty ? "…" : model.draft.recipient)", subtitle: "iMessage", status: model.status,
-             statusLabel: model.status == .awaiting ? "Da confermare" : model.status == .done ? "Inviato" : nil) {
+        Card(title: String(localized: "Messaggio a \(model.draft.recipient.isEmpty ? "…" : model.draft.recipient)"), subtitle: "iMessage", status: model.status,
+             statusLabel: model.status == .awaiting ? String(localized: "Da confermare") : model.status == .done ? String(localized: "Inviato") : nil) {
             Tile(.messages, size: 26)
         } content: {
             VStack(alignment: .leading, spacing: 10) {
@@ -260,7 +260,7 @@ struct MessageDraftCard: View {
                         .padding(8)
                         .frame(minHeight: 60, maxHeight: 160)
                         .background(Color.surfaceSubtle, in: RoundedRectangle(cornerRadius: 8))
-                    CardActions(primary: "Invia…", primaryDisabled: model.draft.handle.isEmpty || model.draft.text.trimmingCharacters(in: .whitespaces).isEmpty,
+                    CardActions(primary: String(localized: "Invia…"), primaryDisabled: model.draft.handle.isEmpty || model.draft.text.trimmingCharacters(in: .whitespaces).isEmpty,
                                 cancel: { model.status = .cancelled }) { confirming = true }
                 } else {
                     Text(model.draft.text).font(DS.Fonts.body).textSelection(.enabled)

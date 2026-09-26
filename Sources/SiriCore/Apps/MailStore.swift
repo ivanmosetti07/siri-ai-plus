@@ -35,14 +35,14 @@ public struct MailboxInfo: Identifiable, Sendable, Equatable, Hashable {
 
         public var label: String {
             switch self {
-            case .inbox: "In arrivo"
-            case .flagged: "Contrassegnati"
-            case .drafts: "Bozze"
-            case .sent: "Inviati"
-            case .archive: "Archivio"
-            case .junk: "Indesiderata"
-            case .trash: "Cestino"
-            case .other: "Casella"
+            case .inbox: Language.t("In arrivo", "Inbox")
+            case .flagged: Language.t("Contrassegnati", "Flagged")
+            case .drafts: Language.t("Bozze", "Drafts")
+            case .sent: Language.t("Inviati", "Sent")
+            case .archive: Language.t("Archivio", "Archive")
+            case .junk: Language.t("Indesiderata", "Junk")
+            case .trash: Language.t("Cestino", "Trash")
+            case .other: Language.t("Casella", "Mailbox")
             }
         }
     }
@@ -70,7 +70,7 @@ public struct MailboxInfo: Identifiable, Sendable, Equatable, Hashable {
         return path.components(separatedBy: "/").filter { !$0.isEmpty }
     }
 
-    public var displayName: String { name == "INBOX" ? "In arrivo" : (displayPath.last ?? name) }
+    public var displayName: String { name == "INBOX" ? Language.t("In arrivo", "Inbox") : (displayPath.last ?? name) }
     public var depth: Int { max(0, displayPath.count - 1) }
     public var title: String { account == nil ? kind.label : displayName }
 
@@ -347,7 +347,7 @@ public enum MailStore {
         """
         let output = try await AppleScript.run(script, app: "Mail")
         let parts = output.components(separatedBy: AppleScript.field)
-        guard parts.count >= 10 else { throw AppleAppError.script("Non riesco a leggere l'email.") }
+        guard parts.count >= 10 else { throw AppleAppError.script(Language.t("Non riesco a leggere l'email.", "I can't read the email.")) }
         func list(_ text: String) -> [String] { text.components(separatedBy: group).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty && $0 != "missing value" } }
         return MailContent(id: id, subject: parts[0], sender: parts[1], to: list(parts[2]), cc: list(parts[3]), attachments: list(parts[4]),
                            date: Date.now.addingTimeInterval(-Double(Int(parts[5]) ?? 0)), dateText: parts[8],

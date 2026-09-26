@@ -30,17 +30,17 @@ struct MessagesAppView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            AppHeader(source: .messages, title: "Messaggi", subtitle: subtitle, search: $search, searchPrompt: "Cerca persona o testo",
+            AppHeader(source: .messages, title: String(localized: "Messaggi"), subtitle: subtitle, search: $search, searchPrompt: String(localized: "Cerca persona o testo"),
                       onRefresh: reload) {
-                AppIconButton(symbol: "square.and.pencil", help: "Nuovo messaggio", prominent: true) { composing = true }
+                AppIconButton(symbol: "square.and.pencil", help: String(localized: "Nuovo messaggio"), prominent: true) { composing = true }
                     .disabled(!state.canWrite(.messages))
             }
             Divider()
             if !readable {
-                AccessNotice(symbol: "message.badge.filled.fill", title: "Serve l'accesso completo al disco",
-                             message: "macOS protegge le conversazioni di Messaggi: per mostrarle qui Siri AI+ ha bisogno dell'accesso completo al disco. Lo concedi una volta e resta per sempre. Inviare messaggi funziona anche senza.",
-                             primary: ("Concedi nelle Impostazioni", { PermissionCenter.openSettings(.fullDisk) }),
-                             secondary: ("Nuovo messaggio", { composing = true }))
+                AccessNotice(symbol: "message.badge.filled.fill", title: String(localized: "Serve l'accesso completo al disco"),
+                             message: String(localized: "macOS protegge le conversazioni di Messaggi: per mostrarle qui Siri AI+ ha bisogno dell'accesso completo al disco. Lo concedi una volta e resta per sempre. Inviare messaggi funziona anche senza."),
+                             primary: (String(localized: "Concedi nelle Impostazioni"), { PermissionCenter.openSettings(.fullDisk) }),
+                             secondary: (String(localized: "Nuovo messaggio"), { composing = true }))
             } else {
                 HStack(spacing: 0) {
                     conversationList.frame(width: 300)
@@ -49,8 +49,8 @@ struct MessagesAppView: View {
                         ChatThread(chat: chat, canWrite: state.canWrite(.messages)) { reload() }
                             .id(chat.id)
                     } else {
-                        AppPlaceholder(symbol: "bubble.left.and.bubble.right", title: chats.isEmpty ? "Nessuna conversazione" : "Nessuna conversazione selezionata",
-                                       message: error ?? "Scegli una conversazione per leggerla e rispondere.")
+                        AppPlaceholder(symbol: "bubble.left.and.bubble.right", title: chats.isEmpty ? String(localized: "Nessuna conversazione") : String(localized: "Nessuna conversazione selezionata"),
+                                       message: error ?? String(localized: "Scegli una conversazione per leggerla e rispondere."))
                     }
                 }
             }
@@ -85,7 +85,7 @@ struct MessagesAppView: View {
 
     private var subtitle: String {
         let unread = chats.reduce(0) { $0 + $1.unread }
-        return unread == 0 ? "\(chats.count) conversazioni" : unread == 1 ? "1 messaggio da leggere" : "\(unread) messaggi da leggere"
+        return unread == 0 ? String(localized: "\(chats.count) conversazioni") : unread == 1 ? String(localized: "1 messaggio da leggere") : String(localized: "\(unread) messaggi da leggere")
     }
 
     private var conversationList: some View {
@@ -102,7 +102,7 @@ struct MessagesAppView: View {
                             Spacer(minLength: 4)
                             Text(chat.date.listStamp).font(.system(size: 11.5)).foregroundStyle(.secondary)
                         }
-                        Text((chat.lastFromMe ? "Tu: " : "") + chat.lastText)
+                        Text((chat.lastFromMe ? String(localized: "Tu: ") : "") + chat.lastText)
                             .font(.system(size: 12.5))
                             .foregroundStyle(chat.unread > 0 ? .primary : .secondary)
                             .lineLimit(2)
@@ -178,7 +178,7 @@ private struct ChatThread: View {
                     Text(chat.handles.joined(separator: ", ")).font(.system(size: 11.5)).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer()
-                Button { state.send("Riassumi la conversazione con \(chat.title) e proponimi una risposta") } label: {
+                Button { state.send(String(localized: "Riassumi la conversazione con \(chat.title) e proponimi una risposta")) } label: {
                     Label("Chiedi a Siri AI+", systemImage: "sparkle")
                 }
                 .buttonStyle(.borderless)
@@ -208,7 +208,7 @@ private struct ChatThread: View {
             }
             Divider()
             HStack(alignment: .bottom, spacing: 8) {
-                TextField(canWrite ? "iMessage" : "Invio disattivato nelle impostazioni", text: $text, axis: .vertical)
+                TextField(canWrite ? "iMessage" : String(localized: "Invio disattivato nelle impostazioni"), text: $text, axis: .vertical)
                     .textFieldStyle(.plain)
                     .lineLimit(1...6)
                     .padding(.horizontal, 12)
@@ -223,7 +223,7 @@ private struct ChatThread: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.secondary : Color.accentColor)
                 .disabled(!canWrite || sending || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .iconHelp("Invia")
+                .iconHelp(String(localized: "Invia"))
             }
             .padding(12)
         }
@@ -252,12 +252,12 @@ private struct ChatThread: View {
             do {
                 try await MessagesStore.send(body, toChat: chat.guid)
                 text = ""
-                state.log(icon: "source:messages", title: "Messaggio inviato", detail: "\(chat.title): \(body.prefix(60))", status: .done)
+                state.log(icon: "source:messages", title: String(localized: "Messaggio inviato"), detail: "\(chat.title): \(body.prefix(60))", status: .done)
                 try? await Task.sleep(for: .seconds(1.2))
                 load()
                 onSent()
             } catch {
-                state.appFailed(.messages, "Messaggio non inviato", error)
+                state.appFailed(.messages, String(localized: "Messaggio non inviato"), error)
             }
             sending = false
             focused = true
@@ -360,10 +360,10 @@ private struct NewMessageSheet: View {
         Task {
             do {
                 try await MessagesService.send(MessageDraft(recipient: recipient, handle: handle, text: text))
-                state.appDone(.messages, "Messaggio inviato", detail: recipient)
+                state.appDone(.messages, String(localized: "Messaggio inviato"), detail: recipient)
                 onClose()
             } catch {
-                state.appFailed(.messages, "Messaggio non inviato", error)
+                state.appFailed(.messages, String(localized: "Messaggio non inviato"), error)
             }
             sending = false
         }

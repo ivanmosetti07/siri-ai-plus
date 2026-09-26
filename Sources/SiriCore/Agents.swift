@@ -8,11 +8,11 @@ public struct AgentSchedule: Codable, Sendable, Equatable {
         public var id: String { rawValue }
         public var label: String {
             switch self {
-            case .manuale: "Quando lo avvii"
-            case .continuo: "Di continuo"
-            case .orario: "Ogni ora"
-            case .giornaliero: "Ogni giorno"
-            case .settimanale: "Ogni settimana"
+            case .manuale: Language.t("Quando lo avvii", "When you start it")
+            case .continuo: Language.t("Di continuo", "Continuously")
+            case .orario: Language.t("Ogni ora", "Every hour")
+            case .giornaliero: Language.t("Ogni giorno", "Every day")
+            case .settimanale: Language.t("Ogni settimana", "Every week")
             }
         }
     }
@@ -46,6 +46,7 @@ public struct AgentSchedule: Codable, Sendable, Equatable {
     }
 
     public var label: String {
+        if Language.isEnglish { return englishLabel }
         let time = String(format: "%02d:%02d", hour, minute)
         switch kind {
         case .continuo: return interval % 60 == 0 ? (interval == 60 ? "Ogni ora" : "Ogni \(interval / 60) ore") : "Ogni \(interval) minuti"
@@ -53,6 +54,22 @@ public struct AgentSchedule: Codable, Sendable, Equatable {
         case .settimanale:
             let name = Dates.locale.calendar.weekdaySymbols[max(0, min(6, weekday - 1))]
             return "Ogni \(name) alle \(time)"
+        default: return kind.label
+        }
+    }
+
+    /// «Every day at 6:00 PM», «Every Monday at 9:30 AM», «Every 2 hours»: l'orario nel formato della lingua.
+    private var englishLabel: String {
+        let day = Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: Date(timeIntervalSinceReferenceDate: 0))
+        let time = day.map { $0.formatted(.dateTime.hour().minute().locale(Dates.locale)) } ?? String(format: "%02d:%02d", hour, minute)
+        switch kind {
+        case .continuo:
+            if interval % 60 != 0 { return "Every \(interval) minutes" }
+            return interval == 60 ? "Every hour" : "Every \(interval / 60) hours"
+        case .giornaliero: return "Every day at \(time)"
+        case .settimanale:
+            let name = Dates.locale.calendar.weekdaySymbols[max(0, min(6, weekday - 1))]
+            return "Every \(name) at \(time)"
         default: return kind.label
         }
     }
@@ -87,9 +104,9 @@ public struct AgentRun: Codable, Sendable, Equatable, Identifiable {
         case manuale, programmata, recupero
         public var label: String {
             switch self {
-            case .manuale: "Avviata da te"
-            case .programmata: "Programmata"
-            case .recupero: "Recuperata (l'app era chiusa)"
+            case .manuale: Language.t("Avviata da te", "Started by you")
+            case .programmata: Language.t("Programmata", "Scheduled")
+            case .recupero: Language.t("Recuperata (l'app era chiusa)", "Caught up (the app was closed)")
             }
         }
     }
@@ -97,11 +114,11 @@ public struct AgentRun: Codable, Sendable, Equatable, Identifiable {
         case inCorso, completata, daApprovare, errore, interrotta
         public var label: String {
             switch self {
-            case .inCorso: "In corso"
-            case .completata: "Completata"
-            case .daApprovare: "Da approvare"
-            case .errore: "Non riuscita"
-            case .interrotta: "Interrotta"
+            case .inCorso: Language.t("In corso", "In progress")
+            case .completata: Language.t("Completata", "Completed")
+            case .daApprovare: Language.t("Da approvare", "Awaiting approval")
+            case .errore: Language.t("Non riuscita", "Failed")
+            case .interrotta: Language.t("Interrotta", "Interrupted")
             }
         }
     }
@@ -166,7 +183,7 @@ public struct AgentSpec: Codable, Sendable, Equatable, Identifiable {
     public var name: String
     /// Nome di persona (es. «Giulia»): l'agente si presenta come «Giulia - Rassegna stampa».
     public var personName = ""
-    /// Ritratto generato con Image Playground.
+    /// Genmoji o ritratto precedente, conservato nella cartella del Genius.
     public var avatarPath: String?
     /// Spazio in cui lavora (personale, lavoro): ne usa calendari, posta e connettori.
     public var space = "lavoro"
@@ -266,10 +283,17 @@ public struct AgentSpec: Codable, Sendable, Equatable, Identifiable {
     public static let personNames = ["Giulia", "Marco", "Sofia", "Luca", "Elena", "Davide", "Chiara", "Matteo", "Anna", "Tommaso",
                                      "Sara", "Pietro", "Alice", "Lorenzo", "Martina", "Federico", "Aurora", "Gabriele", "Beatrice", "Riccardo"]
 
+    public static let englishPersonNames = ["Emma", "Oliver", "Sophie", "Jack", "Grace", "Leo", "Chloe", "Noah", "Ella", "Henry",
+                                            "Lucy", "Samuel", "Alice", "Theo", "Maya", "Daniel", "Ruby", "Adam", "Clara", "Owen"]
+
+    /// I nomi nella lingua in cui si lavora.
+    public static var localizedPersonNames: [String] { Language.isEnglish ? englishPersonNames : personNames }
+
     /// Un nome di persona non ancora usato dagli altri agenti.
     public static func suggestedPersonName(for role: String, avoiding used: [String]) -> String {
-        let free = personNames.filter { !used.contains($0) }
-        let pool = free.isEmpty ? personNames : free
+        let names = localizedPersonNames
+        let free = names.filter { !used.contains($0) }
+        let pool = free.isEmpty ? names : free
         let seed = role.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) & 0xFFFF }
         return pool[seed % pool.count]
     }
@@ -350,7 +374,7 @@ public struct AgentSpec: Codable, Sendable, Equatable, Identifiable {
         switch enabled.count {
         case 0: return AgentSchedule.Kind.manuale.label
         case 1: return enabled[0].schedule.label
-        default: return "\(enabled.count) programmazioni"
+        default: return Language.t("\(enabled.count) programmazioni", "\(enabled.count) schedules")
         }
     }
 
@@ -365,13 +389,73 @@ public struct AgentSpec: Codable, Sendable, Equatable, Identifiable {
                                  "briefcase.fill", "cart.fill", "heart.fill", "airplane", "book.fill", "house.fill", "dumbbell.fill", "fork.knife", "megaphone.fill"]
     public static let colors = ["indigo", "blue", "teal", "green", "orange", "red", "pink", "purple", "gray"]
 
+    /// «sparkles» è la scelta automatica: il simbolo viene ricavato dal lavoro del Genius.
+    public var roleSymbol: String {
+        symbol == "sparkles" ? Self.suggestedSymbol(for: name + " " + goal) : symbol
+    }
+
+    public var hasGenmoji: Bool {
+        avatarPath.map {
+            let url = URL(fileURLWithPath: $0)
+            return url.lastPathComponent.hasPrefix("genmoji-") && url.pathExtension == "genmoji"
+        } ?? false
+    }
+
+    public static func suggestedSymbol(for description: String) -> String {
+        let text = description.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        let roles: [(String, [String])] = [
+            ("newspaper.fill", ["rassegna", "notizi", "news", "stampa", "giornal", "editorial"]),
+            ("envelope.fill", ["email", "e-mail", "posta", "inbox", "mail", "newsletter"]),
+            ("calendar", ["calend", "agenda", "appuntament", "meeting", "riunion", "schedule"]),
+            ("binoculars.fill", ["monitor", "osserv", "novita", "ricerc", "research", "trend"]),
+            ("briefcase.fill", ["segret", "assistant", "daily brief", "client", "agenzia", "agency", "business", "azienda", "project", "progett"]),
+            ("chart.line.uptrend.xyaxis", ["analis", "analytics", "metric", "report", "vendit", "sales", "kpi", "dati"]),
+            ("megaphone.fill", ["social", "marketing", "campagn", "contenut", "pubblic", "advert", "post ", "ads"]),
+            ("cart.fill", ["shop", "acquist", "commerce", "prodotto", "carrello"]),
+            ("heart.fill", ["salute", "health", "benesser", "wellness"]),
+            ("airplane", ["viagg", "travel", "volo", "trip"]),
+            ("book.fill", ["studio", "study", "libro", "book", "lezion", "course", "corso"]),
+            ("house.fill", ["casa", "home", "immobil", "house"]),
+            ("dumbbell.fill", ["fitness", "allen", "workout", "sport"]),
+            ("fork.knife", ["cibo", "food", "ricett", "restaurant", "cucin"]),
+            ("target", ["obiettiv", "goal", "priorita", "task", "pian", "plan"]),
+        ]
+        return roles.first { _, cues in cues.contains { text.contains($0) } }?.0 ?? "target"
+    }
+
     /// Anima di partenza (soul.md): identità, missione, valori, stile, limiti e cosa ha imparato.
     public var defaultSoul: String {
-        """
+        if Language.isEnglish {
+            return """
+            # Soul of \(displayName)
+
+            ## Who I am
+            I'm \(personName.isEmpty ? name : personName), \(personName.isEmpty ? "a Genius" : "the «\(name)» Genius") of Siri AI+ working for \(Assistant.userFirstName ?? "the person who uses this Mac"). I take the initiative but ask for confirmation before important actions.
+
+            ## Mission
+            \(goal)
+
+            ## Values
+            - Accuracy: I only use real data and cite the sources.
+            - Usefulness: I bring concrete results, not just information.
+            - Respect: no actions toward other people without consent.
+
+            ## Style
+            - Clear, direct English, with bullet points when they help.
+            - Important things first, then the details.
+
+            ## What to avoid
+            - Repeating information already given in previous runs.
+            - Making up data, dates or commitments.
+
+            ## What I learned
+            """
+        }
+        return """
         # Anima di \(displayName)
 
         ## Chi sono
-        Sono \(personName.isEmpty ? name : personName), \(personName.isEmpty ? "un agente" : "l'agente «\(name)»") di Siri AI+ che lavora per Ivan. Agisco con iniziativa ma chiedo conferma prima delle azioni importanti.
+        Sono \(personName.isEmpty ? name : personName), \(personName.isEmpty ? "un Genius" : "il Genius «\(name)»") di Siri AI+ che lavora per \(Assistant.userLabel). Agisco con iniziativa ma chiedo conferma prima delle azioni importanti.
 
         ## Missione
         \(goal)
@@ -379,7 +463,7 @@ public struct AgentSpec: Codable, Sendable, Equatable, Identifiable {
         ## Valori
         - Precisione: uso solo dati reali e cito le fonti.
         - Utilità: porto risultati concreti, non solo informazioni.
-        - Rispetto: niente azioni verso altre persone senza il consenso di Ivan.
+        - Rispetto: niente azioni verso altre persone senza il consenso di \(Assistant.userLabel).
 
         ## Stile
         - Italiano chiaro e diretto, con punti elenco quando aiutano.
@@ -395,7 +479,28 @@ public struct AgentSpec: Codable, Sendable, Equatable, Identifiable {
 }
 
 extension Assistant {
-    private static let agentSchema = makeSchema("Agente", [
+    private static var agentSchema: GenerationSchema {
+        Language.isEnglish ? englishAgentSchema : italianAgentSchema
+    }
+
+    private static let englishAgentSchema = makeSchema("Agente", [
+        .required("nome", .string, "Short role of the agent, 1-3 words, e.g. «AI digest»"),
+        .required("persona", .choice(AgentSpec.englishPersonNames), "Person name for the agent"),
+        .required("obiettivo", .string, "What the agent must do every time it works, in one or two sentences, addressed to it («Search… and summarize…»)"),
+        .required("frequenza", .choice(AgentSchedule.Kind.allCases.map(\.rawValue)),
+                  "When it works: manuale (only when asked), continuo (keeps watching), orario (every hour), giornaliero (every day) or settimanale (every week)"),
+        .optional("ora", .string, "Run time HH:mm, if given"),
+        .optional("giorno", .choice(englishWeekdays), "Day of the week, if weekly"),
+        .required("icona", .choice(AgentSpec.symbols), "Most fitting symbol"),
+        .required("colore", .choice(AgentSpec.colors), "Tile color"),
+        .required("web", .bool, "true if it must search the web"),
+        .required("connettori", .bool, "true if it must use connected services such as Agency OS"),
+    ])
+
+    /// Da domenica a sabato, come `Calendar.weekday` (1 = domenica).
+    private static let englishWeekdays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+
+    private static let italianAgentSchema = makeSchema("Agente", [
         .required("nome", .string, "Ruolo breve dell'agente, 1-3 parole, es. «Rassegna AI»"),
         .required("persona", .choice(AgentSpec.personNames), "Nome di persona italiano per l'agente"),
         .required("obiettivo", .string, "Cosa deve fare l'agente ogni volta che lavora, in una o due frasi, in seconda persona («Cerca… e riassumi…»)"),
@@ -410,11 +515,15 @@ extension Assistant {
 
     /// Crea un agente da una descrizione in linguaggio naturale ("ogni mattina alle 8 fammi la rassegna stampa sull'AI").
     public func draftAgent(from description: String) async throws -> AgentSpec {
-        var request = "Descrizione: \(description)"
-        if !work.mcpTools.isEmpty { request += "\nServizi collegati: \(Set(work.mcpTools.map(\.serverName)).sorted().joined(separator: ", "))" }
-        let content = try await writer("Trasformi la richiesta dell'utente nella configurazione di un agente personale che lavora da solo su un obiettivo.")
+        let english = Language.isEnglish
+        var request = (english ? "Description: " : "Descrizione: ") + description
+        if !work.mcpTools.isEmpty {
+            request += (english ? "\nConnected services: " : "\nServizi collegati: ") + Set(work.mcpTools.map(\.serverName)).sorted().joined(separator: ", ")
+        }
+        let content = try await writer(Language.t("Trasformi la richiesta dell'utente nella configurazione di un agente personale che lavora da solo su un obiettivo.",
+                                                  "You turn the user's request into the configuration of a personal agent that works on its own toward a goal."))
             .respond(to: request, schema: Self.agentSchema).content
-        var agent = AgentSpec(name: content.string("nome") ?? "Nuovo agente", goal: content.string("obiettivo") ?? description)
+        var agent = AgentSpec(name: content.string("nome") ?? Language.t("Nuovo Genius", "New Genius"), goal: content.string("obiettivo") ?? description)
         agent.personName = content.string("persona") ?? ""
         agent.symbol = content.string("icona") ?? "sparkles"
         agent.color = content.string("colore") ?? "indigo"
@@ -424,7 +533,7 @@ extension Assistant {
         let time = (content.string("ora") ?? "").split(separator: ":").compactMap { Int($0) }
         if time.count == 2 { schedule.hour = time[0]; schedule.minute = time[1] }
         let days = ["domenica", "lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato"]
-        if let day = content.string("giorno"), let index = days.firstIndex(of: day) { schedule.weekday = index + 1 }
+        if let day = content.string("giorno"), let index = days.firstIndex(of: day) ?? Self.englishWeekdays.firstIndex(of: day) { schedule.weekday = index + 1 }
         let parsed = Self.schedule(from: description) ?? schedule
         agent.routines = parsed.kind == .manuale ? [] : [AgentRoutine(schedule: parsed)]
         let lower = description.lowercased()
@@ -451,11 +560,36 @@ extension Assistant {
         }
         if lower.contains("ogni ora") { return AgentSchedule(kind: .orario) }
         if ["di continuo", "continuamente", "tieni d'occhio", "monitora", "sorveglia"].contains(where: lower.contains) { return AgentSchedule(kind: .continuo) }
+        return Language.isEnglish ? englishSchedule(from: lower) : nil
+    }
+
+    /// «every morning at 8», «every Monday at 9:30», «at 7pm every day», «hourly», «keep an eye on…».
+    private static func englishSchedule(from lower: String) -> AgentSchedule? {
+        var hour: Int?
+        var minute = 0
+        if let match = Web.matches(#"\bat\s+(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?"#, in: lower).first {
+            hour = Int(match[0]); minute = Int(match[1]) ?? 0
+            if let value = hour, match[2].hasPrefix("p"), value < 12 { hour = value + 12 }
+            if let value = hour, match[2].hasPrefix("a"), value == 12 { hour = 0 }
+        } else if lower.contains("at noon") { hour = 12 } else if lower.contains("morning") { hour = 8 }
+        else if lower.contains("afternoon") { hour = 15 } else if lower.contains("evening") || lower.contains("night") { hour = 19 }
+        if let value = hour, value < 12, lower.contains("evening") || lower.contains("afternoon") || lower.contains("night"),
+           !lower.contains("am"), !lower.contains("a.m.") { hour = value + 12 }
+        if let index = englishWeekdays.firstIndex(where: { lower.contains("every \($0)") || lower.contains("on \($0)") }) {
+            return AgentSchedule(kind: .settimanale, hour: hour ?? 9, minute: minute, weekday: index + 1)
+        }
+        if lower.contains("every week") || lower.contains("weekly") { return AgentSchedule(kind: .settimanale, hour: hour ?? 9, minute: minute, weekday: 2) }
+        if ["every day", "every morning", "every evening", "every afternoon", "every night", "daily", "each day", "each morning"].contains(where: lower.contains) {
+            return AgentSchedule(kind: .giornaliero, hour: hour ?? 8, minute: minute)
+        }
+        if lower.contains("every hour") || lower.contains("hourly") { return AgentSchedule(kind: .orario) }
+        if ["continuously", "keep an eye on", "monitor", "keep watching", "watch for"].contains(where: lower.contains) { return AgentSchedule(kind: .continuo) }
         return nil
     }
 
     /// Richiesta per il piano di un'esecuzione: compito (della programmazione o l'obiettivo) più ciò che l'agente sa e ha già fatto.
     public static func agentRunPrompt(_ agent: AgentSpec, task: String? = nil, soul: String? = nil) -> String {
+        if Language.isEnglish { return englishAgentRunPrompt(agent, task: task, soul: soul) }
         var text = "Compito dell'agente «\(agent.name)»: \(task.flatMap { $0.isEmpty ? nil : $0 } ?? agent.goal)"
         if let task, !task.isEmpty { text += "\nObiettivo generale: \(agent.goal)" }
         if let soul, !soul.isEmpty { text += "\nAnima dell'agente (soul.md, estratto):\n\(soul.prefix(900))" }
@@ -469,25 +603,56 @@ extension Assistant {
         return text
     }
 
-    private static let dreamSchema = makeSchema("Sogno", [
+    private static func englishAgentRunPrompt(_ agent: AgentSpec, task: String?, soul: String?) -> String {
+        var text = "Task of the «\(agent.name)» agent: \(task.flatMap { $0.isEmpty ? nil : $0 } ?? agent.goal)"
+        if let task, !task.isEmpty { text += "\nOverall goal: \(agent.goal)" }
+        if let soul, !soul.isEmpty { text += "\nThe agent's soul (soul.md, excerpt):\n\(soul.prefix(900))" }
+        if !agent.instructions.isEmpty { text += "\nInstructions: \(agent.instructions)" }
+        if !agent.memory.isEmpty { text += "\nTo remember: " + agent.memory.suffix(6).joined(separator: "; ") }
+        if !agent.folders.isEmpty {
+            text += "\nLinked folders: " + agent.folders.map { "\($0.name) (\($0.writable ? "read and write" : "read only"))" }.joined(separator: ", ")
+        }
+        if let summary = agent.lastSummary { text += "\nOutcome of the last run (\(agent.lastRun.map { Dates.format($0) } ?? "")): \(summary.prefix(500))" }
+        text += "\nIt is now \(Dates.format(.now)). Work on what is new or still to be done since last time."
+        return text
+    }
+
+    private static var dreamSchema: GenerationSchema { Language.isEnglish ? englishDreamSchema : italianDreamSchema }
+
+    private static let englishDreamSchema = makeSchema("Sogno", [
+        .required("riflessione", .string, "What went well and what went badly in the recent work, in 2-4 honest sentences"),
+        .required("lezioni", .array(.string, min: 1, max: 4), "Concrete lessons to work better next time, one sentence each"),
+        .required("istruzioni", .string, "Improved, short operating instructions (at most 6 lines) that take the lessons and the user's directions into account"),
+    ])
+
+    private static let italianDreamSchema = makeSchema("Sogno", [
         .required("riflessione", .string, "Cosa è andato bene e cosa male nel lavoro recente, in 2-4 frasi sincere"),
         .required("lezioni", .array(.string, min: 1, max: 4), "Lezioni concrete per lavorare meglio la prossima volta, una frase ciascuna"),
-        .required("istruzioni", .string, "Istruzioni operative migliorate e brevi (massimo 6 righe) che tengono conto delle lezioni e delle indicazioni di Ivan"),
+        .required("istruzioni", .string, "Istruzioni operative migliorate e brevi (massimo 6 righe) che tengono conto delle lezioni e delle indicazioni di \(Assistant.userLabel)"),
     ])
 
     /// Il sogno notturno: rilegge registro, esiti, approvazioni e indicazioni, ne trae lezioni e migliora le istruzioni.
     public func dream(for agent: AgentSpec, soul: String, approvals: (accepted: Int, rejected: Int)) async throws -> AgentDream {
         let events = agent.log.suffix(40).map { "[\($0.kind.rawValue)] \($0.text.prefix(160))" }.joined(separator: "\n")
-        let request = """
+        let request = Language.isEnglish ? """
+        Agent «\(agent.name)». Goal: \(agent.goal)
+        Current instructions: \(agent.instructions.isEmpty ? "none" : agent.instructions)
+        Soul (soul.md, excerpt):\n\(soul.prefix(1200))
+        Directions from the user to remember: \(agent.memory.suffix(8).joined(separator: "; "))
+        Actions proposed and approved by the user: \(approvals.accepted); cancelled: \(approvals.rejected)
+        Last result: \(agent.lastSummary?.prefix(500) ?? "none")
+        Recent log:\n\(events)
+        """ : """
         Agente «\(agent.name)». Obiettivo: \(agent.goal)
         Istruzioni attuali: \(agent.instructions.isEmpty ? "nessuna" : agent.instructions)
         Anima (soul.md, estratto):\n\(soul.prefix(1200))
-        Indicazioni di Ivan da ricordare: \(agent.memory.suffix(8).joined(separator: "; "))
-        Azioni proposte e approvate da Ivan: \(approvals.accepted); annullate: \(approvals.rejected)
+        Indicazioni di \(Assistant.userLabel) da ricordare: \(agent.memory.suffix(8).joined(separator: "; "))
+        Azioni proposte e approvate da \(Assistant.userLabel): \(approvals.accepted); annullate: \(approvals.rejected)
         Ultimo risultato: \(agent.lastSummary?.prefix(500) ?? "nessuno")
         Registro recente:\n\(events)
         """
-        let content = try await writer("Sei l'agente stesso che, di notte, sogna: ripensi al tuo lavoro per migliorarti. Sii concreto e onesto.")
+        let content = try await writer(Language.t("Sei l'agente stesso che, di notte, sogna: ripensi al tuo lavoro per migliorarti. Sii concreto e onesto.",
+                                                  "You are the agent itself, dreaming at night: you think back on your work to improve. Be concrete and honest."))
             .respond(to: request, schema: Self.dreamSchema).content
         return AgentDream(reflection: content.string("riflessione") ?? "", lessons: content.strings("lezioni"),
                           previousInstructions: agent.instructions, newInstructions: content.string("istruzioni") ?? agent.instructions)
@@ -495,12 +660,15 @@ extension Assistant {
 
     /// Aggiunge le lezioni del sogno alla sezione «Cosa ho imparato» di soul.md (tiene le 15 più recenti).
     public static func soul(_ soul: String, adding lessons: [String], on date: Date = .now) -> String {
-        let heading = "## Cosa ho imparato"
+        // L'anima scritta in inglese ha la sezione «What I learned»: si usa quella che c'è, altrimenti quella della lingua corrente.
+        let englishSoul = soul.range(of: #"(?m)^## What I learned[ \t]*$"#, options: .regularExpression) != nil
+            || (soul.range(of: #"(?m)^## Cosa ho imparato[ \t]*$"#, options: .regularExpression) == nil && Language.isEnglish)
+        let heading = englishSoul ? "## What I learned" : "## Cosa ho imparato"
         let day = date.localDay
         var text = soul
         // La sezione vera è un titolo a inizio riga (non una citazione dentro un blocco di codice).
         func headingRange(_ text: String) -> Range<String.Index>? {
-            text.range(of: #"(?m)^## Cosa ho imparato[ \t]*$"#, options: .regularExpression)
+            text.range(of: "(?m)^\(heading)[ \\t]*$", options: .regularExpression)
         }
         if headingRange(text) == nil { text += (text.hasSuffix("\n") ? "" : "\n") + "\n\(heading)\n" }
         guard let range = headingRange(text) else { return text }
@@ -514,16 +682,30 @@ extension Assistant {
 }
 
 extension Assistant {
-    private static let heartbeatSchema = makeSchema("Controllo", [
+    private static var heartbeatSchema: GenerationSchema { Language.isEnglish ? englishHeartbeatSchema : italianHeartbeatSchema }
+
+    private static let italianHeartbeatSchema = makeSchema("Controllo", [
         .required("agire", .bool, "true solo se nei dati c'è qualcosa di nuovo che richiede davvero il lavoro dell'agente adesso"),
         .required("motivo", .string, "In una frase, perché agire o no"),
     ])
 
+    private static let englishHeartbeatSchema = makeSchema("Controllo", [
+        .required("agire", .bool, "true only if the data contains something new that really needs the agent's work now"),
+        .required("motivo", .string, "In one sentence, why act or not"),
+    ])
+
     /// Heartbeat: guarda la situazione (agenda, promemoria, posta non letta) e decide se vale la pena avviare l'agente.
     public func shouldAct(_ agent: AgentSpec, snapshot: String) async -> (act: Bool, reason: String) {
-        let session = LanguageModelSession(model: Agent.model, instructions: "Decidi se un agente automatico deve lavorare adesso. Sii prudente: agisci solo se c'è qualcosa di nuovo e pertinente al suo obiettivo.")
-        guard let content = try? await session.respond(to: "Agente: \(agent.displayName)\nObiettivo: \(agent.goal)\nUltima esecuzione: \(agent.lastRun.map { Dates.format($0) } ?? "mai")\n\nSituazione adesso:\n\(snapshot.prefix(2500))",
-                                                        schema: Self.heartbeatSchema, options: GenerationOptions(samplingMode: .greedy)).content else { return (false, "controllo non riuscito") }
+        let english = Language.isEnglish
+        let session = LanguageModelSession(model: Agent.model, instructions: english
+            ? "Decide whether an automatic agent should work now. Be cautious: act only if there is something new and relevant to its goal."
+            : "Decidi se un agente automatico deve lavorare adesso. Sii prudente: agisci solo se c'è qualcosa di nuovo e pertinente al suo obiettivo.")
+        let lastRun = agent.lastRun.map { Dates.format($0) } ?? Language.t("mai", "never")
+        let request = english
+            ? "Agent: \(agent.displayName)\nGoal: \(agent.goal)\nLast run: \(lastRun)\n\nSituation now:\n\(snapshot.prefix(2500))"
+            : "Agente: \(agent.displayName)\nObiettivo: \(agent.goal)\nUltima esecuzione: \(lastRun)\n\nSituazione adesso:\n\(snapshot.prefix(2500))"
+        guard let content = try? await session.respond(to: request, schema: Self.heartbeatSchema, options: GenerationOptions(samplingMode: .greedy)).content
+        else { return (false, Language.t("controllo non riuscito", "check failed")) }
         return (content.bool("agire") ?? false, content.string("motivo") ?? "")
     }
 }
