@@ -40,12 +40,12 @@ public enum CodeSnapshot {
     public static func restore(_ project: URL, to snapshot: String) async -> Restore {
         var outcome = Restore()
         guard validSnapshot(snapshot) else {
-            outcome.error = "Identificatore del punto di ripristino non valido."
+            outcome.error = Language.t("Identificatore del punto di ripristino non valido.", "Invalid restore point identifier.")
             return outcome
         }
         // Prima una fotografia dello stato attuale (così anche il ripristino si può annullare).
         guard await take(project, label: "prima del ripristino") != nil else {
-            outcome.error = "Non riesco a leggere lo stato attuale del progetto."
+            outcome.error = Language.t("Non riesco a leggere lo stato attuale del progetto.", "Couldn't read the current state of the project.")
             return outcome
         }
         let diff = await Shell.run("cd \(Shell.quote(project.path)) && \(git(project, "diff --name-status -z --no-renames \(Shell.quote(snapshot)) HEAD"))", timeout: 120)
@@ -56,11 +56,17 @@ public enum CodeSnapshot {
                 do {
                     try FileManager.default.trashItem(at: url, resultingItemURL: nil)
                     outcome.trashed.append(path)
-                } catch { outcome.error = "Ripristino parziale: impossibile spostare nel Cestino «\(path)»: \(error.localizedDescription)" }
+                } catch {
+                    outcome.error = Language.t("Ripristino parziale: impossibile spostare nel Cestino «\(path)»: \(error.localizedDescription)",
+                                               "Partial restore: couldn't move “\(path)” to the Trash: \(error.localizedDescription)")
+                }
             } else {
                 let result = await Shell.run("cd \(Shell.quote(project.path)) && \(git(project, "checkout \(Shell.quote(snapshot)) -- \(Shell.quote(path))"))", timeout: 60)
                 if result.status == 0 { outcome.restored.append(path) }
-                else { outcome.error = "Ripristino parziale: impossibile ripristinare «\(path)». \(result.output.prefix(200))" }
+                else {
+                    outcome.error = Language.t("Ripristino parziale: impossibile ripristinare «\(path)». \(result.output.prefix(200))",
+                                               "Partial restore: couldn't restore “\(path)”. \(result.output.prefix(200))")
+                }
             }
         }
         return outcome
@@ -108,11 +114,11 @@ public struct DevCommand: Sendable, Equatable {
             if scripts["start"] != nil { return DevCommand(kind: .server, command: install + "npm start", label: "npm start") }
         }
         if let project = (try? fm.contentsOfDirectory(atPath: folder.path))?.first(where: { $0.hasSuffix(".xcodeproj") || $0.hasSuffix(".xcworkspace") }) {
-            return DevCommand(kind: .xcode, command: "open \(Shell.quote(folder.appending(path: project).path))", label: "Apri in Xcode")
+            return DevCommand(kind: .xcode, command: "open \(Shell.quote(folder.appending(path: project).path))", label: Language.t("Apri in Xcode", "Open in Xcode"))
         }
         if exists("Package.swift") { return DevCommand(kind: .run, command: "swift run", label: "swift run") }
         for page in ["index.html", "public/index.html", "src/index.html", "docs/index.html"] where exists(page) {
-            return DevCommand(kind: .staticPage, command: "", label: "Apri la pagina", page: folder.appending(path: page))
+            return DevCommand(kind: .staticPage, command: "", label: Language.t("Apri la pagina", "Open the page"), page: folder.appending(path: page))
         }
         if exists("main.py") { return DevCommand(kind: .run, command: "python3 main.py", label: "python3 main.py") }
         return nil
@@ -138,10 +144,10 @@ public enum CodeTemplate: String, CaseIterable, Identifiable, Sendable {
 
     public var label: String {
         switch self {
-        case .sito: "Sito web"
-        case .webapp: "App web (React + Vite)"
-        case .swiftui: "App per Mac e iPhone (SwiftUI)"
-        case .vuoto: "Progetto vuoto"
+        case .sito: Language.t("Sito web", "Website")
+        case .webapp: Language.t("App web (React + Vite)", "Web app (React + Vite)")
+        case .swiftui: Language.t("App per Mac e iPhone (SwiftUI)", "Mac and iPhone app (SwiftUI)")
+        case .vuoto: Language.t("Progetto vuoto", "Empty project")
         }
     }
 
@@ -156,15 +162,20 @@ public enum CodeTemplate: String, CaseIterable, Identifiable, Sendable {
 
     public var summary: String {
         switch self {
-        case .sito: "HTML, CSS e JavaScript: landing page, portfolio, sito vetrina. Anteprima immediata."
-        case .webapp: "Applicazione interattiva con React, TypeScript e Vite, avviata con npm run dev."
-        case .swiftui: "App nativa Apple con SwiftUI, da aprire e avviare in Xcode."
-        case .vuoto: "Una cartella con le regole per l'agente: decidi tu cosa costruire."
+        case .sito: Language.t("HTML, CSS e JavaScript: landing page, portfolio, sito vetrina. Anteprima immediata.",
+                               "HTML, CSS and JavaScript: landing page, portfolio, showcase site. Instant preview.")
+        case .webapp: Language.t("Applicazione interattiva con React, TypeScript e Vite, avviata con npm run dev.",
+                                 "Interactive app with React, TypeScript and Vite, started with npm run dev.")
+        case .swiftui: Language.t("App nativa Apple con SwiftUI, da aprire e avviare in Xcode.",
+                                  "Native Apple app with SwiftUI, to open and run in Xcode.")
+        case .vuoto: Language.t("Una cartella con le regole per l'agente: decidi tu cosa costruire.",
+                                "A folder with the rules for the agent: you decide what to build.")
         }
     }
 
     /// Regole per Codex nel progetto creato dall'app.
     public func agentsFile(name: String) -> String {
+        if Language.isEnglish { return englishAgentsFile(name: name) }
         let common = """
         # \(name)
 
@@ -204,9 +215,58 @@ public enum CodeTemplate: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// Le stesse regole in inglese: l'agente risponde e commenta in inglese.
+    private func englishAgentsFile(name: String) -> String {
+        let common = """
+        # \(name)
+
+        ## How to work
+        - Reply and write comments in English; code and file names in English too.
+        - Make small, verifiable changes; after every important change check that the project still starts.
+        - Don't delete files without asking. Don't add unnecessary dependencies.
+        - At the end, summarize what you changed and how to try it.
+        """
+        switch self {
+        case .sito:
+            return common + """
+
+
+            ## Project
+            Static website: `index.html`, `style.css`, `script.js` (no framework). Responsive, accessible (contrast, alt text), \
+            light and dark theme with `prefers-color-scheme`, lightweight images. Try it by opening `index.html`.
+            """
+        case .webapp:
+            return common + """
+
+
+            ## Project
+            React + TypeScript with Vite. Start: `npm install` and `npm run dev`. Small components in `src/components`, \
+            styling with modern CSS (no UI libraries unless they're needed). Check the types with `npx tsc --noEmit`.
+            """
+        case .swiftui:
+            return common + """
+
+
+            ## Project
+            SwiftUI app (Swift 6, macOS and iOS). Simple architecture with `@Observable`. Working Xcode project \
+            (`.xcodeproj`). Build it with `xcodebuild` before saying you're done.
+            """
+        case .vuoto:
+            return common
+        }
+    }
+
     /// Prima richiesta all'agente, dopo la descrizione dell'utente.
     public func bootstrap(_ description: String) -> String {
         let wish = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        if Language.isEnglish {
+            switch self {
+            case .sito: return "Create the website: \(wish.isEmpty ? "an elegant presentation page" : wish). Use index.html, style.css and script.js."
+            case .webapp: return "Create the web app from scratch with Vite, React and TypeScript in the current folder (no subfolders): \(wish.isEmpty ? "a small sample app" : wish). Install the dependencies and check that `npm run build` works."
+            case .swiftui: return "Create the SwiftUI app in the current folder: \(wish.isEmpty ? "a sample app with a list and a detail view" : wish). Create a working Xcode project (.xcodeproj) and check that it builds with xcodebuild."
+            case .vuoto: return wish
+            }
+        }
         switch self {
         case .sito: return "Crea il sito: \(wish.isEmpty ? "una pagina di presentazione elegante" : wish). Usa index.html, style.css e script.js."
         case .webapp: return "Crea da zero l'app web con Vite, React e TypeScript nella cartella attuale (senza sottocartelle): \(wish.isEmpty ? "una piccola app di esempio" : wish). Installa le dipendenze e verifica che `npm run build` funzioni."
