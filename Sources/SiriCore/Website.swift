@@ -34,8 +34,9 @@ extension Assistant {
 
     /// Pagina web completa (index.html + style.css) sull'argomento richiesto.
     public func generateWebsite(topic: String) async throws -> WebsiteDraft {
-        let role = "Sei un copywriter e web designer: scrivi i contenuti di una pagina web moderna, concreta e persuasiva, in italiano."
-        let request = "Crea una pagina web per: \(topic)"
+        let role = Language.t("Sei un copywriter e web designer: scrivi i contenuti di una pagina web moderna, concreta e persuasiva, in italiano.",
+                              "You are a copywriter and web designer: write the content of a modern, concrete and persuasive web page, in English.")
+        let request = Language.t("Crea una pagina web per: ", "Create a web page for: ") + topic
         var title: String, subtitle: String, button: String, closing: String, dark: Bool, accent: String
         var features: [(icon: String, title: String, text: String)]
         var sections: [(title: String, text: String, points: [String])]
@@ -98,7 +99,7 @@ public enum WebsiteTemplate {
         let nav = sections.enumerated().map { "<a href=\"#sezione-\($0.offset + 1)\">\(e($0.element.title))</a>" }.prefix(4).joined(separator: "\n                ")
         return """
         <!doctype html>
-        <html lang="it">
+        <html lang="\(Language.current.rawValue)">
         <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">

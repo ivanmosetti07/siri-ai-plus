@@ -13,7 +13,7 @@ public struct LabeledField: Identifiable, Sendable, Equatable, Hashable {
 
     /// «cellulare», «casa», «lavoro»… nella lingua del Mac.
     public var localizedLabel: String {
-        label.isEmpty ? "altro" : CNLabeledValue<NSString>.localizedString(forLabel: label)
+        label.isEmpty ? Language.t("altro", "other") : CNLabeledValue<NSString>.localizedString(forLabel: label)
     }
 }
 
@@ -30,7 +30,7 @@ public struct PostalField: Identifiable, Sendable, Equatable, Hashable {
         self.label = label; self.street = street; self.city = city; self.postalCode = postalCode; self.state = state; self.country = country
     }
 
-    public var localizedLabel: String { label.isEmpty ? "altro" : CNLabeledValue<NSString>.localizedString(forLabel: label) }
+    public var localizedLabel: String { label.isEmpty ? Language.t("altro", "other") : CNLabeledValue<NSString>.localizedString(forLabel: label) }
 
     /// Su una riga, per le Mappe.
     public var oneLine: String {
@@ -78,7 +78,7 @@ public struct ContactCard: Sendable, Equatable {
 
     public var displayName: String {
         let name = [givenName, familyName].filter { !$0.isEmpty }.joined(separator: " ")
-        return name.isEmpty ? (organization.isEmpty ? "Senza nome" : organization) : name
+        return name.isEmpty ? (organization.isEmpty ? Language.t("Senza nome", "No Name") : organization) : name
     }
 }
 
@@ -122,10 +122,12 @@ public enum ContactsStore {
     static func summary(_ contact: CNContact) -> ContactSummary {
         let person = [contact.givenName, contact.familyName].filter { !$0.isEmpty }.joined(separator: " ")
         let isCompany = contact.contactType == .organization || person.isEmpty
-        let name = isCompany ? (contact.organizationName.isEmpty ? (contact.nickname.isEmpty ? "Senza nome" : contact.nickname) : contact.organizationName) : person
+        // Lo stesso testo serve sotto per riconoscere chi non ha nome.
+        let unnamed = Language.t("Senza nome", "No Name")
+        let name = isCompany ? (contact.organizationName.isEmpty ? (contact.nickname.isEmpty ? unnamed : contact.nickname) : contact.organizationName) : person
         let detail = contact.phoneNumbers.first?.value.stringValue ?? (contact.emailAddresses.first?.value as String?) ?? ""
         // Come in Contatti: per cognome, poi per nome (le aziende per nome).
-        let key = name == "Senza nome" ? "" : isCompany ? name : [contact.familyName, contact.givenName].filter { !$0.isEmpty }.joined(separator: " ")
+        let key = name == unnamed ? "" : isCompany ? name : [contact.familyName, contact.givenName].filter { !$0.isEmpty }.joined(separator: " ")
         return ContactSummary(id: contact.identifier, name: name, organization: isCompany ? "" : contact.organizationName,
                               detail: detail, sortKey: key.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Dates.locale),
                               isCompany: isCompany)
@@ -162,7 +164,7 @@ public enum ContactsStore {
             } else {
                 guard let existing = try? store.unifiedContact(withIdentifier: card.id, keysToFetch: cardKeys),
                       let mutable = existing.mutableCopy() as? CNMutableContact else {
-                    throw storeError("Il contatto non esiste più.")
+                    throw storeError(Language.t("Il contatto non esiste più.", "The contact no longer exists."))
                 }
                 contact = mutable
             }
@@ -188,7 +190,7 @@ public enum ContactsStore {
             }
             contact.birthday = card.birthday
             guard !contact.givenName.isEmpty || !contact.familyName.isEmpty || !contact.organizationName.isEmpty else {
-                throw storeError("Scrivi almeno un nome o un'azienda.")
+                throw storeError(Language.t("Scrivi almeno un nome o un'azienda.", "Enter at least a name or a company."))
             }
             contact.contactType = contact.givenName.isEmpty && contact.familyName.isEmpty ? .organization : .person
             if card.isNew { request.add(contact, toContainerWithIdentifier: nil) } else { request.update(contact) }
@@ -200,7 +202,7 @@ public enum ContactsStore {
     public static func delete(_ id: String) throws {
         try lock.withLock {
             guard let existing = try? store.unifiedContact(withIdentifier: id, keysToFetch: [CNContactIdentifierKey as CNKeyDescriptor]),
-                  let mutable = existing.mutableCopy() as? CNMutableContact else { throw storeError("Il contatto non esiste più.") }
+                  let mutable = existing.mutableCopy() as? CNMutableContact else { throw storeError(Language.t("Il contatto non esiste più.", "The contact no longer exists.")) }
             let request = CNSaveRequest()
             request.delete(mutable)
             try store.execute(request)
@@ -224,7 +226,7 @@ public enum ContactsStore {
     public static func renameGroup(_ id: String, to name: String) throws {
         try lock.withLock {
             guard let group = try store.groups(matching: CNGroup.predicateForGroups(withIdentifiers: [id])).first,
-                  let mutable = group.mutableCopy() as? CNMutableGroup else { throw storeError("Il gruppo non esiste più.") }
+                  let mutable = group.mutableCopy() as? CNMutableGroup else { throw storeError(Language.t("Il gruppo non esiste più.", "The group no longer exists.")) }
             mutable.name = name
             let request = CNSaveRequest()
             request.update(mutable)
@@ -236,7 +238,7 @@ public enum ContactsStore {
     public static func deleteGroup(_ id: String) throws {
         try lock.withLock {
             guard let group = try store.groups(matching: CNGroup.predicateForGroups(withIdentifiers: [id])).first,
-                  let mutable = group.mutableCopy() as? CNMutableGroup else { throw storeError("Il gruppo non esiste più.") }
+                  let mutable = group.mutableCopy() as? CNMutableGroup else { throw storeError(Language.t("Il gruppo non esiste più.", "The group no longer exists.")) }
             let request = CNSaveRequest()
             request.delete(mutable)
             try store.execute(request)
@@ -247,7 +249,7 @@ public enum ContactsStore {
         try lock.withLock {
             guard let group = try store.groups(matching: CNGroup.predicateForGroups(withIdentifiers: [groupID])).first,
                   let contact = try? store.unifiedContact(withIdentifier: contactID, keysToFetch: [CNContactIdentifierKey as CNKeyDescriptor]) else {
-                throw storeError("Contatto o gruppo non trovato.")
+                throw storeError(Language.t("Contatto o gruppo non trovato.", "Contact or group not found."))
             }
             let request = CNSaveRequest()
             if member { request.addMember(contact, to: group) } else { request.removeMember(contact, from: group) }

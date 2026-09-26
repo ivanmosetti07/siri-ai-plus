@@ -336,8 +336,17 @@ public final class ProjectGuide: @unchecked Sendable {
 
     // MARK: File pertinenti a una richiesta
 
-    /// Parole che non dicono di cosa si parla.
-    static let stopwords: Set<String> = Set(Keywords.stopwords).union([
+    /// Parole che non dicono di cosa si parla (in inglese si aggiungono quelle inglesi).
+    static var stopwords: Set<String> { Language.isEnglish ? englishStopwords : italianStopwords }
+
+    private static let englishStopwords: Set<String> = italianStopwords.union(Keywords.englishStopwords).union([
+        "what", "how", "where", "when", "which", "why", "always", "before", "after", "also", "only", "open", "read", "show", "look",
+        "tell", "want", "would", "could", "should", "can", "please", "make", "done", "this", "that", "these", "those", "all", "every",
+        "request", "answer", "line", "lines", "above", "below", "here", "other", "not", "never", "more", "less", "very", "already",
+        "still", "then", "without", "inside", "folder", "folders", "project", "projects", "file", "files",
+    ])
+
+    private static let italianStopwords: Set<String> = Set(Keywords.stopwords).union([
         "cosa", "come", "dove", "quando", "quale", "quali", "quanto", "quanti", "perche", "sempre", "prima", "dopo", "anche", "solo",
         "file", "apri", "aprila", "aprilo", "aprire", "leggi", "legge", "vedi", "guarda", "dimmi", "fammi", "voglio", "vorrei", "posso", "devo",
         "puoi", "fare", "fatto", "sono", "essere", "avere", "stai", "sta", "questo", "questa", "questi", "queste", "tutto", "tutti", "ogni",

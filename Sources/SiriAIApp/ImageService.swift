@@ -6,7 +6,7 @@ import SiriCore
 /// Generazione di immagini sul dispositivo con Image Playground (stili Animazione, Illustrazione, Schizzo).
 @MainActor
 enum ImageService {
-    static let styles: [(id: String, label: String)] = [("animazione", "Animazione"), ("illustrazione", "Illustrazione"), ("schizzo", "Schizzo")]
+    static let styles: [(id: String, label: String)] = [("animazione", String(localized: "Animazione")), ("illustrazione", String(localized: "Illustrazione")), ("schizzo", String(localized: "Schizzo"))]
 
     static func style(_ id: String?) -> ImagePlaygroundStyle {
         switch id {
@@ -16,14 +16,14 @@ enum ImageService {
         }
     }
 
-    static func label(_ id: String) -> String { styles.first { $0.id == id }?.label ?? "Animazione" }
+    static func label(_ id: String) -> String { styles.first { $0.id == id }?.label ?? String(localized: "Animazione") }
 
     enum ServiceError: LocalizedError {
         case unavailable, nothing
         var errorDescription: String? {
             switch self {
-            case .unavailable: "Image Playground non è disponibile su questo Mac: controlla che Apple Intelligence sia attiva."
-            case .nothing: "Non è stata generata nessuna immagine. Prova a descriverla in modo diverso."
+            case .unavailable: String(localized: "Image Playground non è disponibile su questo Mac: controlla che Apple Intelligence sia attiva.")
+            case .nothing: String(localized: "Non è stata generata nessuna immagine. Prova a descriverla in modo diverso.")
             }
         }
     }

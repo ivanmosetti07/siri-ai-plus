@@ -15,7 +15,7 @@ struct AppHeader<Actions: View>: View {
     let title: String
     var subtitle: String?
     var search: Binding<String>?
-    var searchPrompt = "Cerca"
+    var searchPrompt = String(localized: "Cerca")
     var onSearch: (() -> Void)?
     var onRefresh: (() -> Void)?
     @ViewBuilder var actions: Actions
@@ -54,7 +54,7 @@ struct AppHeader<Actions: View>: View {
             .menuIndicator(.hidden)
             .buttonStyle(.borderless)
             .fixedSize()
-            .iconHelp("Altro")
+            .iconHelp(String(localized: "Altro"))
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 12)
@@ -70,7 +70,7 @@ extension AppHeader where Actions == EmptyView {
 /// Campo di ricerca arrotondato, come nelle barre degli strumenti di macOS.
 struct AppSearchField: View {
     @Binding var text: String
-    var prompt = "Cerca"
+    var prompt = String(localized: "Cerca")
     var onSubmit: (() -> Void)?
 
     var body: some View {
@@ -84,7 +84,7 @@ struct AppSearchField: View {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
                 }
                 .buttonStyle(.plain)
-                .iconHelp("Cancella la ricerca")
+                .iconHelp(String(localized: "Cancella la ricerca"))
             }
         }
         .font(.system(size: 13))
@@ -392,7 +392,7 @@ extension Date {
     var listStamp: String {
         let cal = Calendar.current
         if cal.isDateInToday(self) { return formatted(.dateTime.hour().minute().locale(Dates.locale)) }
-        if cal.isDateInYesterday(self) { return "Ieri" }
+        if cal.isDateInYesterday(self) { return String(localized: "Ieri") }
         if let days = cal.dateComponents([.day], from: cal.startOfDay(for: self), to: cal.startOfDay(for: .now)).day, days < 7 {
             return formatted(.dateTime.weekday(.wide).locale(Dates.locale)).capitalized
         }

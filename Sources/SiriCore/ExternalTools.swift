@@ -9,7 +9,15 @@ public enum ExternalAgent {
     public typealias TextUpdate = @MainActor @Sendable (String?) -> Void
     public typealias StatusUpdate = @MainActor @Sendable (String) -> Void
 
-    static let toolGuide = """
+    static var toolGuide: String { Language.isEnglish ? englishToolGuide : italianToolGuide }
+
+    static let englishToolGuide = """
+    You have the app's tools on the user's Mac: use them when real data is needed (calendar, reminders, email, notes, \
+    project files, web, connectors) instead of answering from memory. Whatever creates, changes or sends something only prepares a card \
+    that the user confirms: don't say it's already done, say it's ready to confirm. Don't make up data the tools didn't return.
+    """
+
+    static let italianToolGuide = """
     Hai a disposizione gli strumenti dell'app sul Mac dell'utente: usali quando servono dati reali (calendario, promemoria, email, note, \
     file del progetto, web, connettori) invece di rispondere a memoria. Ciò che crea, modifica o invia qualcosa prepara solo una scheda \
     che l'utente conferma: non dire che è già fatto, di' che è pronto da confermare. Non inventare dati che gli strumenti non hanno restituito.
@@ -34,7 +42,9 @@ public enum ExternalAgent {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONValue.object(body).data()
             let (bytes, response) = try await URLSession.shared.bytes(for: request)
-            guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw EngineError.unavailable("Il modello locale non risponde.") }
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+                throw EngineError.unavailable(Language.t("Il modello locale non risponde.", "The local model isn't responding."))
+            }
             var text = ""
             var reasoning = false
             var calls: [Int: (id: String, name: String, arguments: String)] = [:]
@@ -44,7 +54,7 @@ public enum ExternalAgent {
                 guard let json = try? JSONValue.parse(Data(payload.utf8)), let delta = json["choices"]?.array?.first?["delta"] else { continue }
                 if !reasoning, delta["reasoning_content"]?.string?.isEmpty == false {
                     reasoning = true
-                    await onStatus("\(name) sta ragionando…")
+                    await onStatus(Language.t("\(name) sta ragionando…", "\(name) is thinking…"))
                 }
                 if let piece = delta["content"]?.string, !piece.isEmpty {
                     text += piece
@@ -77,7 +87,7 @@ public enum ExternalAgent {
                 }),
             ]))
             for (index, toolCall) in ordered.enumerated() {
-                await onStatus("\(name) usa «\(toolCall.name)»…")
+                await onStatus(Language.t("\(name) usa «\(toolCall.name)»…", "\(name) is using «\(toolCall.name)»…"))
                 let arguments = (try? JSONValue.parse(Data(toolCall.arguments.utf8))) ?? .object([:])
                 let result = await call(toolCall.name, arguments)
                 messages.append(.object(["role": .string("tool"), "tool_call_id": .string(toolCall.id.isEmpty ? "call_\(round)_\(index)" : toolCall.id),
@@ -221,6 +231,12 @@ public enum ExternalAgent {
     }
 
     static func transcript(system: String, history: [ChatTurn], prompt: String, tools: Bool) -> String {
+        if Language.isEnglish {
+            let conversation = history.map { "\($0.role == .user ? "User" : "Assistant"): \($0.text)" }.joined(separator: "\n\n")
+            return "\(system)\n\n" + (tools ? toolGuide + " The tools are those of the «siriai» MCP server; don't use the shell and don't edit files directly.\n\n" : "")
+                + (conversation.isEmpty ? "" : "Previous conversation:\n\(conversation)\n\n") + "Request:\n\(prompt)"
+                + (tools ? "" : "\n\nAnswer only with the text of the answer, without using tools or editing files.")
+        }
         let conversation = history.map { "\($0.role == .user ? "Utente" : "Assistente"): \($0.text)" }.joined(separator: "\n\n")
         return "\(system)\n\n" + (tools ? toolGuide + " Gli strumenti sono quelli del server MCP «siriai»; non usare la shell né modificare file direttamente.\n\n" : "")
             + (conversation.isEmpty ? "" : "Conversazione precedente:\n\(conversation)\n\n") + "Richiesta:\n\(prompt)"
@@ -261,6 +277,8 @@ public enum ExternalAgent {
         }
         command += " -"
         let collector = LineCollector()
+        // Le righe arrivano fuori dalla richiesta: la lingua si prende prima.
+        let language = Language.current
         let result = await Shell.run(command, timeout: 900, input: input) { line in
             guard let event = try? JSONValue.parse(Data(line.utf8)), let item = event["item"] else { return }
             let type = item["type"]?.string ?? ""
@@ -270,16 +288,21 @@ public enum ExternalAgent {
             } else if event["type"]?.string == "item.started", type.contains("tool") {
                 let tool = item["tool"]?.string ?? item["name"]?.string ?? "uno strumento"
                 collector.breakMessage()
-                Task { @MainActor in onText(nil); onStatus("ChatGPT usa «\(tool)»…") }
+                let label = language == .en ? "ChatGPT is using «\(tool)»…" : "ChatGPT usa «\(tool)»…"
+                Task { @MainActor in onText(nil); onStatus(label) }
             }
         }
         let text = collector.text
         if !text.isEmpty { return text }
-        if result.output.contains("command not found") { throw EngineError.unavailable("La CLI Codex non è installata: installala in Impostazioni › Modelli.") }
-        if result.output.lowercased().contains("login") || result.output.contains("401") {
-            throw EngineError.unavailable("Accedi con il tuo account ChatGPT in Impostazioni › Modelli.")
+        if result.output.contains("command not found") {
+            throw EngineError.unavailable(Language.t("La CLI Codex non è installata: installala in Impostazioni › Modelli.",
+                                                     "The Codex CLI isn't installed: install it in Settings › Models."))
         }
-        throw EngineError.failed("ChatGPT non ha risposto: \(result.output.suffix(300))")
+        if result.output.lowercased().contains("login") || result.output.contains("401") {
+            throw EngineError.unavailable(Language.t("Accedi con il tuo account ChatGPT in Impostazioni › Modelli.",
+                                                     "Sign in with your ChatGPT account in Settings › Models."))
+        }
+        throw EngineError.failed(Language.t("ChatGPT non ha risposto: ", "ChatGPT didn't answer: ") + result.output.suffix(300))
     }
 
     /// `-m modello -c model_reasoning_effort=…` (solo se scelti).
@@ -339,6 +362,8 @@ public enum ExternalAgent {
         }
         let collector = LineCollector()
         let failure = LineCollector()
+        // Le righe arrivano fuori dalla richiesta: la lingua si prende prima.
+        let language = Language.current
         let result = await Shell.run(command, timeout: 900, input: input) { line in
             guard let event = try? JSONValue.parse(Data(line.utf8)) else { return }
             switch event["type"]?.string {
@@ -352,7 +377,8 @@ public enum ExternalAgent {
                     let name = inner?["content_block"]?["name"]?.string ?? "uno strumento"
                     let tool = name.hasPrefix("mcp__siriai__") ? String(name.dropFirst("mcp__siriai__".count)) : name
                     collector.breakMessage()
-                    Task { @MainActor in onText(nil); onStatus("Claude usa «\(tool)»…") }
+                    let label = language == .en ? "Claude is using «\(tool)»…" : "Claude usa «\(tool)»…"
+                    Task { @MainActor in onText(nil); onStatus(label) }
                 }
             case "result":
                 if event["is_error"] == .bool(true) || event["subtype"]?.string != "success" {

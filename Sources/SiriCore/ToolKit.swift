@@ -15,7 +15,7 @@ public enum Hooks {
     /// Chiede all'utente di approvare un'azione che modifica i dati.
     nonisolated(unsafe) public static var confirm: @Sendable (String) async -> Bool = { summary in
         print("\n\u{1B}[33m⚠️  \(summary)\u{1B}[0m")
-        print("   Confermi? [s/N] ", terminator: "")
+        print(Language.t("   Confermi? [s/N] ", "   Confirm? [y/N] "), terminator: "")
         fflush(stdout)
         let answer = readLine()?.trimmingCharacters(in: .whitespaces).lowercased() ?? ""
         return ["s", "si", "sì", "y", "yes"].contains(answer)

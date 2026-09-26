@@ -59,7 +59,7 @@ struct GetEventsTool: Tool {
                 : "\(Dates.format(event.startDate))–\(Dates.format(event.endDate).suffix(5))"
             var details = [when, "calendario \(event.calendar.title)"]
             if let loc = event.location, !loc.isEmpty { details.append("luogo \(loc)") }
-            return "[\(id)] «\(event.title ?? "(senza titolo)")» (\(details.joined(separator: ", ")))"
+            return "[\(id)] «\(event.title ?? Language.t("(senza titolo)", "(untitled)"))» (\(details.joined(separator: ", ")))"
         }
         let extra = events.count > 25 ? "\n…e altri \(events.count - 25) eventi." : ""
         return lines.joined(separator: "\n") + extra
@@ -140,7 +140,7 @@ struct DeleteEventTool: Tool {
         }) ?? ek.event(withIdentifier: ref.identifier) else {
             return "Errore: evento non più presente."
         }
-        let title = event.title ?? "(senza titolo)"
+        let title = event.title ?? Language.t("(senza titolo)", "(untitled)")
         guard await Console.confirm("Elimino evento «\(title)» del \(Dates.format(event.startDate))") else {
             return "L'utente ha annullato l'eliminazione."
         }

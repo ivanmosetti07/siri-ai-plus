@@ -2,6 +2,7 @@ import AVFoundation
 import Foundation
 import Observation
 import Speech
+import SiriCore
 
 /// Dettatura in italiano, riconosciuta sul dispositivo quando il Mac lo supporta.
 @MainActor @Observable
@@ -19,7 +20,8 @@ final class Dictation {
     }
 
     private var session: Session?
-    private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "it-IT"))
+    /// Si detta nella lingua dell'interfaccia.
+    private let recognizer = SFSpeechRecognizer(locale: Language.system.locale)
     private var onFinish: ((String) -> Void)?
 
     func toggle(onFinish: @escaping (String) -> Void) {
@@ -30,11 +32,11 @@ final class Dictation {
         error = nil
         let status = await Self.authorization()
         guard status == .authorized else {
-            error = "Consenti il riconoscimento vocale in Impostazioni di Sistema › Privacy e sicurezza."
+            error = String(localized: "Consenti il riconoscimento vocale in Impostazioni di Sistema › Privacy e sicurezza.")
             return
         }
         guard let recognizer, recognizer.isAvailable else {
-            error = "Il riconoscimento vocale in italiano non è disponibile."
+            error = String(localized: "Il riconoscimento vocale in italiano non è disponibile.")
             return
         }
 
@@ -49,7 +51,7 @@ final class Dictation {
             try session.engine.start()
         } catch {
             input.removeTap(onBus: 0)
-            self.error = "Microfono non disponibile: \(error.localizedDescription)"
+            self.error = String(localized: "Microfono non disponibile: \(error.localizedDescription)")
             return
         }
 

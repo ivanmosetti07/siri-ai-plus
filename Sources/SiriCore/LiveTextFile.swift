@@ -12,10 +12,12 @@ public enum LiveTextFile {
 
         public var errorDescription: String? {
             switch self {
-            case .notText: "Il file non è testo UTF-8 modificabile. Aprilo nell'app originale."
-            case .tooLarge: "Il file supera 2 MB: aprilo nell'app originale."
-            case .changed: "Il file è stato modificato anche fuori da Siri AI+. Ricaricalo prima di salvare."
-            case .missing: "Il file non esiste più nel percorso originale."
+            case .notText: Language.t("Il file non è testo UTF-8 modificabile. Aprilo nell'app originale.",
+                                      "The file isn't editable UTF-8 text. Open it in its original app.")
+            case .tooLarge: Language.t("Il file supera 2 MB: aprilo nell'app originale.", "The file is larger than 2 MB: open it in its original app.")
+            case .changed: Language.t("Il file è stato modificato anche fuori da Siri AI+. Ricaricalo prima di salvare.",
+                                      "The file was also changed outside Siri AI+. Reload it before saving.")
+            case .missing: Language.t("Il file non esiste più nel percorso originale.", "The file no longer exists at its original path.")
             }
         }
     }

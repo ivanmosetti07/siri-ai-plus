@@ -282,6 +282,14 @@ import Testing
 }
 
 @Suite @MainActor struct ChatRequestTests {
+    @Test func createsGeniusByName() {
+        let assistant = Assistant()
+        var plan = Assistant.Plan(action: .rispondi, fields: [:])
+        let prompt = "crea un Genius per la rassegna stampa"
+        #expect(assistant.chatRules(to: &plan, prompt: prompt, lower: prompt.lowercased()))
+        #expect(plan.action == .crea_agente)
+    }
+
     @Test func parsesChatRequests() {
         let assistant = Assistant()
         var work = WorkContext()
@@ -361,6 +369,20 @@ import Testing
 }
 
 @Suite @MainActor struct AgentFolderTests {
+    @Test func roleIconBehindGenmojiFollowsTheWorkAndKeepsManualChoice() {
+        var news = AgentSpec(name: "Rassegna stampa", goal: "Riassumi le notizie con le fonti")
+        #expect(news.roleSymbol == "newspaper.fill")
+        #expect(AgentSpec.suggestedSymbol(for: "Analisi vendite e KPI") == "chart.line.uptrend.xyaxis")
+        #expect(AgentSpec.suggestedSymbol(for: "Gestisci il calendario") == "calendar")
+        #expect(AgentSpec.suggestedSymbol(for: "Helen - Segreteria: Dammi il Daily Brief") == "briefcase.fill")
+        news.symbol = "heart.fill"
+        #expect(news.roleSymbol == "heart.fill")
+        news.avatarPath = "/tmp/genmoji-esempio.genmoji"
+        #expect(news.hasGenmoji)
+        news.avatarPath = "/tmp/avatar-vecchio.png"
+        #expect(!news.hasGenmoji)
+    }
+
     @Test func linkedFoldersWithPermissions() throws {
         let base = FileManager.default.temporaryDirectory.appending(path: "agent-\(UUID().uuidString)")
         let docs = base.appending(path: "Documenti"), notes = base.appending(path: "Appunti"), workspace = base.appending(path: "ws")
@@ -388,6 +410,39 @@ import Testing
         let soul = Assistant.soul(agent.defaultSoul, adding: ["Rispondere prima alle email dei clienti"])
         #expect(soul.contains("Rispondere prima alle email dei clienti"))
         #expect(soul.contains("## Valori"))
+    }
+}
+
+@Suite @MainActor struct GeniusSkillTests {
+    @Test func privateSkillIsUsedOnlyByItsGenius() throws {
+        // test.sh fornisce una cartella dati isolata: non creare skill nei dati personali durante i test.
+        guard AppPaths.isTestEnvironment else { return }
+        let owner = UUID(), other = UUID()
+        let cue = "rassegnaunica" + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+        let name = "Rassegna \(cue)"
+        let general = try SkillStore.save(name: name, description: "Procedura generale", cues: [cue], body: "## Procedura\nGenerale")
+        try "Modello della rassegna".write(to: general.url.deletingLastPathComponent().appending(path: "template.md"),
+                                             atomically: true, encoding: .utf8)
+        var privateSkill = try SkillStore.copy(general, toAgent: owner)
+        privateSkill = try SkillStore.save(name: name, description: "Procedura privata", cues: [cue],
+                                           body: "## Procedura\nSolo questo Genius", agent: owner, replacing: privateSkill)
+
+        #expect(SkillStore.forAgent(owner).map(\.id).contains(privateSkill.id))
+        #expect(SkillStore.forAgent(other).isEmpty)
+        #expect(!SkillStore.all().map(\.id).contains(privateSkill.id))
+        #expect(SkillStore.matching(cue, agent: owner).first?.id == privateSkill.id)
+        #expect(SkillStore.matching(cue, agent: other).first?.id == general.id)
+        #expect(privateSkill.url.path.contains("/Agents/\(owner.uuidString)/Skills/"))
+        #expect(FileManager.default.fileExists(atPath: privateSkill.url.deletingLastPathComponent().appending(path: "template.md").path))
+
+        let assistant = Assistant()
+        var work = WorkContext()
+        work.agentID = owner
+        work.skillTask = cue
+        assistant.work = work
+        #expect(assistant.skillGuide(for: "passo senza parole chiave")?.contains("Solo questo Genius") == true)
+        #expect(assistant.taskPlanRequest(for: "passo senza parole chiave").prompt.contains("Solo questo Genius"))
+        #expect(assistant.chatInstructions().contains("Solo questo Genius"))
     }
 }
 

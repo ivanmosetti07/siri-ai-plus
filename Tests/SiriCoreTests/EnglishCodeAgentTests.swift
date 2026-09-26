@@ -167,7 +167,7 @@ import Testing
             Non inventare file, codice o risultati che gli strumenti non hanno restituito. Alla fine rispondi in italiano con un breve riepilogo di cosa hai fatto.
             """))
             #expect(CodeMode.plan.label == "Chiedi prima" && CodeMode.edit.label == "Modifica")
-            #expect(CodeAgent.Engine.local.label == "Agente di Siri AI+")
+            #expect(CodeAgent.Engine.local.label == "Assistente di Siri AI+")
             #expect(CodeIsolation.project.label == "Cartella originale" && CodeIsolation.worktree.label == "Copia isolata")
             #expect(CodeTemplate.sito.label == "Sito web" && CodeTemplate.vuoto.label == "Progetto vuoto")
             #expect(CodeTemplate.webapp.summary == "Applicazione interattiva con React, TypeScript e Vite, avviata con npm run dev.")

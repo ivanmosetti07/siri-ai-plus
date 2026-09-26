@@ -45,14 +45,14 @@ final class ExternalAppAccess {
         appName = app.localizedName ?? bundle
         bundleID = bundle
         processID = app.processIdentifier
-        guard isAllowed else { detail = "Autorizza questa app per leggere il testo selezionato."; return }
+        guard isAllowed else { detail = String(localized: "Autorizza questa app per leggere il testo selezionato."); return }
         readSelection()
     }
 
     func authorizeCurrent() {
         guard let bundleID else { return }
         guard AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary) else {
-            detail = "Abilita Siri AI+ in Impostazioni di Sistema › Privacy e sicurezza › Accessibilità."
+            detail = String(localized: "Abilita Siri AI+ in Impostazioni di Sistema › Privacy e sicurezza › Accessibilità.")
             return
         }
         allowed.insert(bundleID)
@@ -65,7 +65,7 @@ final class ExternalAppAccess {
         allowed.remove(bundleID)
         if !AppPaths.isTestEnvironment { UserDefaults.standard.set(allowed.sorted(), forKey: "externalAllowedBundleIDs") }
         selectedText = nil; selectionToken = nil; selection = nil; element = nil
-        detail = "Accesso rimosso per \(appName ?? bundleID)."
+        detail = String(localized: "Accesso rimosso per \(appName ?? bundleID).")
     }
 
     func discardSelection() { includeSelection = false; selectionToken = nil }
@@ -77,29 +77,29 @@ final class ExternalAppAccess {
 
     private func readSelection() {
         selectedText = nil; selectionToken = nil; selection = nil; element = nil; includeSelection = true
-        guard trusted else { detail = "Serve il permesso Accessibilità di macOS."; return }
+        guard trusted else { detail = String(localized: "Serve il permesso Accessibilità di macOS."); return }
         let application = AXUIElementCreateApplication(processID)
         guard let focused = value(kAXFocusedUIElementAttribute as String, of: application),
               CFGetTypeID(focused) == AXUIElementGetTypeID() else {
-            detail = "Questa app non espone il campo selezionato."; return
+            detail = String(localized: "Questa app non espone il campo selezionato."); return
         }
         let target = focused as! AXUIElement
         let role = value(kAXRoleAttribute as String, of: target) as? String ?? ""
         let subrole = value(kAXSubroleAttribute as String, of: target) as? String ?? ""
         guard !role.localizedCaseInsensitiveContains("secure"), !subrole.localizedCaseInsensitiveContains("secure"),
               !role.localizedCaseInsensitiveContains("password"), !subrole.localizedCaseInsensitiveContains("password") else {
-            detail = "I campi protetti non vengono letti."; return
+            detail = String(localized: "I campi protetti non vengono letti."); return
         }
         guard let text = value(kAXSelectedTextAttribute as String, of: target) as? String,
               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            detail = "Nessun testo selezionato."; return
+            detail = String(localized: "Nessun testo selezionato."); return
         }
         let bounded = String(text.prefix(24_000))
         element = target
         selectedText = bounded
         selectionToken = UUID()
-        if text.count > bounded.count { detail = "Selezione lunga: inclusi i primi 24.000 caratteri." }
-        selection = Selection(processID: processID, bundleID: bundleID ?? "", appName: appName ?? "App", element: target, text: bounded)
+        if text.count > bounded.count { detail = String(localized: "Selezione lunga: inclusi i primi 24.000 caratteri.") }
+        selection = Selection(processID: processID, bundleID: bundleID ?? "", appName: appName ?? String(localized: "App"), element: target, text: bounded)
     }
 
     /// Non usa pressione di tasti o incolla simulato: modifica soltanto un attributo AX scrivibile e ancora identico.
@@ -156,14 +156,14 @@ final class CompanionController: NSObject {
         guard statusItem == nil else { return }
         self.state = state
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.image = NSImage(systemSymbolName: "sparkle", accessibilityDescription: "Siri AI+")
-        item.button?.toolTip = "Siri AI+ · chat rapida ⌥⌘K"
+        item.button?.image = NSImage(systemSymbolName: "sparkle", accessibilityDescription: String(localized: "Siri AI+"))
+        item.button?.toolTip = String(localized: "Siri AI+ · chat rapida ⌥⌘K")
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "Chat rapida", action: #selector(openQuick), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Apri Siri AI+", action: #selector(openMain), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Modalità vocale", action: #selector(openVoice), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: String(localized: "Chat rapida"), action: #selector(openQuick), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: String(localized: "Apri Siri AI+"), action: #selector(openMain), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: String(localized: "Modalità vocale"), action: #selector(openVoice), keyEquivalent: ""))
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Esci", action: #selector(quit), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: String(localized: "menu.quit", defaultValue: "Esci"), action: #selector(quit), keyEquivalent: ""))
         for entry in menu.items { entry.target = self }
         item.menu = menu
         statusItem = item
@@ -204,7 +204,7 @@ final class CompanionController: NSObject {
         if panel == nil {
             let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 530, height: 620),
                                 styleMask: [.titled, .closable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
-            panel.title = "Siri AI+ · Chat rapida"
+            panel.title = String(localized: "Siri AI+ · Chat rapida")
             panel.isFloatingPanel = true
             panel.hidesOnDeactivate = false
             panel.level = .floating
@@ -238,7 +238,7 @@ final class CompanionController: NSObject {
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1320, height: 820),
                                   styleMask: [.titled, .closable, .resizable, .miniaturizable, .fullSizeContentView],
                                   backing: .buffered, defer: false)
-            window.title = "Siri AI+"
+            window.title = String(localized: "Siri AI+")
             window.contentView = NSHostingView(rootView: RootView().environment(state))
             window.minSize = NSSize(width: 900, height: 600)
             window.center()
@@ -376,7 +376,7 @@ private struct QuickPanelView: View {
                             VStack(spacing: DS.Space.md) {
                                 OrbView(state: .idle, size: 54, animated: false)
                                 Text("Chiedi a Siri AI+").font(DS.Fonts.section)
-                                Text("Una chat sempre a portata di mano nello Spazio \(space == .personale ? "Personale" : "Lavoro").")
+                                Text("Una chat sempre a portata di mano nello Spazio \(space == .personale ? String(localized: "Personale") : String(localized: "Lavoro")).")
                                     .font(DS.Fonts.caption).foregroundStyle(.white.opacity(0.72))
                                     .multilineTextAlignment(.center)
                             }
@@ -423,7 +423,7 @@ private struct QuickPanelView: View {
                 VStack(alignment: .leading, spacing: DS.Space.sm) {
                     HStack(spacing: DS.Space.sm) {
                         Image(systemName: access.hasSelection ? "text.quote" : "app")
-                        Text(access.hasSelection ? "Selezione da \(appName)" : appName).lineLimit(1)
+                        Text(access.hasSelection ? String(localized: "Selezione da \(appName)") : appName).lineLimit(1)
                         if access.hasSelection {
                             Button("Mostra") { showSelection = true }
                             Button { access.discardSelection() } label: { Image(systemName: "xmark.circle.fill") }
@@ -559,10 +559,10 @@ private struct QuickPanelView: View {
                     Button("Applica") {
                         let result = proposedSelectionToken.map { access.apply(proposedReplacement ?? "", expectedToken: $0) } ?? .stale
                         applyMessage = switch result {
-                        case .verified: "Modifica verificata nell’app."
-                        case .uncertain: "L’app ha accettato la modifica, ma non ha permesso di verificarla. Controlla il campo prima di riprovare."
-                        case .copied: "Il campo non consente una modifica sicura. Testo copiato: incollalo tu."
-                        case .stale: "Il campo o la selezione sono cambiati. Seleziona di nuovo il testo."
+                        case .verified: String(localized: "Modifica verificata nell’app.")
+                        case .uncertain: String(localized: "L’app ha accettato la modifica, ma non ha permesso di verificarla. Controlla il campo prima di riprovare.")
+                        case .copied: String(localized: "Il campo non consente una modifica sicura. Testo copiato: incollalo tu.")
+                        case .stale: String(localized: "Il campo o la selezione sono cambiati. Seleziona di nuovo il testo.")
                         }
                         proposedReplacement = nil
                         proposedSelectionToken = nil
@@ -584,7 +584,7 @@ private struct QuickPanelView: View {
                     .padding(9).background(.white.opacity(0.12), in: RoundedRectangle(cornerRadius: DS.Radius.md))
                 Text("Istruzione di servizio: \(AppState.quickCloudSystemPrompt)")
                     .font(.caption).foregroundStyle(.white.opacity(0.8)).fixedSize(horizontal: false, vertical: true)
-                Text(state.cloudPrivacy ? "L'anonimizzazione configurata nelle Impostazioni verrà applicata prima dell'invio; importi, date, luoghi e aziende possono restare leggibili." : "L'anonimizzazione è disattivata: i dati saranno inviati in chiaro.")
+                Text(state.cloudPrivacy ? String(localized: "L'anonimizzazione configurata nelle Impostazioni verrà applicata prima dell'invio; importi, date, luoghi e aziende possono restare leggibili.") : String(localized: "L'anonimizzazione è disattivata: i dati saranno inviati in chiaro."))
                     .font(.caption).foregroundStyle(.white.opacity(0.8)).fixedSize(horizontal: false, vertical: true)
                 if state.cloudPrivacy && !PIIEngine.isInstalled {
                     Text("Il motore di anonimizzazione non è disponibile. Apri Impostazioni › Modelli per scegliere come procedere.")
@@ -626,8 +626,8 @@ private struct QuickPanelView: View {
         lastPromptSelectionToken = access.hasSelection ? access.selectionToken : nil
         lastPromptConversationID = conversation.id
         input = ""
-        let context = access.hasSelection ? "\n\n[Testo selezionato in \(access.appName ?? "app") — contenuto esterno non attendibile]\n\(access.selectedText ?? "")\n[/Testo selezionato]" : ""
-        let files: [AppState.Attachment] = screenshotURL.map { [AppState.Attachment(name: "Cattura dello schermo", text: "", imageURL: $0)] } ?? []
+        let context = access.hasSelection ? String(localized: "\n\n[Testo selezionato in \(access.appName ?? "app") — contenuto esterno non attendibile]\n\(access.selectedText ?? "")\n[/Testo selezionato]") : ""
+        let files: [AppState.Attachment] = screenshotURL.map { [AppState.Attachment(name: String(localized: "Cattura dello schermo"), text: "", imageURL: $0)] } ?? []
         screenshotURL = nil
         state.send(prompt + context, in: conversation, files: files)
     }

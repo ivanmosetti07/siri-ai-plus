@@ -36,15 +36,15 @@ struct ContactsAppView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            AppHeader(source: .contacts, title: "Contatti", subtitle: contacts.count == 1 ? "1 contatto" : "\(contacts.count) contatti",
-                      search: $search, searchPrompt: "Cerca nome, azienda, numero", onRefresh: reload) {
-                AppIconButton(symbol: "plus", help: "Nuovo contatto", prominent: true) { selectedID = nil; creating = true }
+            AppHeader(source: .contacts, title: String(localized: "Contatti"), subtitle: contacts.count == 1 ? String(localized: "1 contatto") : String(localized: "\(contacts.count) contatti"),
+                      search: $search, searchPrompt: String(localized: "Cerca nome, azienda, numero"), onRefresh: reload) {
+                AppIconButton(symbol: "plus", help: String(localized: "Nuovo contatto"), prominent: true) { selectedID = nil; creating = true }
                     .disabled(!state.canWrite(.contacts))
             }
             Divider()
             if let error, contacts.isEmpty {
-                AccessNotice(symbol: "person.crop.circle.badge.exclamationmark", title: "Contatti non disponibili", message: error,
-                             primary: ("Riprova", reload), secondary: ("Permessi", { PermissionCenter.openSettings(.contacts) }))
+                AccessNotice(symbol: "person.crop.circle.badge.exclamationmark", title: String(localized: "Contatti non disponibili"), message: error,
+                             primary: (String(localized: "Riprova"), reload), secondary: (String(localized: "Permessi"), { PermissionCenter.openSettings(.contacts) }))
             } else {
                 AppColumns(sourcesWidth: 200, itemsWidth: 290) {
                     groupList
@@ -61,8 +61,8 @@ struct ContactsAppView: View {
                                       onSaved: { _ in reload() }, onDeleted: { selectedID = nil; reload() }, onCancelNew: {})
                             .id(id)
                     } else {
-                        AppPlaceholder(symbol: "person.crop.circle", title: "Nessun contatto selezionato",
-                                       message: "Scegli un contatto per chiamare, scrivere o modificarlo, oppure creane uno nuovo.")
+                        AppPlaceholder(symbol: "person.crop.circle", title: String(localized: "Nessun contatto selezionato"),
+                                       message: String(localized: "Scegli un contatto per chiamare, scrivere o modificarlo, oppure creane uno nuovo."))
                     }
                 }
             }
@@ -73,7 +73,7 @@ struct ContactsAppView: View {
         // Senza contatto selezionato Siri AI+ sa solo quanti sono (la scheda aperta la descrive il dettaglio).
         .onChange(of: selectedID, initial: true) { _, id in
             if id == nil {
-                state.publish(ScreenItem(app: "Contatti", kind: .overview, title: "rubrica", details: "\(contacts.count) contatti",
+                state.publish(ScreenItem(app: String(localized: "Contatti"), kind: .overview, title: "rubrica", details: String(localized: "\(contacts.count) contatti"),
                                          nouns: ["contatti", "rubrica", "persone"]), for: .app(.contacts))
             }
         }
@@ -94,7 +94,7 @@ struct ContactsAppView: View {
     private var groupList: some View {
         List(selection: Binding(get: { scope }, set: { if let value = $0 { scope = value } })) {
             Section {
-                SourceRowLabel(title: "Tutti i contatti", symbol: "person.2", tint: .accentColor).tag(Scope.all)
+                SourceRowLabel(title: String(localized: "Tutti i contatti"), symbol: "person.2", tint: .accentColor).tag(Scope.all)
             }
             if !groups.isEmpty {
                 Section("Gruppi") {
@@ -144,7 +144,7 @@ struct ContactsAppView: View {
             if loading && contacts.isEmpty {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if visible.isEmpty && !creating {
-                AppPlaceholder(symbol: search.isEmpty ? "person.crop.circle" : "magnifyingglass", title: search.isEmpty ? "Nessun contatto" : "Nessun risultato")
+                AppPlaceholder(symbol: search.isEmpty ? "person.crop.circle" : "magnifyingglass", title: search.isEmpty ? String(localized: "Nessun contatto") : String(localized: "Nessun risultato"))
             } else {
                 List(selection: $selectedID) {
                     if creating {
@@ -179,8 +179,8 @@ struct ContactsAppView: View {
     }
 
     private var groupTitle: String {
-        if case .group(let id) = scope { return groups.first { $0.id == id }?.name ?? "Gruppo" }
-        return "Tutti i contatti"
+        if case .group(let id) = scope { return groups.first { $0.id == id }?.name ?? String(localized: "Gruppo") }
+        return String(localized: "Tutti i contatti")
     }
 
     // MARK: Dati e azioni
@@ -189,7 +189,7 @@ struct ContactsAppView: View {
         loading = true
         defer { loading = false }
         guard ContactsStore.authorized else {
-            error = "Siri AI+ non ha il permesso di vedere i Contatti: concedilo in Impostazioni di Sistema › Privacy e sicurezza › Contatti."
+            error = String(localized: "Siri AI+ non ha il permesso di vedere i Contatti: concedilo in Impostazioni di Sistema › Privacy e sicurezza › Contatti.")
             return
         }
         do {
@@ -208,17 +208,17 @@ struct ContactsAppView: View {
         do {
             if let group {
                 try ContactsStore.renameGroup(group.id, to: name)
-                state.appDone(.contacts, "Gruppo rinominato", detail: name)
+                state.appDone(.contacts, String(localized: "Gruppo rinominato"), detail: name)
             } else {
                 let id = try ContactsStore.createGroup(name)
-                state.appDone(.contacts, "Gruppo creato", detail: name)
+                state.appDone(.contacts, String(localized: "Gruppo creato"), detail: name)
                 groups = ContactsStore.groups()
                 scope = .group(id)
                 return
             }
             reload()
         } catch {
-            state.appFailed(.contacts, group == nil ? "Gruppo non creato" : "Gruppo non rinominato", error)
+            state.appFailed(.contacts, group == nil ? String(localized: "Gruppo non creato") : String(localized: "Gruppo non rinominato"), error)
         }
     }
 
@@ -226,10 +226,10 @@ struct ContactsAppView: View {
         do {
             try ContactsStore.deleteGroup(group.id)
             if scope == .group(group.id) { scope = .all }
-            state.appDone(.contacts, "Gruppo eliminato", detail: group.name)
+            state.appDone(.contacts, String(localized: "Gruppo eliminato"), detail: group.name)
             reload()
         } catch {
-            state.appFailed(.contacts, "Gruppo non eliminato", error)
+            state.appFailed(.contacts, String(localized: "Gruppo non eliminato"), error)
         }
     }
 }
@@ -247,7 +247,7 @@ private struct GroupsMenu: View {
                 ForEach(groups) { group in Button(group.name) { scope = .group(group.id) } }
             } label: { Image(systemName: "sidebar.left") }
             .menuStyle(.button).menuIndicator(.hidden).buttonStyle(.borderless).fixedSize()
-            .iconHelp("Gruppi")
+            .iconHelp(String(localized: "Gruppi"))
         }
     }
 }
@@ -276,14 +276,14 @@ private struct ContactDetail: View {
                 InspectorFooter {
                     if contactID != nil {
                         Button(role: .destructive) { confirmDelete = true } label: { Image(systemName: "trash") }
-                            .iconHelp("Elimina contatto")
+                            .iconHelp(String(localized: "Elimina contatto"))
                     }
                 } trailing: {
                     Button("Annulla") {
                         if contactID == nil { onCancelNew() } else { editing = false; draft = card ?? ContactCard() }
                     }
                     .keyboardShortcut(.cancelAction)
-                    Button(contactID == nil ? "Aggiungi" : "Salva", action: save)
+                    Button(contactID == nil ? String(localized: "Aggiungi") : String(localized: "Salva"), action: save)
                         .buttonStyle(.borderedProminent)
                         .keyboardShortcut("s", modifiers: .command)
                 }
@@ -291,7 +291,7 @@ private struct ContactDetail: View {
                 ScrollView { view(card).padding(24) }
                 InspectorFooter {
                     Button(role: .destructive) { confirmDelete = true } label: { Image(systemName: "trash") }
-                        .iconHelp("Elimina contatto")
+                        .iconHelp(String(localized: "Elimina contatto"))
                         .disabled(!canWrite)
                     if !groups.isEmpty {
                         Menu {
@@ -303,10 +303,10 @@ private struct ContactDetail: View {
                         .disabled(!canWrite)
                     }
                 } trailing: {
-                    Button { state.send("Cosa sai di \(card.displayName)? Cerca nelle email, nei messaggi e nel calendario gli ultimi contatti che ho avuto") } label: {
+                    Button { state.send(String(localized: "Cosa sai di \(card.displayName)? Cerca nelle email, nei messaggi e nel calendario gli ultimi contatti che ho avuto")) } label: {
                         Image(systemName: "sparkle")
                     }
-                    .iconHelp("Chiedi a Siri AI+")
+                    .iconHelp(String(localized: "Chiedi a Siri AI+"))
                     Button("Modifica") { draft = card; editing = true }
                         .buttonStyle(.borderedProminent)
                         .disabled(!canWrite)
@@ -358,14 +358,14 @@ private struct ContactDetail: View {
                 if !role.isEmpty { Text(role).font(.system(size: 13)).foregroundStyle(.secondary) }
                 if !card.nickname.isEmpty { Text("«\(card.nickname)»").font(.system(size: 13)).foregroundStyle(.secondary) }
                 HStack(spacing: 14) {
-                    quickAction("Messaggio", "message.fill", enabled: !(card.phones.isEmpty && card.emails.isEmpty)) {
+                    quickAction(String(localized: "Messaggio"), "message.fill", enabled: !(card.phones.isEmpty && card.emails.isEmpty)) {
                         state.openInApp(.messages, reference: card.phones.first?.value ?? card.emails.first?.value)
                     }
-                    quickAction("Chiama", "phone.fill", enabled: !card.phones.isEmpty) { open("tel:", card.phones.first?.value) }
-                    quickAction("FaceTime", "video.fill", enabled: !(card.phones.isEmpty && card.emails.isEmpty)) {
+                    quickAction(String(localized: "Chiama"), "phone.fill", enabled: !card.phones.isEmpty) { open("tel:", card.phones.first?.value) }
+                    quickAction(String(localized: "FaceTime"), "video.fill", enabled: !(card.phones.isEmpty && card.emails.isEmpty)) {
                         open("facetime:", card.phones.first?.value ?? card.emails.first?.value)
                     }
-                    quickAction("Email", "envelope.fill", enabled: !card.emails.isEmpty) {
+                    quickAction(String(localized: "Email"), "envelope.fill", enabled: !card.emails.isEmpty) {
                         state.openInApp(.mail, reference: "mailto:" + (card.emails.first?.value ?? ""))
                     }
                 }
@@ -377,9 +377,9 @@ private struct ContactDetail: View {
                     ForEach(Array(card.phones.enumerated()), id: \.element.id) { index, phone in
                         fieldRow(phone.localizedLabel, phone.value, divider: index < card.phones.count - 1) {
                             Button { state.openInApp(.messages, reference: phone.value) } label: { Image(systemName: "message") }
-                                .buttonStyle(.borderless).iconHelp("Messaggio")
+                                .buttonStyle(.borderless).iconHelp(String(localized: "Messaggio"))
                             Button { open("tel:", phone.value) } label: { Image(systemName: "phone") }
-                                .buttonStyle(.borderless).iconHelp("Chiama")
+                                .buttonStyle(.borderless).iconHelp(String(localized: "Chiama"))
                         }
                     }
                 }
@@ -389,7 +389,7 @@ private struct ContactDetail: View {
                     ForEach(Array(card.emails.enumerated()), id: \.element.id) { index, email in
                         fieldRow(email.localizedLabel, email.value, divider: index < card.emails.count - 1) {
                             Button { state.openInApp(.mail, reference: "mailto:" + email.value) } label: { Image(systemName: "envelope") }
-                                .buttonStyle(.borderless).iconHelp("Scrivi un'email")
+                                .buttonStyle(.borderless).iconHelp(String(localized: "Scrivi un'email"))
                         }
                     }
                 }
@@ -402,7 +402,7 @@ private struct ContactDetail: View {
                                 if let query = address.oneLine.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
                                    let url = URL(string: "maps://?q=\(query)") { NSWorkspace.shared.open(url) }
                             } label: { Image(systemName: "map") }
-                            .buttonStyle(.borderless).iconHelp("Apri in Mappe")
+                            .buttonStyle(.borderless).iconHelp(String(localized: "Apri in Mappe"))
                         }
                     }
                 }
@@ -415,7 +415,7 @@ private struct ContactDetail: View {
                     ForEach(Array(card.urls.enumerated()), id: \.element.id) { index, link in
                         fieldRow(link.localizedLabel, link.value, divider: index < card.urls.count - 1) {
                             Button { open("", link.value.contains("://") ? link.value : "https://" + link.value) } label: { Image(systemName: "safari") }
-                                .buttonStyle(.borderless).iconHelp("Apri il sito")
+                                .buttonStyle(.borderless).iconHelp(String(localized: "Apri il sito"))
                         }
                     }
                 }
@@ -479,12 +479,12 @@ private struct ContactDetail: View {
     private func save() {
         do {
             let id = try ContactsStore.save(draft)
-            state.appDone(.contacts, draft.isNew ? "Contatto aggiunto" : "Contatto salvato", detail: draft.displayName)
+            state.appDone(.contacts, draft.isNew ? String(localized: "Contatto aggiunto") : String(localized: "Contatto salvato"), detail: draft.displayName)
             editing = false
             card = ContactsStore.card(id)
             onSaved(id)
         } catch {
-            state.appFailed(.contacts, "Contatto non salvato", error)
+            state.appFailed(.contacts, String(localized: "Contatto non salvato"), error)
         }
     }
 
@@ -492,10 +492,10 @@ private struct ContactDetail: View {
         guard let contactID else { onCancelNew(); return }
         do {
             try ContactsStore.delete(contactID)
-            state.appDone(.contacts, "Contatto eliminato", detail: card?.displayName ?? "")
+            state.appDone(.contacts, String(localized: "Contatto eliminato"), detail: card?.displayName ?? "")
             onDeleted()
         } catch {
-            state.appFailed(.contacts, "Contatto non eliminato", error)
+            state.appFailed(.contacts, String(localized: "Contatto non eliminato"), error)
         }
     }
 
@@ -504,9 +504,9 @@ private struct ContactDetail: View {
         do {
             try ContactsStore.setMember(contactID, of: group.id, member)
             if member { memberOf.insert(group.id) } else { memberOf.remove(group.id) }
-            state.showToast(member ? "Aggiunto a «\(group.name)»" : "Tolto da «\(group.name)»")
+            state.showToast(member ? String(localized: "Aggiunto a «\(group.name)»") : String(localized: "Tolto da «\(group.name)»"))
         } catch {
-            state.appFailed(.contacts, "Gruppo non aggiornato", error)
+            state.appFailed(.contacts, String(localized: "Gruppo non aggiornato"), error)
         }
     }
 }
@@ -526,23 +526,23 @@ private struct ContactForm: View {
                 }
             }
             InspectorGroup {
-                InspectorRow(label: "Azienda") { TextField("", text: $draft.organization).textFieldStyle(.plain) }
-                InspectorRow(label: "Ruolo") { TextField("", text: $draft.jobTitle).textFieldStyle(.plain) }
-                InspectorRow(label: "Soprannome", divider: false) { TextField("", text: $draft.nickname).textFieldStyle(.plain) }
+                InspectorRow(label: String(localized: "Azienda")) { TextField("", text: $draft.organization).textFieldStyle(.plain) }
+                InspectorRow(label: String(localized: "Ruolo")) { TextField("", text: $draft.jobTitle).textFieldStyle(.plain) }
+                InspectorRow(label: String(localized: "Soprannome"), divider: false) { TextField("", text: $draft.nickname).textFieldStyle(.plain) }
             }
-            fields("Telefono", $draft.phones, labels: ContactsStore.phoneLabels, prompt: "+39 …")
-            fields("Email", $draft.emails, labels: ContactsStore.emailLabels, prompt: "nome@esempio.it")
+            fields(String(localized: "Telefono"), $draft.phones, labels: ContactsStore.phoneLabels, prompt: "+39 …")
+            fields(String(localized: "Email"), $draft.emails, labels: ContactsStore.emailLabels, prompt: "nome@esempio.it")
             addressFields
-            fields("Sito", $draft.urls, labels: ContactsStore.urlLabels, prompt: "www.esempio.it")
-            InspectorGroup(title: "Compleanno") {
-                InspectorRow(label: "Compleanno", divider: draft.birthday != nil) {
+            fields(String(localized: "Sito"), $draft.urls, labels: ContactsStore.urlLabels, prompt: "www.esempio.it")
+            InspectorGroup(title: String(localized: "Compleanno")) {
+                InspectorRow(label: String(localized: "Compleanno"), divider: draft.birthday != nil) {
                     Toggle("", isOn: Binding(get: { draft.birthday != nil }, set: { on in
                         draft.birthday = on ? Calendar.current.dateComponents([.year, .month, .day], from: .now) : nil
                     }))
                     .labelsHidden().toggleStyle(.switch).controlSize(.small)
                 }
                 if draft.birthday != nil {
-                    InspectorRow(label: "Giorno", divider: false) {
+                    InspectorRow(label: String(localized: "Giorno"), divider: false) {
                         DatePicker("", selection: Binding(get: {
                             var parts = draft.birthday ?? DateComponents()
                             if parts.year == nil { parts.year = 2000 }
@@ -570,7 +570,7 @@ private struct ContactForm: View {
                     .frame(width: 118)
                     TextField(prompt, text: $item.value).textFieldStyle(.plain)
                     Button { items.wrappedValue.removeAll { $0.id == item.id } } label: { Image(systemName: "minus.circle.fill").foregroundStyle(.red) }
-                        .buttonStyle(.plain).iconHelp("Togli")
+                        .buttonStyle(.plain).iconHelp(String(localized: "Togli"))
                 }
                 .padding(.vertical, 6)
                 Divider().opacity(0.6)
@@ -585,7 +585,7 @@ private struct ContactForm: View {
     }
 
     private var addressFields: some View {
-        InspectorGroup(title: "Indirizzo") {
+        InspectorGroup(title: String(localized: "Indirizzo")) {
             ForEach($draft.addresses) { $address in
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
@@ -597,7 +597,7 @@ private struct ContactForm: View {
                         .labelsHidden().frame(width: 118)
                         Spacer()
                         Button { draft.addresses.removeAll { $0.id == address.id } } label: { Image(systemName: "minus.circle.fill").foregroundStyle(.red) }
-                            .buttonStyle(.plain).iconHelp("Togli")
+                            .buttonStyle(.plain).iconHelp(String(localized: "Togli"))
                     }
                     TextField("Via e numero", text: $address.street).textFieldStyle(.roundedBorder)
                     HStack {
@@ -612,7 +612,7 @@ private struct ContactForm: View {
                 .padding(.vertical, 8)
                 Divider().opacity(0.6)
             }
-            Button { draft.addresses.append(PostalField(label: ContactsStore.addressLabels[0], country: "Italia")) } label: {
+            Button { draft.addresses.append(PostalField(label: ContactsStore.addressLabels[0], country: String(localized: "Italia"))) } label: {
                 Label("Aggiungi indirizzo", systemImage: "plus.circle.fill").foregroundStyle(.green)
             }
             .buttonStyle(.plain)
@@ -637,12 +637,12 @@ private struct GroupEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(group == nil ? "Nuovo gruppo" : "Rinomina gruppo").font(.system(size: 15, weight: .semibold))
+            Text(group == nil ? String(localized: "Nuovo gruppo") : String(localized: "Rinomina gruppo")).font(.system(size: 15, weight: .semibold))
             TextField("Nome del gruppo", text: $name).textFieldStyle(.roundedBorder).onSubmit(save)
             HStack {
                 Button("Annulla") { dismiss() }.keyboardShortcut(.cancelAction)
                 Spacer()
-                Button(group == nil ? "Crea" : "Rinomina", action: save).buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+                Button(group == nil ? String(localized: "Crea") : String(localized: "Rinomina"), action: save).buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
                     .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }

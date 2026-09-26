@@ -48,9 +48,12 @@ public enum Web {
     private static let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 10
-        configuration.httpAdditionalHeaders = ["User-Agent": userAgent, "Accept-Language": "it-IT,it;q=0.9,en;q=0.7"]
+        configuration.httpAdditionalHeaders = ["User-Agent": userAgent]
         return URLSession(configuration: configuration)
     }()
+
+    /// Lingua preferita per le pagine e i risultati: quella della richiesta in corso.
+    static var acceptLanguage: String { Language.isEnglish ? "en-US,en;q=0.9,it;q=0.6" : "it-IT,it;q=0.9,en;q=0.7" }
 
     // MARK: Ricerca
 
@@ -75,8 +78,9 @@ public enum Web {
         var request = URLRequest(url: URL(string: "https://html.duckduckgo.com/html/")!)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue(acceptLanguage, forHTTPHeaderField: "Accept-Language")
         var form = URLComponents()
-        form.queryItems = [URLQueryItem(name: "q", value: query), URLQueryItem(name: "kl", value: "it-it")]
+        form.queryItems = [URLQueryItem(name: "q", value: query), URLQueryItem(name: "kl", value: Language.isEnglish ? "us-en" : "it-it")]
         request.httpBody = Data((form.percentEncodedQuery ?? "").replacingOccurrences(of: "+", with: "%2B").utf8)
         let data: Data
         let response: URLResponse
@@ -92,8 +96,10 @@ public enum Web {
 
     private static func searchBing(_ query: String) async throws -> [WebSource] {
         var components = URLComponents(string: "https://www.bing.com/search")!
-        components.queryItems = [URLQueryItem(name: "q", value: query), URLQueryItem(name: "setlang", value: "it"), URLQueryItem(name: "cc", value: "it")]
-        let (data, response) = try await session.data(from: components.url!)
+        components.queryItems = [URLQueryItem(name: "q", value: query), URLQueryItem(name: "setlang", value: Language.isEnglish ? "en" : "it"), URLQueryItem(name: "cc", value: Language.isEnglish ? "us" : "it")]
+        var request = URLRequest(url: components.url!)
+        request.setValue(acceptLanguage, forHTTPHeaderField: "Accept-Language")
+        let (data, response) = try await session.data(for: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw WebError.nothing }
         return parseBing(String(decoding: data, as: UTF8.self))
     }
@@ -153,7 +159,9 @@ public enum Web {
     public static func fetch(_ url: URL, maxChars: Int = 12_000) async throws -> Page {
         let data: Data
         let response: URLResponse
-        do { (data, response) = try await session.data(from: url) } catch { throw WebError.offline }
+        var request = URLRequest(url: url)
+        request.setValue(acceptLanguage, forHTTPHeaderField: "Accept-Language")
+        do { (data, response) = try await session.data(for: request) } catch { throw WebError.offline }
         let code = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<400).contains(code) else { throw WebError.http(code) }
         let type = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? ""

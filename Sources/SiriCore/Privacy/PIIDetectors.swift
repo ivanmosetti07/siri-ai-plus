@@ -84,7 +84,33 @@ public enum PIICategory {
         "ORG": "aziende", "DOCID": "codici di atti", "CATASTO": "dati catastali", "URL": "indirizzi web", "IPADDR": "indirizzi IP",
     ]
 
-    public static func name(_ label: String) -> String { names[label] ?? label.lowercased() }
+    /// Al singolare, per «1 codice fiscale» (non «1 codici fiscali»).
+    static let singularNames: [String: String] = [
+        "FULLNAME": "nome", "GENDER": "genere", "DATE": "data", "TIME": "orario", "STREET": "indirizzo", "BUILDINGNUM": "numero civico",
+        "PROVINCE": "provincia", "TELEPHONENUM": "telefono", "CF": "codice fiscale", "PIVA": "partita IVA", "ID_DOC": "documento",
+        "CREDITCARDNUMBER": "carta", "AMOUNT": "importo", "TARGA": "targa", "ORG": "azienda", "DOCID": "codice di atto",
+        "CATASTO": "dato catastale", "URL": "indirizzo web", "IPADDR": "indirizzo IP",
+    ]
+
+    static let englishNames: [String: (one: String, many: String)] = [
+        "FULLNAME": ("name", "names"), "AGE": ("age", "ages"), "GENDER": ("gender", "genders"), "DATE": ("date", "dates"),
+        "TIME": ("time", "times"), "STREET": ("address", "addresses"), "BUILDINGNUM": ("house number", "house numbers"),
+        "ZIPCODE": ("ZIP code", "ZIP codes"), "CITY": ("city", "cities"), "PROVINCE": ("province", "provinces"), "EMAIL": ("email", "emails"),
+        "TELEPHONENUM": ("phone number", "phone numbers"), "CF": ("tax code", "tax codes"), "PIVA": ("VAT number", "VAT numbers"),
+        "ID_DOC": ("ID document", "ID documents"), "IBAN": ("IBAN", "IBANs"), "CREDITCARDNUMBER": ("card", "cards"),
+        "AMOUNT": ("amount", "amounts"), "TARGA": ("license plate", "license plates"), "ORG": ("company", "companies"),
+        "DOCID": ("document ID", "document IDs"), "CATASTO": ("land registry record", "land registry records"),
+        "URL": ("web address", "web addresses"), "IPADDR": ("IP address", "IP addresses"),
+    ]
+
+    /// Nome della categoria nella lingua in uso, al plurale (per gli elenchi delle Impostazioni) o accordato con `count`.
+    public static func name(_ label: String) -> String { name(label, count: 2) }
+
+    public static func name(_ label: String, count: Int) -> String {
+        if Language.isEnglish, let english = englishNames[label] { return count == 1 ? english.one : english.many }
+        if count == 1, let one = singularNames[label] { return one }
+        return names[label] ?? label.lowercased()
+    }
 
     /// Dati che dicono chi è una persona o danno accesso a un suo conto: sono questi che si nascondono a ChatGPT e Claude.
     /// All'AI il valore vero non serve, le basta ricopiare il segnaposto dove va.

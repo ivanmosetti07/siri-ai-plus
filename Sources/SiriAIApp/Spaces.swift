@@ -11,9 +11,9 @@ enum Space: String, Codable, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .personale: "Personale"
-        case .lavoro: "Lavoro"
-        case .codice: "Programmazione"
+        case .personale: String(localized: "Personale")
+        case .lavoro: String(localized: "Lavoro")
+        case .codice: String(localized: "Programmazione")
         }
     }
 
@@ -35,9 +35,9 @@ enum Space: String, Codable, CaseIterable, Identifiable {
 
     var subtitle: String {
         switch self {
-        case .personale: "Vita privata: famiglia, casa, tempo libero, messaggi"
-        case .lavoro: "Progetti, clienti, connettori e documenti"
-        case .codice: "App e siti con Codex"
+        case .personale: String(localized: "Vita privata: famiglia, casa, tempo libero, messaggi")
+        case .lavoro: String(localized: "Progetti, clienti, connettori e documenti")
+        case .codice: String(localized: "App e siti con Codex")
         }
     }
 }
@@ -109,7 +109,7 @@ private struct Occurrence: Identifiable {
 }
 
 /// Centro di controllo di tutto ciò che è programmato: prossime esecuzioni, approvazioni, programmazioni e ultimi risultati.
-/// Le programmazioni ora stanno nella sezione Agenti (pillola «Programmazioni»).
+/// Le programmazioni stanno nella sezione Genius (pillola «Programmazioni»).
 struct ScheduleCenterView: View {
     var body: some View { AgentsGallery(initialTab: "programmazioni") }
 }
@@ -122,7 +122,7 @@ struct ScheduleContent: View {
         let now = Date.now
         let limit = now.addingTimeInterval(7 * 86_400)
         var items: [Occurrence] = []
-        for agent in state.agents where agent.active {
+        for agent in state.spaceAgents where agent.active {
             for routine in agent.routines where routine.enabled && routine.schedule.kind != .manuale {
                 var date = routine.nextRun ?? routine.schedule.next(after: now)
                 var count = 0
@@ -138,7 +138,7 @@ struct ScheduleContent: View {
                 var day = Calendar.current.startOfDay(for: now)
                 for _ in 0..<7 {
                     if let dream = Calendar.current.date(bySettingHour: agent.dreamHour, minute: 0, second: 0, of: day), dream > now {
-                        items.append(Occurrence(date: dream, agent: agent, routineID: nil, text: "Sogno: rilegge la giornata e si migliora", isDream: true))
+                        items.append(Occurrence(date: dream, agent: agent, routineID: nil, text: String(localized: "Sogno: rilegge la giornata e si migliora"), isDream: true))
                     }
                     day = Calendar.current.date(byAdding: .day, value: 1, to: day)!
                 }
@@ -157,18 +157,18 @@ struct ScheduleContent: View {
     }
 
     private var header: some View {
-        let active = state.agents.filter(\.active)
-        let routines = state.agents.flatMap(\.routines).filter { $0.enabled && $0.schedule.kind != .manuale }
-        let pending = state.agents.reduce(0) { $0 + state.pendingApprovals(for: $1) }
+        let active = state.spaceAgents.filter(\.active)
+        let routines = state.spaceAgents.flatMap(\.routines).filter { $0.enabled && $0.schedule.kind != .manuale }
+        let pending = state.spaceAgents.reduce(0) { $0 + state.pendingApprovals(for: $1) }
         return GlassPanel {
             VStack(alignment: .leading, spacing: 14) {
-                PanelLabel(text: "Tutto ciò che fanno da soli", symbol: "calendar.badge.clock")
+                PanelLabel(text: String(localized: "Tutto ciò che fanno da soli"), symbol: "calendar.badge.clock")
                 MetricsGrid(metrics: [
-                    DashMetric(label: "Agenti attivi", value: "\(active.count)", note: "su \(state.agents.count)", tint: .purple),
-                    DashMetric(label: "Programmazioni", value: "\(routines.count)", note: "attive", tint: Color(red: 0.4, green: 0.7, blue: 1)),
-                    DashMetric(label: "Prossima", value: occurrences.first.map { $0.date.formatted(.dateTime.hour().minute()) } ?? "—",
-                               note: occurrences.first.map { Dates.friendly($0.date, time: false) } ?? "niente in programma", tint: .teal),
-                    DashMetric(label: "Da approvare", value: "\(pending)", note: pending == 0 ? "niente in attesa" : "nelle chat degli agenti", tint: pending > 0 ? .orange : .secondary),
+                    DashMetric(label: String(localized: "Genius attivi"), value: "\(active.count)", note: String(localized: "su \(state.spaceAgents.count)"), tint: .purple),
+                    DashMetric(label: String(localized: "Programmazioni"), value: "\(routines.count)", note: "attive", tint: Color(red: 0.4, green: 0.7, blue: 1)),
+                    DashMetric(label: String(localized: "Prossima"), value: occurrences.first.map { $0.date.formatted(.dateTime.hour().minute()) } ?? "—",
+                               note: occurrences.first.map { Dates.friendly($0.date, time: false) } ?? String(localized: "niente in programma"), tint: .teal),
+                    DashMetric(label: String(localized: "Da approvare"), value: "\(pending)", note: pending == 0 ? String(localized: "niente in attesa") : String(localized: "nelle chat dei Genius"), tint: pending > 0 ? .orange : .secondary),
                 ])
             }
         }
@@ -187,7 +187,7 @@ struct ScheduleContent: View {
 
     @ViewBuilder
     private var approvals: some View {
-        let waiting = state.agents.filter { state.pendingApprovals(for: $0) > 0 }
+        let waiting = state.spaceAgents.filter { state.pendingApprovals(for: $0) > 0 }
         if !waiting.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 Label("Da approvare", systemImage: "hand.raised.fill").font(DS.Fonts.section).foregroundStyle(.orange)
@@ -201,7 +201,7 @@ struct ScheduleContent: View {
                         Spacer()
                         Button("Approva tutte") {
                             let count = state.approveAll(for: agent.id)
-                            state.showToast(count == 0 ? "Restano da confermare una per una (email, messaggi o connettori)" : "\(count) azioni approvate")
+                            state.showToast(count == 0 ? String(localized: "Restano da confermare una per una (email, messaggi o connettori)") : String(localized: "\(count) azioni approvate"))
                         }
                         .help("Approva eventi, promemoria, note e file in attesa. Email, messaggi e connettori restano da confermare uno per uno.")
                         Button("Rivedi") { state.openAgent(agent.id) }.buttonStyle(.borderedProminent).tint(.orange)
@@ -217,8 +217,8 @@ struct ScheduleContent: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Prossimi 7 giorni").font(DS.Fonts.section)
             if occurrences.isEmpty {
-                EmptyHint(symbol: "calendar.badge.plus", text: "Niente in programma. Crea un agente con una programmazione per far lavorare Siri AI+ da sola.",
-                          action: ("Nuovo agente…", { state.editingAgent = AgentSpec(name: "", goal: "") }))
+                EmptyHint(symbol: "calendar.badge.plus", text: String(localized: "Niente in programma. Crea un Genius con una programmazione per far lavorare Siri AI+ da sola."),
+                          action: (String(localized: "Nuovo Genius…"), { state.editingAgent = AgentSpec(name: "", goal: "") }))
             } else {
                 let days = Dictionary(grouping: occurrences.prefix(60)) { Calendar.current.startOfDay(for: $0.date) }
                 VStack(alignment: .leading, spacing: 16) {
@@ -257,7 +257,7 @@ struct ScheduleContent: View {
             Spacer()
             if !item.isDream {
                 Button { state.runAgent(item.agent.id, routine: item.routineID) } label: { Image(systemName: "play.fill") }
-                    .buttonStyle(.borderless).iconHelp("Esegui ora").disabled(state.runningAgents.contains(item.agent.id))
+                    .buttonStyle(.borderless).iconHelp(String(localized: "Esegui ora")).disabled(state.runningAgents.contains(item.agent.id))
             }
             Button { state.openAgent(item.agent.id) } label: { Image(systemName: "chevron.right") }.buttonStyle(.borderless)
         }
@@ -266,17 +266,17 @@ struct ScheduleContent: View {
     }
 
     private func dayTitle(_ day: Date) -> String {
-        if Calendar.current.isDateInToday(day) { return "Oggi" }
-        if Calendar.current.isDateInTomorrow(day) { return "Domani" }
+        if Calendar.current.isDateInToday(day) { return String(localized: "Oggi") }
+        if Calendar.current.isDateInTomorrow(day) { return String(localized: "Domani") }
         return day.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Dates.locale))
     }
 
     @ViewBuilder
     private var allRoutines: some View {
-        if !state.agents.isEmpty {
+        if !state.spaceAgents.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Agenti e programmazioni").font(DS.Fonts.section)
-                ForEach(state.agents) { agent in
+                Text("Genius e programmazioni").font(DS.Fonts.section)
+                ForEach(state.spaceAgents) { agent in
                     HStack(alignment: .top, spacing: 12) {
                         AgentAvatar(agent: agent, size: 36)
                         VStack(alignment: .leading, spacing: 6) {
@@ -329,7 +329,7 @@ struct SpacesSettings: View {
             .labelsHidden()
 
             if space != .codice {
-                group("Calendari") {
+                group(String(localized: "Calendari")) {
                     choices(all: EventKitService.allWritableCalendars(), selected: settings.calendars) { value in
                         state.updateSpace(space) { $0.calendars = value }
                     }
@@ -339,7 +339,7 @@ struct SpacesSettings: View {
                         ForEach(settings.calendars ?? EventKitService.allWritableCalendars(), id: \.self) { Text($0).tag($0) }
                     }
                 }
-                group("Promemoria") {
+                group(String(localized: "Promemoria")) {
                     choices(all: EventKitService.allReminderLists(), selected: settings.reminderLists) { value in
                         state.updateSpace(space) { $0.reminderLists = value }
                     }
@@ -349,7 +349,7 @@ struct SpacesSettings: View {
                         ForEach(settings.reminderLists ?? EventKitService.allReminderLists(), id: \.self) { Text($0).tag($0) }
                     }
                 }
-                group("Email") {
+                group(String(localized: "Email")) {
                     Picker("Account da leggere", selection: Binding(get: { settings.mailAccount ?? "" },
                                                                     set: { value in state.updateSpace(space) { $0.mailAccount = value.isEmpty ? nil : value } })) {
                         Text("Tutti (posta in arrivo unificata)").tag("")
@@ -360,7 +360,7 @@ struct SpacesSettings: View {
                     }
                 }
             }
-            group("Connettori") {
+            group(String(localized: "Connettori")) {
                 if state.mcp.servers.isEmpty {
                     Text("Nessun connettore configurato.").font(DS.Fonts.body).foregroundStyle(.secondary)
                 } else {
@@ -380,7 +380,7 @@ struct SpacesSettings: View {
                     }
                 }
             }
-            group("Modello per le risposte") {
+            group(String(localized: "Modello per le risposte")) {
                 Picker("Modello", selection: Binding(get: { settings.provider ?? "" }, set: { value in
                     state.updateSpace(space) { $0.provider = value.isEmpty ? nil : value; $0.model = nil; $0.effort = nil }
                 })) {
@@ -388,7 +388,7 @@ struct SpacesSettings: View {
                     ForEach(ResponseProvider.allCases) { Text($0.label).tag($0.rawValue) }
                 }
             }
-            group("Indicazioni per questo spazio") {
+            group(String(localized: "Indicazioni per questo spazio")) {
                 TextField("Es. «Nel lavoro dammi del lei nelle email e firma Mainstream Agency»", text: Binding(
                     get: { settings.instructions }, set: { value in state.updateSpace(space) { $0.instructions = value } }), axis: .vertical)
                     .textFieldStyle(.roundedBorder)

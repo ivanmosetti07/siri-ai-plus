@@ -113,10 +113,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     static func pccProbe() async {
         let prompts = [
-            "Spiegami in 5 punti come funziona un mutuo a tasso variabile e quando conviene rispetto al fisso.",
-            "Ho tre riunioni domani: 9:00-10:30, 10:00-11:00 e 14:00-15:00. Quali si sovrappongono e quante ore libere ho in tutto tra le 9 e le 17? Rispondi con il ragionamento essenziale e il numero finale.",
+            String(localized: "Spiegami in 5 punti come funziona un mutuo a tasso variabile e quando conviene rispetto al fisso."),
+            String(localized: "Ho tre riunioni domani: 9:00-10:30, 10:00-11:00 e 14:00-15:00. Quali si sovrappongono e quante ore libere ho in tutto tra le 9 e le 17? Rispondi con il ragionamento essenziale e il numero finale."),
         ]
-        let instructions = "Sei Siri AI+, assistente personale sul Mac. Rispondi sempre in italiano, chiaro e ordinato."
+        let instructions = String(localized: "Sei Siri AI+, assistente personale sul Mac. Rispondi sempre in italiano, chiaro e ordinato.")
         let pcc = PrivateCloudComputeLanguageModel()
         Agent.log("PCC: disponibile=\(pcc.isAvailable) contesto=\((try? await pcc.contextSize) ?? -1)")
         for prompt in prompts {
@@ -214,6 +214,9 @@ struct SiriAIApp: App {
         .defaultSize(width: 1320, height: 820)
         .windowToolbarStyle(.unified)
         .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Controlla aggiornamenti…") { state.checkForUpdatesNow() }
+            }
             CommandGroup(replacing: .newItem) {
                 Button("Cerca e vai a…") { state.showCommandPalette = true }
                     .keyboardShortcut("k")
@@ -230,12 +233,12 @@ struct SiriAIApp: App {
             }
             CommandGroup(after: .sidebar) {
                 Button("Home") { state.section = .home }.keyboardShortcut("1")
-                Button("Agenti") { state.section = .agents }.keyboardShortcut("2")
-                Button("Programmazioni degli agenti") { state.section = .schedule }.keyboardShortcut("3")
+                Button("Genius") { state.section = .agents }.keyboardShortcut("2")
+                Button("Programmazioni dei Genius") { state.section = .schedule }.keyboardShortcut("3")
                 Button("Connettori") { state.section = .connectors }.keyboardShortcut("4")
                 Button("Attività") { state.section = .activity }.keyboardShortcut("5")
                 Divider()
-                Button(state.showsApps ? "Chiudi le app" : "App in schede") { state.toggleApps() }
+                Button(state.showsApps ? String(localized: "Chiudi le app") : String(localized: "App in schede")) { state.toggleApps() }
                     .keyboardShortcut("a", modifiers: [.command, .option])
                 Button("Nuova scheda") { state.selectTab(.launcher) }
                     .keyboardShortcut("t")
@@ -246,7 +249,7 @@ struct SiriAIApp: App {
                     .keyboardShortcut(.tab, modifiers: [.control, .shift])
                     .disabled(!state.showsApps || state.appTabs.count < 2)
                 Divider()
-                Button(state.showAssistant ? "Nascondi l'assistente" : "Mostra l'assistente") { state.showAssistant.toggle() }
+                Button(state.showAssistant ? String(localized: "Nascondi l'assistente") : String(localized: "Mostra l'assistente")) { state.showAssistant.toggle() }
                     .keyboardShortcut("s", modifiers: [.command, .option])
                     .disabled(state.section == .home)
             }

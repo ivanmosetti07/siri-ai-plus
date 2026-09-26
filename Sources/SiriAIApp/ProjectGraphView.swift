@@ -411,7 +411,7 @@ struct ProjectGraphView: View {
                     }
                 }
             } label: {
-                Label(folder.map { ($0 as NSString).lastPathComponent } ?? "Tutto il progetto", systemImage: "folder")
+                Label(folder.map { ($0 as NSString).lastPathComponent } ?? String(localized: "Tutto il progetto"), systemImage: "folder")
             }
             .menuStyle(.button)
             .buttonStyle(.glass)
@@ -422,13 +422,13 @@ struct ProjectGraphView: View {
                     .frame(width: 18)
             }
             .buttonStyle(.glass)
-            .help(animated ? "Ferma gli impulsi sulle sinapsi" : "Mostra gli impulsi sulle sinapsi")
+            .help(animated ? String(localized: "Ferma gli impulsi sulle sinapsi") : String(localized: "Mostra gli impulsi sulle sinapsi"))
         }
     }
 
     private func summary(_ graph: ProjectGraph) -> String {
-        let notes = graph.truncated ? "\(graph.nodes.count.formatted()) note più collegate su \(graph.totalNotes.formatted())" : "\(graph.nodes.count.formatted()) note"
-        return "\(notes) · \(graph.edges.count.formatted()) collegamenti"
+        let notes = graph.truncated ? String(localized: "\(graph.nodes.count.formatted()) note più collegate su \(graph.totalNotes.formatted())") : String(localized: "\(graph.nodes.count.formatted()) note")
+        return String(localized: "\(notes) · \(graph.edges.count.formatted()) collegamenti")
     }
 
     private func legend(_ graph: ProjectGraph) -> some View {
@@ -437,7 +437,7 @@ struct ProjectGraphView: View {
                 HStack(spacing: 7) {
                     Circle().fill(color(for: group, in: graph)).frame(width: 8, height: 8)
                         .shadow(color: color(for: group, in: graph), radius: 4)
-                    Text(group.isEmpty ? "cartella principale" : group).font(.system(size: 11.5, weight: .medium)).foregroundStyle(.white.opacity(0.85))
+                    Text(group.isEmpty ? String(localized: "cartella principale") : group).font(.system(size: 11.5, weight: .medium)).foregroundStyle(.white.opacity(0.85))
                 }
             }
         }
@@ -473,7 +473,7 @@ struct ProjectGraphView: View {
                 Button { withAnimation(DS.Motion.quick) { selected = nil } } label: { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
                     .buttonStyle(.plain).foregroundStyle(.white.opacity(0.7))
             }
-            Text(node.degree == 1 ? "1 collegamento" : "\(node.degree) collegamenti").font(DS.Fonts.caption).foregroundStyle(.white.opacity(0.7))
+            Text(node.degree == 1 ? String(localized: "1 collegamento") : String(localized: "\(node.degree) collegamenti")).font(DS.Fonts.caption).foregroundStyle(.white.opacity(0.7))
             if !linked.isEmpty {
                 VStack(alignment: .leading, spacing: 3) {
                     ForEach(linked.prefix(8)) { other in
@@ -491,7 +491,7 @@ struct ProjectGraphView: View {
             HStack(spacing: 8) {
                 Button { state.openFile(project.folder.appending(path: node.path)) } label: { Label("Apri", systemImage: "doc.text") }
                     .buttonStyle(.glassProminent)
-                Button { state.send("Riassumi il file \(node.path) e dimmi con cosa è collegato") } label: { Label("Chiedi", systemImage: "sparkle") }
+                Button { state.send(String(localized: "Riassumi il file \(node.path) e dimmi con cosa è collegato")) } label: { Label("Chiedi", systemImage: "sparkle") }
                     .buttonStyle(.glass)
                     .help("Chiedi a Siri AI+ di questa nota (nella chat del pannello)")
             }
@@ -507,7 +507,7 @@ struct ProjectGraphView: View {
         let byTitle = graph.nodes.filter { $0.title.lowercased().contains(lower) }
         let matches = byTitle.isEmpty ? graph.nodes.filter { $0.path.lowercased().contains(lower) } : byTitle
         guard let node = matches.max(by: { $0.degree < $1.degree }) else {
-            state.showToast("Nessuna nota con «\(query)» nel grafo", symbol: "magnifyingglass")
+            state.showToast(String(localized: "Nessuna nota con «\(query)» nel grafo"), symbol: "magnifyingglass")
             return
         }
         let newZoom = max(zoom, 2.2)

@@ -574,16 +574,17 @@ public enum Keywords {
     ])
 
     /// Le stesse parole in inglese (richieste in inglese).
+    /// Niente parole che sono anche nomi di persona («Mark», «Will», «Bill»): «the meeting with Mark» deve trovare Mark.
     static let englishStopwords = Set<String>([
         "the", "a", "an", "this", "that", "these", "those", "my", "your", "his", "her", "its", "our", "their", "it", "them", "me", "you", "we",
         "us", "he", "she", "they", "him", "one", "ones", "some", "any", "all", "every", "each", "of", "to", "in", "on", "at", "by", "for", "from",
         "with", "about", "into", "onto", "over", "up", "off", "out", "as", "than", "until", "till", "til", "around", "before", "after", "between",
         "during", "within", "per", "and", "or", "but", "so", "if", "then", "also", "is", "are", "was", "were", "be", "been", "am", "do", "does",
-        "did", "have", "has", "had", "can", "could", "would", "will", "should", "shall", "may", "might", "must", "let", "lets", "don", "doesn",
+        "did", "have", "has", "had", "can", "could", "would", "should", "shall", "may", "might", "must", "let", "lets", "don", "doesn",
         "didn", "isn", "aren", "wasn", "weren", "won", "couldn", "wouldn", "shouldn", "ll", "re", "ve",
         "please", "thanks", "thank", "hey", "ok", "okay", "siri", "just", "now", "instead",
         "move", "moving", "reschedule", "postpone", "push", "delay", "bring", "put", "set", "make", "change", "edit", "modify", "update", "rename",
-        "cancel", "delete", "remove", "clear", "drop", "mark", "complete", "finish", "tick", "extend", "lengthen", "shorten", "prolong", "add",
+        "cancel", "delete", "remove", "clear", "drop", "complete", "finish", "tick", "extend", "lengthen", "shorten", "prolong", "add",
         "write", "insert", "reply", "respond", "forward", "send", "schedule", "shift", "bump", "pull", "take", "want", "need", "remind",
         "reminder", "reminders", "event", "events", "calendar", "deadline", "due", "date", "time", "hour", "hours", "minute", "minutes", "min",
         "mins", "title", "name", "place", "location", "list", "note", "notes", "email", "mail", "message", "entry", "item",

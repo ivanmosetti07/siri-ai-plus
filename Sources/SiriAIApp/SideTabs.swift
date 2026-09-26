@@ -22,7 +22,7 @@ extension AppState {
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true
-        panel.message = "Scegli i file da aprire in Siri AI+"
+        panel.message = String(localized: "Scegli i file da aprire in Siri AI+")
         panel.directoryURL = currentProject?.folder
         guard panel.runModal() == .OK else { return }
         for url in panel.urls { openAny(url) }
@@ -63,7 +63,7 @@ extension AppState {
             if let path = await ProjectGuide.shared(for: root).file(named: name) {
                 openFile(root.appending(path: path))
             } else {
-                showToast("Non trovo «\(name)» nella cartella", symbol: "questionmark.circle")
+                showToast(String(localized: "Non trovo «\(name)» nella cartella"), symbol: "questionmark.circle")
             }
         }
     }
@@ -171,8 +171,8 @@ struct FileTab: View {
     private func publish() async {
         let path = url.path
         let text = await Task.detached(priority: .utility) { (try? FileSearch.read(path, maxChars: 6000)) ?? "" }.value
-        let item = ScreenItem(app: "File", kind: .file, title: url.lastPathComponent,
-                              details: "in \(url.deletingLastPathComponent().path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))",
+        let item = ScreenItem(app: String(localized: "File"), kind: .file, title: url.lastPathComponent,
+                              details: String(localized: "in \(url.deletingLastPathComponent().path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))"),
                               text: text, reference: path)
         state.publish(item, for: .file(url))
     }
@@ -264,9 +264,9 @@ struct ChatsTab: View {
     /// Siri AI+ nel pannello vede le chat affiancate («confronta con la chat accanto», «riassumi la chat a sinistra»).
     private func publish(_ chats: [Conversation]) {
         let text = chats.map { chat in
-            "Chat «\(chat.title)»:\n" + AppState.turns(of: chat).suffix(6).map { "\($0.role == .user ? "Ivan" : "Siri AI+"): \($0.text.prefix(300))" }.joined(separator: "\n")
+            String(localized: "Chat «\(chat.title)»:\n") + AppState.turns(of: chat).suffix(6).map { "\($0.role == .user ? (Assistant.userFirstName ?? String(localized: "Utente")) : "Siri AI+"): \($0.text.prefix(300))" }.joined(separator: "\n")
         }.joined(separator: "\n\n")
-        state.publish(ScreenItem(app: "Chat", kind: .overview, title: chats.count == 1 ? "chat «\(chats[0].title)»" : "\(chats.count) chat affiancate",
+        state.publish(ScreenItem(app: String(localized: "Chat"), kind: .overview, title: chats.count == 1 ? String(localized: "chat «\(chats[0].title)»") : String(localized: "\(chats.count) chat affiancate"),
                                  text: text, nouns: ["chat", "conversazione", "conversazioni"]), for: .chats(group))
     }
 }
@@ -310,7 +310,7 @@ struct ChatColumn: View {
         HStack(spacing: 8) {
             ChatTabIcon(size: 18)
             VStack(alignment: .leading, spacing: 0) {
-                Text(conversation.messages.isEmpty ? "Nuova chat" : conversation.title).font(DS.Fonts.bodyStrong).lineLimit(1)
+                Text(conversation.messages.isEmpty ? String(localized: "Nuova chat") : conversation.title).font(DS.Fonts.bodyStrong).lineLimit(1)
                 if let project = conversation.projectID.flatMap({ id in state.projects.first { $0.id == id } }) {
                     Label(project.name, systemImage: "folder.fill").font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
                 }
@@ -333,7 +333,7 @@ struct ChatColumn: View {
                     Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).frame(width: 20, height: 20)
                 }
                 .buttonStyle(.borderless)
-                .iconHelp("Togli la chat dalla scheda (resta nella cronologia)")
+                .iconHelp(String(localized: "Togli la chat dalla scheda (resta nella cronologia)"))
             }
         }
         .padding(.horizontal, 12)
@@ -366,7 +366,7 @@ struct ChatColumn: View {
                             .frame(width: 26, height: 26).background(Color.primary.opacity(0.75), in: Circle())
                     }
                     .buttonStyle(.plain)
-                    .iconHelp("Interrompi")
+                    .iconHelp(String(localized: "Interrompi"))
                 } else {
                     Button(action: send) {
                         Image(systemName: "arrow.up").font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
@@ -375,7 +375,7 @@ struct ChatColumn: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(!canSend)
-                    .iconHelp(busy ? "Aspetta la risposta in corso" : "Invia (↩)")
+                    .iconHelp(busy ? String(localized: "Aspetta la risposta in corso") : String(localized: "Invia (↩)"))
                 }
             }
         }

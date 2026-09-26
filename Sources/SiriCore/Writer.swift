@@ -33,7 +33,11 @@ extension ExternalEngine {
 extension Assistant {
     /// Istruzioni comuni per chi scrive (le stesse del `writer` di Apple Intelligence).
     static func writingInstructions(_ role: String) -> String {
-        """
+        Language.isEnglish ? """
+        \(role) Write in English, unless the request or the text asks for another language, with concrete and plausible content, without placeholders in brackets.
+        It is now \(Dates.format(.now)). Next days:
+        \(Dates.upcomingDays(14))
+        """ : """
         \(role) Scrivi in italiano, salvo che la richiesta o il testo chiedano un'altra lingua, con contenuti concreti e plausibili, senza segnaposto tra parentesi.
         Adesso è \(Dates.format(.now)). Prossimi giorni:
         \(Dates.upcomingDays(14))
@@ -51,7 +55,8 @@ extension Assistant {
     /// nil se non c'è un modello scelto o se la risposta non è un JSON valido: allora scrive Apple Intelligence.
     func composeJSON(_ role: String, _ request: String, fields: String,
                      partial: @escaping @MainActor (String) -> Void = { _ in }) async -> [String: Any]? {
-        let format = "\n\nRispondi SOLO con un oggetto JSON valido, senza testo prima o dopo e senza ```. Campi:\n\(fields)"
+        let format = Language.t("\n\nRispondi SOLO con un oggetto JSON valido, senza testo prima o dopo e senza ```. Campi:\n",
+                                "\n\nAnswer ONLY with a valid JSON object, with no text before or after and no ```. Fields:\n") + fields
         guard let text = await externalText(role + format, request, partial: partial) else { return nil }
         guard let object = Self.jsonObject(in: text) else {
             Agent.log("SCRITTURA: risposta di \(textWriterName ?? "modello esterno") non in JSON, scrive Apple Intelligence")

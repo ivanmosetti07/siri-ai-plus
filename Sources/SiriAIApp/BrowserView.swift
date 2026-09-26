@@ -118,7 +118,7 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate {
 
     func search(_ query: String) {
         var components = URLComponents(string: "https://duckduckgo.com/")!
-        components.queryItems = [URLQueryItem(name: "q", value: query), URLQueryItem(name: "kl", value: "it-it")]
+        components.queryItems = [URLQueryItem(name: "q", value: query), URLQueryItem(name: "kl", value: Language.system == .it ? "it-it" : "us-en")]
         load(components.url!)
     }
 
@@ -297,11 +297,11 @@ final class BrowserModel: NSObject, WKNavigationDelegate, WKUIDelegate {
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { finish() }
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-        note("La pagina non si carica: \(error.localizedDescription)")
+        note(String(localized: "La pagina non si carica: \(error.localizedDescription)"))
         finish()
     }
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        note("La pagina non si carica: \(error.localizedDescription)")
+        note(String(localized: "La pagina non si carica: \(error.localizedDescription)"))
         finish()
     }
 }
@@ -321,9 +321,9 @@ struct BrowserView: View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Button { browser.back() } label: { Image(systemName: "chevron.left") }
-                    .disabled(!browser.canGoBack).iconHelp("Indietro")
+                    .disabled(!browser.canGoBack).iconHelp(String(localized: "Indietro"))
                 Button { browser.forward() } label: { Image(systemName: "chevron.right") }
-                    .disabled(!browser.canGoForward).iconHelp("Avanti")
+                    .disabled(!browser.canGoForward).iconHelp(String(localized: "Avanti"))
                 HStack(spacing: 6) {
                     Image(systemName: browser.url?.scheme == "https" ? "lock.fill" : "magnifyingglass")
                         .font(.system(size: 11)).foregroundStyle(.secondary)
@@ -333,14 +333,14 @@ struct BrowserView: View {
                         .onSubmit { browser.go(browser.address) }
                     if browser.url != nil {
                         Button { browser.reload() } label: { Image(systemName: browser.isLoading ? "xmark" : "arrow.clockwise") }
-                            .help(browser.isLoading ? "Interrompi" : "Ricarica")
+                            .help(browser.isLoading ? String(localized: "Interrompi") : String(localized: "Ricarica"))
                     }
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
                 Button { browser.openInSafari() } label: { Image(systemName: "safari") }
-                    .disabled(browser.url == nil).iconHelp("Apri in Safari")
+                    .disabled(browser.url == nil).iconHelp(String(localized: "Apri in Safari"))
                 Menu {
                     Button("Importa la pagina aperta in Safari") { importFromSafari() }
                     Button("Copia link") {
@@ -349,7 +349,7 @@ struct BrowserView: View {
                     }
                     .disabled(browser.url == nil)
                     Divider()
-                    Button("Riassumi questa pagina") { state.send("Riassumi questa pagina") }.disabled(browser.url == nil)
+                    Button("Riassumi questa pagina") { state.send(String(localized: "Riassumi questa pagina")) }.disabled(browser.url == nil)
                 } label: { Image(systemName: "ellipsis.circle") }
                 .menuIndicator(.hidden)
                 .fixedSize()
@@ -413,7 +413,7 @@ struct BrowserView: View {
         if let tab = SafariBridge.currentTab(), let url = URL(string: tab.url) {
             state.browser.load(url)
         } else {
-            state.browser.error = "Non trovo pagine aperte in Safari (oppure Siri AI+ non ha il permesso di controllarlo: Impostazioni di Sistema › Privacy e sicurezza › Automazione)."
+            state.browser.error = String(localized: "Non trovo pagine aperte in Safari (oppure Siri AI+ non ha il permesso di controllarlo: Impostazioni di Sistema › Privacy e sicurezza › Automazione).")
         }
     }
 }
@@ -424,11 +424,11 @@ private struct PreviewBar: View {
     let browser: BrowserModel
     @State private var showErrors = false
 
-    private static let devices: [(String, String, CGFloat?)] = [("Computer", "desktopcomputer", nil), ("Tablet", "ipad", 820), ("Telefono", "iphone", 390)]
+    private static let devices: [(String, String, CGFloat?)] = [(String(localized: "Computer"), "desktopcomputer", nil), (String(localized: "Tablet"), "ipad", 820), (String(localized: "Telefono"), "iphone", 390)]
 
     var body: some View {
         HStack(spacing: 10) {
-            Label(state.openCodingProject.map { "Anteprima di \($0.name)" } ?? "Anteprima", systemImage: "eye")
+            Label(state.openCodingProject.map { String(localized: "Anteprima di \($0.name)") } ?? String(localized: "Anteprima"), systemImage: "eye")
                 .font(DS.Fonts.captionStrong)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -459,7 +459,7 @@ private struct PreviewBar: View {
                     .controlSize(.small)
                     .buttonStyle(.borderedProminent)
                     .tint(.purple)
-                    .help(state.openCodingProject == nil ? "Chiedi a Siri AI+ di spiegarli" : "Chiedi all'agente del progetto di correggerli")
+                    .help(state.openCodingProject == nil ? String(localized: "Chiedi a Siri AI+ di spiegarli") : String(localized: "Chiedi all'assistente del progetto di correggerli"))
             }
         }
         .padding(.horizontal, 14)
@@ -507,8 +507,8 @@ private struct StartPage: View {
     @Environment(AppState.self) private var state
     @State private var query = ""
     private let sites: [(String, String)] = [
-        ("Il Post", "https://www.ilpost.it"), ("Wikipedia", "https://it.wikipedia.org"), ("Meteo", "https://www.ilmeteo.it"),
-        ("YouTube", "https://www.youtube.com"), ("GitHub", "https://github.com"), ("Apple", "https://www.apple.com/it/"),
+        (String(localized: "Il Post"), "https://www.ilpost.it"), (String(localized: "Wikipedia"), "https://it.wikipedia.org"), (String(localized: "Meteo"), "https://www.ilmeteo.it"),
+        (String(localized: "YouTube"), "https://www.youtube.com"), (String(localized: "GitHub"), "https://github.com"), (String(localized: "Apple"), "https://www.apple.com/it/"),
     ]
 
     var body: some View {
@@ -541,8 +541,8 @@ private struct StartPage: View {
                     .tint(.purple)
             }
             Text(state.openCodingProject == nil
-                 ? "Chiedi a Siri AI+ qui a destra di aprire un sito, riassumere la pagina o cliccare un link."
-                 : "Questo Safari è della sessione di coding: la chat a destra resta con te mentre provi il sito.")
+                 ? String(localized: "Chiedi a Siri AI+ qui a destra di aprire un sito, riassumere la pagina o cliccare un link.")
+                 : String(localized: "Questo Safari è della sessione di coding: la chat a destra resta con te mentre provi il sito."))
                 .font(DS.Fonts.caption).foregroundStyle(.secondary)
         }
         .padding(40)
@@ -564,7 +564,7 @@ struct WebSourcesCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label(answer.kind == .search ? "Fonti dal web" : "Pagina letta", systemImage: answer.kind == .search ? "globe" : "doc.text")
+            Label(answer.kind == .search ? String(localized: "Fonti dal web") : String(localized: "Pagina letta"), systemImage: answer.kind == .search ? "globe" : "doc.text")
                 .font(DS.Fonts.caption).foregroundStyle(.secondary)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {

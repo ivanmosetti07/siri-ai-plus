@@ -95,11 +95,15 @@ public enum SubAgentRouting {
     /// Senza Apple Intelligence: dalle parole del passo. Chi raccoglie dati è facile, chi giudica o decide è difficile.
     public static func heuristic(_ step: TaskPlan.Step) -> StepDifficulty {
         let lower = (step.title + " " + step.instruction).lowercased()
-        let judging = ["strategia", "rischi", "decidi", "valuta", "ottimizza", "progetta", "architettura", "codice", "calcola", "stima",
-                       "previsione", "priorità", "raccomanda", "negozia", "contratt", "legale", "fiscale", "diagnosi"]
+        let english = Language.isEnglish
+        let judging = (["strategia", "rischi", "decidi", "valuta", "ottimizza", "progetta", "architettura", "codice", "calcola", "stima",
+                        "previsione", "priorità", "raccomanda", "negozia", "contratt", "legale", "fiscale", "diagnosi"]
+                       + (english ? ["strategy", "risk", "decide", "evaluate", "assess", "optimi", "design", "architecture", "code", "calculate",
+                                     "estimate", "forecast", "priorit", "recommend", "negotiate", "contract", "legal", "tax", "diagnos"] : []))
             .filter { lower.contains($0) }.count
         // Scrivere un testo (anche un messaggio) chiede più di una ricerca.
-        let writing = ["scrivi", "redigi", "bozza", "componi", "prepara un", "prepara una", "crea un", "crea una"].contains(where: lower.contains)
+        let writing = (["scrivi", "redigi", "bozza", "componi", "prepara un", "prepara una", "crea un", "crea una"]
+                       + (english ? ["write", "draft", "compose", "prepare a", "prepare an", "create a", "create an"] : [])).contains(where: lower.contains)
         if Assistant.stepNeedsTools(step.instruction) && judging == 0 && !writing { return .facile }
         if judging >= 2 || (judging == 1 && step.instruction.count > 160) { return .difficile }
         return .media
@@ -109,7 +113,9 @@ public enum SubAgentRouting {
     /// del modello più capace; chi analizza, confronta o valuta non va al modello più leggero.
     static func capped(_ difficulty: StepDifficulty, for step: TaskPlan.Step) -> StepDifficulty {
         let lower = step.instruction.lowercased()
-        let judging = ["analizza", "valuta", "confronta", "strategia", "rischi", "decidi", "calcola", "sintetizza", "elabora"].contains(where: lower.contains)
+        let judging = (["analizza", "valuta", "confronta", "strategia", "rischi", "decidi", "calcola", "sintetizza", "elabora"]
+                       + (Language.isEnglish ? ["analy", "evaluate", "assess", "compare", "strategy", "risk", "decide", "calculate", "synthesi", "work out"] : []))
+            .contains(where: lower.contains)
         if difficulty == .facile, judging { return .media }
         guard difficulty == .difficile, Assistant.stepNeedsTools(step.instruction) else { return difficulty }
         return judging ? difficulty : .media
@@ -123,18 +129,24 @@ extension Assistant {
         let fallback = plan.steps.map(SubAgentRouting.heuristic)
         guard Agent.availabilityProblem == nil, !plan.steps.isEmpty else { return fallback }
         let count = plan.steps.count
+        let english = Language.isEnglish
         let schema = makeSchema("DifficoltaPassi", [
             .required("difficolta", .array(.choice(StepDifficulty.allCases.map(\.rawValue)), min: count, max: count),
-                      "La difficoltà di ogni passo, nello stesso ordine dei passi"),
+                      english ? "The difficulty of each step, in the same order as the steps" : "La difficoltà di ogni passo, nello stesso ordine dei passi"),
         ])
-        let role = """
+        let role = english ? """
+        You judge how demanding each step of a task is, to choose the model that carries it out. \
+        facile: searching the web, reading a file or a page, listing or summarizing data without having to judge it. \
+        media: putting together or comparing information, writing an ordinary text, following instructions with a few steps. \
+        difficile: analysis with judgment (risks, strategy, choices), long reasoning or reasoning with numbers, code, important texts to polish.
+        """ : """
         Valuti quanto è impegnativo ogni passo di un compito, per scegliere il modello che lo svolge. \
         facile: cercare sul web, leggere un file o una pagina, elencare o riassumere dati senza doverli giudicare. \
         media: mettere insieme o confrontare informazioni, scrivere un testo ordinario, seguire istruzioni con qualche passaggio. \
         difficile: analisi con giudizio (rischi, strategia, scelte), ragionamenti lunghi o con numeri, codice, testi importanti da curare.
         """
         let steps = plan.steps.enumerated().map { "\($0.offset + 1). \($0.element.title): \($0.element.instruction.prefix(280))" }.joined(separator: "\n")
-        let request = "Compito: \(plan.goal.prefix(400))\nPassi:\n\(steps)"
+        let request = (english ? "Task: " : "Compito: ") + plan.goal.prefix(400) + (english ? "\nSteps:\n" : "\nPassi:\n") + steps
         let judge = Task { @MainActor () -> [StepDifficulty]? in
             guard let content = try? await self.writer(role).respond(to: request, schema: schema).content else { return nil }
             return content.strings("difficolta").compactMap(StepDifficulty.init(rawValue:))

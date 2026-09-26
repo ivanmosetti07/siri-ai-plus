@@ -8,7 +8,7 @@ struct TaskPlanCard: View {
     @State private var showThoughts = true
     @State private var expanded = Set<UUID>()
     var body: some View {
-        Card(title: "Piano di lavoro", subtitle: subtitle) {
+        Card(title: String(localized: "Piano di lavoro"), subtitle: subtitle) {
             Image(systemName: "list.number").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.accentColor).frame(width: 26)
         } content: {
             VStack(alignment: .leading, spacing: 10) {
@@ -43,7 +43,7 @@ struct TaskPlanCard: View {
                                         Label(SubAgentRouting.label(sub), systemImage: "cpu").font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
                                             .padding(.horizontal, 5).padding(.vertical, 1)
                                             .background(Color.accentColor.opacity(0.1), in: Capsule())
-                                            .help(step.difficulty.map { "Passo \($0.label): lo svolge \(SubAgentRouting.label(sub))" } ?? SubAgentRouting.label(sub))
+                                            .help(step.difficulty.map { String(localized: "Passo \($0.label): lo svolge \(SubAgentRouting.label(sub))") } ?? SubAgentRouting.label(sub))
                                     }
                                 }
                                 Text(step.instruction).font(DS.Fonts.caption).foregroundStyle(.secondary).lineLimit(2)
@@ -54,7 +54,7 @@ struct TaskPlanCard: View {
                                     if expanded.contains(step.id) { expanded.remove(step.id) } else { expanded.insert(step.id) }
                                 } label: { Image(systemName: expanded.contains(step.id) ? "chevron.up" : "chevron.down") }
                                 .buttonStyle(.borderless)
-                                .iconHelp("Mostra il risultato del passo")
+                                .iconHelp(String(localized: "Mostra il risultato del passo"))
                             }
                         }
                         if expanded.contains(step.id) {
@@ -89,7 +89,7 @@ struct TaskPlanCard: View {
 
     private var subtitle: String {
         let done = model.plan.steps.filter { $0.status == "fatto" }.count
-        return "\(done)/\(model.plan.steps.count) passi · fino a \(model.parallel) sub-agent insieme"
+        return String(localized: "\(done)/\(model.plan.steps.count) passi · fino a \(model.parallel) sub-agent insieme")
     }
 }
 
@@ -117,8 +117,8 @@ struct ChatLinkCard: View {
     let link: ChatLink
 
     var body: some View {
-        Card(title: link.summary == nil ? "Chat figlia aperta" : "Riepilogo della chat figlia",
-             subtitle: link.title + (link.projectName.map { " · progetto \($0)" } ?? "")) {
+        Card(title: link.summary == nil ? String(localized: "Chat figlia aperta") : String(localized: "Riepilogo della chat figlia"),
+             subtitle: link.title + (link.projectName.map { String(localized: " · progetto \($0)") } ?? "")) {
             Image(systemName: link.summary == nil ? "arrow.turn.down.right" : "arrow.uturn.backward.circle.fill")
                 .font(.system(size: 16)).foregroundStyle(Color.accentColor).frame(width: 26)
         } content: {
@@ -128,7 +128,7 @@ struct ChatLinkCard: View {
                 }
                 HStack {
                     Spacer()
-                    Button(link.summary == nil ? "Apri la chat" : "Rivedi la chat") { state.open(childID: link.childID) }
+                    Button(link.summary == nil ? String(localized: "Apri la chat") : String(localized: "Rivedi la chat")) { state.open(childID: link.childID) }
                         .buttonStyle(.link).font(DS.Fonts.caption)
                 }
             }
@@ -179,7 +179,7 @@ struct NewChildChatSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Nuova chat figlia").font(DS.Fonts.section)
-            Text("Lavora su un argomento a parte (anche in un progetto). Quando la concludi, il riepilogo torna in «\(state.current?.title ?? "questa chat")».")
+            Text("Lavora su un argomento a parte (anche in un progetto). Quando la concludi, il riepilogo torna in «\(state.current?.title ?? String(localized: "questa chat"))».")
                 .font(DS.Fonts.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Form {
                 TextField("Argomento", text: $title, prompt: Text("Es. Ricerca concorrenti"))
@@ -240,7 +240,7 @@ struct PrivacyRow: View {
             .buttonStyle(.plain)
             .help("I dati veri restano sul Mac: \(report.destination) ha ricevuto solo i segnaposto e la risposta è stata ricostruita qui.")
             .accessibilityLabel("Anonimizzati \(report.total) dati prima dell'invio a \(report.destination)")
-            .accessibilityHint(expanded ? "Nascondi i dati" : "Mostra i dati sostituiti")
+            .accessibilityHint(expanded ? String(localized: "Nascondi i dati") : String(localized: "Mostra i dati sostituiti"))
 
             if expanded {
                 VStack(alignment: .leading, spacing: 6) {
@@ -267,7 +267,7 @@ struct TraceRow: View {
     /// `--expand-traces`: aperta subito (per le foto di prova).
     @State private var expanded = ProcessInfo.processInfo.arguments.contains("--expand-traces")
     private var seconds: String {
-        (Double(trace.totalMilliseconds) / 1000).formatted(.number.precision(.fractionLength(1)).locale(Locale(identifier: "it_IT")))
+        (Double(trace.totalMilliseconds) / 1000).formatted(.number.precision(.fractionLength(1)).locale(Language.system.locale))
     }
 
     var body: some View {
@@ -281,7 +281,7 @@ struct TraceRow: View {
                         .rotationEffect(.degrees(expanded ? 90 : 0))
                     Image(systemName: trace.steps.allSatisfy(\.ok) ? "wand.and.sparkles" : "exclamationmark.triangle")
                         .symbolRenderingMode(.hierarchical)
-                    Text(trace.steps.count == 1 ? "Come ho lavorato · 1 passaggio · \(seconds) s" : "Come ho lavorato · \(trace.steps.count) passaggi · \(seconds) s")
+                    Text(trace.steps.count == 1 ? String(localized: "Come ho lavorato · 1 passaggio · \(seconds) s") : String(localized: "Come ho lavorato · \(trace.steps.count) passaggi · \(seconds) s"))
                 }
                 .font(DS.Fonts.caption)
                 .foregroundStyle(.secondary)
@@ -289,7 +289,7 @@ struct TraceRow: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Come ho lavorato: \(trace.steps.count) passaggi")
-            .accessibilityHint(expanded ? "Comprimi" : "Espandi")
+            .accessibilityHint(expanded ? String(localized: "Comprimi") : String(localized: "Espandi"))
 
             if expanded {
                 VStack(alignment: .leading, spacing: 8) {
@@ -329,20 +329,20 @@ struct TraceRow: View {
 
     /// Nome leggibile dell'azione.
     static func label(_ action: String) -> String {
-        let names = ["agenda": "Agenda", "eventi": "Eventi del calendario", "promemoria": "Promemoria", "calendari": "Calendari e liste",
-                     "crea_evento": "Nuovo evento", "crea_promemoria": "Nuovo promemoria", "crea_lista_promemoria": "Lista di promemoria",
-                     "elimina_evento": "Elimina evento", "completa_promemoria": "Completa promemoria", "scrivi_email": "Bozza email",
-                     "crea_documento": "Documento", "crea_foglio": "Foglio", "crea_presentazione": "Presentazione", "piano": "Piano",
-                     "mail_leggi": "Posta", "note": "Note", "file": "File sul Mac", "messaggi": "Messaggi", "crea_nota": "Nuova nota",
-                     "invia_messaggio": "Messaggio", "genera_immagine": "Immagine", "ricorda": "Memoria", "file_elenca": "Elenco file",
-                     "file_leggi": "Lettura file", "file_cerca": "Ricerca nei file", "file_scrivi": "Modifica file", "file_sposta": "Sposta file",
-                     "file_cartella": "Nuova cartella", "file_elimina": "Cestino", "strumento_esterno": "Connettore",
-                     "modifica_artefatto": "Modifica documento", "cerca_web": "Ricerca sul web", "leggi_pagina": "Lettura pagina",
-                     "naviga": "Browser", "segui_link": "Link", "nuova_chat": "Nuova chat", "crea_agente": "Nuovo agente",
-                     "crea_sito": "Pagina web", "cerca_conversazioni": "Conversazioni passate", "skill": "Skill",
-                     "calcolo": "Calcolo esatto", "immagine": "Immagine allegata", "ragionamento": "Ragionamento prima della risposta",
-                     "lettura_a_pezzi": "Sub-agent · lettura a pezzi", "smistatore": "Sub-agent · scelta degli strumenti e del piano"]
-        if action.hasPrefix("mcp:") { return "Connettore · " + action.dropFirst(4).trimmingCharacters(in: .whitespaces) }
+        let names = ["agenda": String(localized: "Agenda"), "eventi": String(localized: "Eventi del calendario"), "promemoria": String(localized: "Promemoria"), "calendari": String(localized: "Calendari e liste"),
+                     "crea_evento": String(localized: "Nuovo evento"), "crea_promemoria": String(localized: "Nuovo promemoria"), "crea_lista_promemoria": String(localized: "Lista di promemoria"),
+                     "elimina_evento": String(localized: "Elimina evento"), "completa_promemoria": String(localized: "Completa promemoria"), "scrivi_email": String(localized: "Bozza email"),
+                     "crea_documento": String(localized: "Documento"), "crea_foglio": String(localized: "Foglio"), "crea_presentazione": String(localized: "Presentazione"), "piano": String(localized: "Piano"),
+                     "mail_leggi": String(localized: "Posta"), "note": String(localized: "Note"), "file": String(localized: "File sul Mac"), "messaggi": String(localized: "Messaggi"), "crea_nota": String(localized: "Nuova nota"),
+                     "invia_messaggio": String(localized: "Messaggio"), "genera_immagine": String(localized: "Immagine"), "ricorda": String(localized: "Memoria"), "file_elenca": String(localized: "Elenco file"),
+                     "file_leggi": String(localized: "Lettura file"), "file_cerca": String(localized: "Ricerca nei file"), "file_scrivi": String(localized: "Modifica file"), "file_sposta": String(localized: "Sposta file"),
+                     "file_cartella": String(localized: "Nuova cartella"), "file_elimina": String(localized: "Cestino"), "strumento_esterno": String(localized: "Connettore"),
+                     "modifica_artefatto": String(localized: "Modifica documento"), "cerca_web": String(localized: "Ricerca sul web"), "leggi_pagina": String(localized: "Lettura pagina"),
+                     "naviga": String(localized: "Browser"), "segui_link": String(localized: "Link"), "nuova_chat": String(localized: "Nuova chat"), "crea_agente": String(localized: "Nuovo Genius"),
+                     "crea_sito": String(localized: "Pagina web"), "cerca_conversazioni": String(localized: "Conversazioni passate"), "skill": String(localized: "Skill"),
+                     "calcolo": String(localized: "Calcolo esatto"), "immagine": String(localized: "Immagine allegata"), "ragionamento": String(localized: "Ragionamento prima della risposta"),
+                     "lettura_a_pezzi": String(localized: "Sub-agent · lettura a pezzi"), "smistatore": String(localized: "Sub-agent · scelta degli strumenti e del piano")]
+        if action.hasPrefix("mcp:") { return String(localized: "Connettore · ") + action.dropFirst(4).trimmingCharacters(in: .whitespaces) }
         return names[action] ?? action.replacingOccurrences(of: "_", with: " ").capitalized
     }
 }

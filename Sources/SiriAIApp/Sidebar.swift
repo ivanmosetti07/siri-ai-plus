@@ -10,9 +10,13 @@ struct SidebarView: View {
     /// La cronologia sta in alto: di default mostra solo le conversazioni più recenti.
     @State private var showAllHistory = false
     private let historyLimit = 8
+    @State private var visibleGeniusCount = 8
+    private let geniusBatchSize = 8
     /// Progetti aperti nella barra laterale (quello fissato o aperto si apre da solo).
     @State private var expanded = Set<UUID>()
     @State private var collapsed = Set<UUID>()
+    @State private var expandedGenius = Set<UUID>()
+    @State private var collapsedGenius = Set<UUID>()
     /// Cosa si sta per eliminare (serve una conferma).
     enum Deletion: Identifiable {
         case conversation(Conversation), project(ProjectModel), agent(AgentSpec)
@@ -25,16 +29,16 @@ struct SidebarView: View {
         }
         var title: String {
             switch self {
-            case .conversation(let c): "Eliminare la conversazione «\(c.title)»?"
-            case .project(let p): "Rimuovere il progetto «\(p.name)»?"
-            case .agent(let a): "Eliminare l'agente «\(a.displayName)»?"
+            case .conversation(let c): String(localized: "Eliminare la conversazione «\(c.title)»?")
+            case .project(let p): String(localized: "Rimuovere il progetto «\(p.name)»?")
+            case .agent(let a): String(localized: "Eliminare il Genius «\(a.displayName)»?")
             }
         }
         var message: String {
             switch self {
-            case .conversation: "La conversazione e le sue schede verranno cancellate."
-            case .project: "Le chat del progetto verranno cancellate. La cartella e i suoi file restano sul Mac."
-            case .agent: "Registro, anima e programmazioni dell'agente verranno cancellati."
+            case .conversation: String(localized: "La conversazione e le sue schede verranno cancellate.")
+            case .project: String(localized: "Le chat del progetto verranno cancellate. La cartella e i suoi file restano sul Mac.")
+            case .agent: String(localized: "Chat, registro, anima, skill dedicate e programmazioni del Genius verranno cancellati.")
             }
         }
     }
@@ -66,6 +70,44 @@ struct SidebarView: View {
                 else { collapsed.insert(project.id); expanded.remove(project.id) }
             }
         )
+    }
+
+    private func expansion(for agent: AgentSpec) -> Binding<Bool> {
+        Binding(
+            get: {
+                if collapsedGenius.contains(agent.id) { return false }
+                if expandedGenius.contains(agent.id) { return true }
+                if case .agent(let id) = state.section { return id == agent.id }
+                return false
+            },
+            set: { open in
+                if open { expandedGenius.insert(agent.id); collapsedGenius.remove(agent.id) }
+                else { collapsedGenius.insert(agent.id); expandedGenius.remove(agent.id) }
+            }
+        )
+    }
+
+    private var sortedGenius: [AgentSpec] {
+        state.spaceAgents.sorted { lhs, rhs in
+            let left = state.pendingApprovals(for: lhs) > 0 ? 0 : state.runningAgents.contains(lhs.id) ? 1 : 2
+            let right = state.pendingApprovals(for: rhs) > 0 ? 0 : state.runningAgents.contains(rhs.id) ? 1 : 2
+            if left != right { return left < right }
+            let leftDate = lhs.lastRun ?? lhs.created, rightDate = rhs.lastRun ?? rhs.created
+            if leftDate != rightDate { return leftDate > rightDate }
+            let names = lhs.displayName.localizedStandardCompare(rhs.displayName)
+            return names == .orderedSame ? lhs.id.uuidString < rhs.id.uuidString : names == .orderedAscending
+        }
+    }
+
+    private var visibleGenius: [AgentSpec] {
+        let ordered = sortedGenius
+        var visible = Array(ordered.prefix(visibleGeniusCount))
+        if case .agent(let id) = state.section,
+           !visible.contains(where: { $0.id == id }),
+           let selected = ordered.first(where: { $0.id == id }) {
+            visible.append(selected)
+        }
+        return visible
     }
 
     private var selection: Binding<SidebarItem?> {
@@ -202,32 +244,8 @@ struct SidebarView: View {
                     Label("Cerca", systemImage: "magnifyingglass")
                 }
                 .buttonStyle(.plain)
-                .help("Cerca chat, progetti, agenti e comandi (⌘K)")
+                .help("Cerca chat, progetti, Genius e comandi (⌘K)")
                 Label("Home", systemImage: "house").tag(SidebarItem.home)
-                Label("Agenti", systemImage: "person.2")
-                    .badge(state.spaceAgents.reduce(0) { $0 + state.pendingApprovals(for: $1) })
-                    .tag(SidebarItem.agents)
-                // Sotto «Agenti» solo quelli che lavorano o aspettano te: gli altri sono nella loro sezione.
-                ForEach(state.spaceAgents.filter { state.runningAgents.contains($0.id) || state.pendingApprovals(for: $0) > 0 }) { agent in
-                    HStack(spacing: 8) {
-                        AgentAvatar(agent: agent, size: 18)
-                        Text(agent.displayName).lineLimit(1)
-                        Spacer()
-                        if state.runningAgents.contains(agent.id) {
-                            ProgressView().controlSize(.mini)
-                        } else {
-                            Text("\(state.pendingApprovals(for: agent))").font(.system(size: 10.5, weight: .bold)).foregroundStyle(.white)
-                                .padding(.horizontal, 6).padding(.vertical, 1).background(Color.orange, in: Capsule())
-                        }
-                    }
-                    .padding(.leading, 14)
-                    .tag(SidebarItem.agent(agent.id))
-                    .contextMenu {
-                        Button("Esegui ora") { state.runAgent(agent.id) }
-                        Button(agent.active ? "Metti in pausa" : "Riattiva") { state.toggleActive(agent.id) }
-                        Button("Modifica…") { state.editingAgent = agent }
-                    }
-                }
             }
 
             if state.space == .lavoro || (state.space == .personale && !state.sortedProjects.isEmpty) {
@@ -245,7 +263,7 @@ struct SidebarView: View {
                             .fontWeight(task.id == state.currentID ? .semibold : .regular)
                             .tag(SidebarItem.conversation(task.id))
                             .contextMenu {
-                                Button(task.pinned ? "Togli dai fissati" : "Fissa in alto") { state.togglePin(task) }
+                                Button(task.pinned ? String(localized: "Togli dai fissati") : String(localized: "Fissa in alto")) { state.togglePin(task) }
                                 Button("Elimina chat…", role: .destructive) { deletion = .conversation(task) }
                             }
                         }
@@ -271,7 +289,7 @@ struct SidebarView: View {
                         }
                         .tag(SidebarItem.project(project.id))
                         .contextMenu {
-                            Button(project.pinned ? "Togli dai fissati" : "Fissa in alto") { state.togglePin(project) }
+                            Button(project.pinned ? String(localized: "Togli dai fissati") : String(localized: "Fissa in alto")) { state.togglePin(project) }
                             Button("Nuova chat nel progetto") { state.newConversation(in: project) }
                             Button("Mostra nel Finder") { NSWorkspace.shared.activateFileViewerSelecting([project.folder]) }
                             Divider()
@@ -291,6 +309,72 @@ struct SidebarView: View {
             }
             }
 
+            Section {
+                Label("Tutti i Genius", systemImage: "person.2")
+                    .badge(state.spaceAgents.reduce(0) { $0 + state.pendingApprovals(for: $1) })
+                    .tag(SidebarItem.agents)
+                if sortedGenius.isEmpty {
+                    Text("I tuoi Genius appariranno qui").font(DS.Fonts.caption).foregroundStyle(.tertiary)
+                }
+                ForEach(visibleGenius) { agent in
+                    DisclosureGroup(isExpanded: expansion(for: agent)) {
+                        Button { state.openAgent(agent.id, tab: 0) } label: { Label("Chat", systemImage: "bubble.left") }
+                            .buttonStyle(.plain)
+                        Button { state.openAgent(agent.id, tab: 4) } label: { Label("Programmazioni", systemImage: "calendar.badge.clock") }
+                            .buttonStyle(.plain)
+                        Button { state.openAgent(agent.id, tab: 1) } label: { Label("Cronologia", systemImage: "clock.arrow.circlepath") }
+                            .buttonStyle(.plain)
+                        Button { state.openAgent(agent.id, tab: 8) } label: { Label("Skill", systemImage: "wand.and.stars") }
+                            .buttonStyle(.plain)
+                    } label: {
+                        HStack(spacing: 8) {
+                            AgentAvatar(agent: agent, size: 18)
+                            Text(agent.displayName).lineLimit(1)
+                            Spacer(minLength: 4)
+                            let pending = state.pendingApprovals(for: agent)
+                            if pending > 0 {
+                                Text("\(pending)").font(.system(size: 10.5, weight: .bold)).foregroundStyle(.white)
+                                    .padding(.horizontal, 6).padding(.vertical, 1).background(Color.orange, in: Capsule())
+                                    .accessibilityLabel("\(pending) approvazioni in attesa")
+                            } else if state.runningAgents.contains(agent.id) {
+                                ProgressView().controlSize(.mini).accessibilityLabel("Al lavoro")
+                            } else if !agent.active {
+                                Image(systemName: "pause.circle.fill").foregroundStyle(.secondary).accessibilityLabel("In pausa")
+                            } else {
+                                Circle().fill(.green).frame(width: 7, height: 7).accessibilityLabel("Pronto")
+                            }
+                        }
+                        .tag(SidebarItem.agent(agent.id))
+                        .contextMenu {
+                            Button("Apri chat") { state.openAgent(agent.id, tab: 0) }
+                            Button("Programmazioni") { state.openAgent(agent.id, tab: 4) }
+                            Button("Cronologia") { state.openAgent(agent.id, tab: 1) }
+                            Button("Skill") { state.openAgent(agent.id, tab: 8) }
+                            Divider()
+                            Button("Esegui ora") { state.runAgent(agent.id) }
+                            Button(agent.active ? String(localized: "Metti in pausa") : String(localized: "Riattiva")) { state.toggleActive(agent.id) }
+                            Button("Modifica…") { state.editingAgent = agent }
+                            Divider()
+                            Button("Elimina Genius…", role: .destructive) { deletion = .agent(agent) }
+                        }
+                    }
+                }
+                if visibleGeniusCount < sortedGenius.count {
+                    Button("Mostra altri") { visibleGeniusCount += geniusBatchSize }
+                        .buttonStyle(.plain).foregroundStyle(.secondary)
+                }
+                if visibleGeniusCount > geniusBatchSize {
+                    Button("Mostra meno") { visibleGeniusCount = geniusBatchSize }
+                        .buttonStyle(.plain).foregroundStyle(.secondary)
+                }
+                Button { state.editingAgent = AgentSpec(name: "", goal: "") } label: {
+                    Label("Nuovo Genius", systemImage: "plus")
+                }
+                .buttonStyle(.plain).foregroundStyle(.secondary)
+            } header: {
+                Text("Genius")
+            }
+
             Section("Chat") {
                 if state.history.isEmpty {
                     Text("Le chat appariranno qui").font(DS.Fonts.caption).foregroundStyle(.tertiary)
@@ -306,7 +390,7 @@ struct SidebarView: View {
                         .fontWeight(conversation.id == state.currentID ? .semibold : .regular)
                         .tag(SidebarItem.conversation(conversation.id))
                         .contextMenu {
-                            Button(conversation.pinned ? "Togli dai fissati" : "Fissa in alto") { state.togglePin(conversation) }
+                            Button(conversation.pinned ? String(localized: "Togli dai fissati") : String(localized: "Fissa in alto")) { state.togglePin(conversation) }
                             Button("Elimina chat…", role: .destructive) { deletion = .conversation(conversation) }
                         }
                     }
@@ -314,7 +398,7 @@ struct SidebarView: View {
                         Button {
                             withAnimation { showAllHistory.toggle() }
                         } label: {
-                            Label(showAllHistory ? "Mostra meno" : "Mostra tutte (\(state.history.count))",
+                            Label(showAllHistory ? String(localized: "Mostra meno") : String(localized: "Mostra tutte (\(state.history.count))"),
                                   systemImage: showAllHistory ? "chevron.up" : "ellipsis")
                         }
                         .buttonStyle(.plain)
@@ -335,7 +419,7 @@ struct SidebarView: View {
                 }
                 .tag(SidebarItem.browser)
                 .contextMenu {
-                    Button(state.webEnabled ? "Disattiva la ricerca sul web" : "Attiva la ricerca sul web") { state.webEnabled.toggle() }
+                    Button(state.webEnabled ? String(localized: "Disattiva la ricerca sul web") : String(localized: "Attiva la ricerca sul web")) { state.webEnabled.toggle() }
                     Button("Apri Safari") { NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Safari.app")) }
                 }
                 ForEach(SourceKind.allCases) { source in
@@ -376,6 +460,7 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        .onChange(of: state.space) { _, _ in visibleGeniusCount = geniusBatchSize }
         // In fondo, sempre a portata: connettori, attività e impostazioni. Sotto l'elenco (non sopra):
         // così non coprono le ultime righe.
         Divider().opacity(0.5)
@@ -383,6 +468,8 @@ struct SidebarView: View {
                 HStack(spacing: 8) {
                     footerButton("Connettori", symbol: "puzzlepiece.extension", selected: state.section == .connectors) { state.section = .connectors }
                     footerButton("Attività e privacy", symbol: "clock.arrow.circlepath", selected: state.section == .activity) { state.section = .activity }
+                    // Su GitHub c'è una versione più recente: il simbolo per scaricarla.
+                    if let update = state.availableUpdate { UpdateButton(update: update) }
                     Spacer()
                     footerButton("Impostazioni (⌘,)", symbol: "gearshape", selected: false) { state.openSettings() }
                 }
@@ -392,7 +479,7 @@ struct SidebarView: View {
         }
         .confirmationDialog(deletion?.title ?? "", isPresented: Binding(get: { deletion != nil }, set: { if !$0 { deletion = nil } }),
                             presenting: deletion) { item in
-            Button(item.id.hasPrefix("p") ? "Rimuovi" : "Elimina", role: .destructive) {
+            Button(item.id.hasPrefix("p") ? String(localized: "Rimuovi") : String(localized: "Elimina"), role: .destructive) {
                 switch item {
                 case .conversation(let c): state.delete(c)
                 case .project(let p): state.removeProject(p)
@@ -409,8 +496,8 @@ enum ProjectPicker {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
-        panel.prompt = "Collega"
-        panel.message = "Scegli la cartella del progetto. Siri AI+ lavorerà solo al suo interno."
+        panel.prompt = String(localized: "Collega")
+        panel.message = String(localized: "Scegli la cartella del progetto. Siri AI+ lavorerà solo al suo interno.")
         if panel.runModal() == .OK, let url = panel.url { completion(url) }
     }
 }

@@ -13,8 +13,12 @@ public enum Language: String, Sendable, Codable, CaseIterable {
     /// Lingua in uso: quella della richiesta in corso, fuori da una richiesta quella del Mac.
     public static var current: Language { scoped ?? system }
 
-    /// Lingua del Mac: italiano se è la prima lingua preferita, altrimenti inglese.
+    /// Lingua del Mac: nell'app quella che macOS ha scelto per l'interfaccia (fra italiano e inglese, così motore e finestre
+    /// parlano la stessa lingua); nella CLI e nei test l'italiano se è la prima lingua preferita, altrimenti l'inglese.
     public static var system: Language {
+        if Bundle.main.localizations.contains("en"), let interface = Bundle.main.preferredLocalizations.first {
+            return interface.lowercased().hasPrefix("it") ? .it : .en
+        }
         let first = Locale.preferredLanguages.first ?? Locale.current.identifier
         return first.lowercased().hasPrefix("it") ? .it : .en
     }

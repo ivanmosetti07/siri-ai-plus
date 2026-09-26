@@ -12,8 +12,8 @@ struct CodeHomeView: View {
 
     var body: some View {
         GlassPage(maxWidth: 940) {
-            PageHeader(eyebrow: "Programmazione", title: "Dall'idea, al codice.",
-                       subtitle: "Descrivi un'app o un sito: il modello che scegli (ChatGPT con Codex, Claude con Claude Code, oppure Apple Intelligence e Gemma sul Mac) lo costruisce passo passo, ti mostra ogni modifica e salva un punto di ripristino prima di toccare i file.") {
+            PageHeader(eyebrow: String(localized: "Programmazione"), title: String(localized: "Dall'idea, al codice."),
+                       subtitle: String(localized: "Descrivi un'app o un sito: il modello che scegli (ChatGPT con Codex, Claude con Claude Code, oppure Apple Intelligence e Gemma sul Mac) lo costruisce passo passo, ti mostra ogni modifica e salva un punto di ripristino prima di toccare i file.")) {
                 Button {
                     ProjectPicker.choose { state.addCodeProject(folder: $0) }
                 } label: { Label("Apri cartella…", systemImage: "folder") }
@@ -30,7 +30,7 @@ struct CodeHomeView: View {
             }
             engines
             VStack(alignment: .leading, spacing: 12) {
-                GroupTitle(text: "Inizia un progetto")
+                GroupTitle(text: String(localized: "Inizia un progetto"))
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 14)], spacing: 14) {
                     ForEach(CodeTemplate.allCases) { template in
                         Button { state.newCodeTemplate = template } label: { TemplateCard(template: template) }
@@ -40,7 +40,7 @@ struct CodeHomeView: View {
             }
             if !codeProjects.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
-                    GroupTitle(text: "I tuoi progetti")
+                    GroupTitle(text: String(localized: "I tuoi progetti"))
                     VStack(spacing: 12) {
                         ForEach(codeProjects) { project in
                             GlassRow(symbol: "folder.fill", colors: Hue.purple, title: project.name,
@@ -72,13 +72,13 @@ struct CodeHomeView: View {
 
     @ViewBuilder private var badges: some View {
         let models = state.models
-        EngineBadge(name: "Codex", ok: models.codexInstalled && models.codexLoggedIn,
-                    detail: !models.codexInstalled ? "non installato" : models.codexLoggedIn ? "pronto" : "accesso da fare")
-        EngineBadge(name: "Claude Code", ok: models.claudeInstalled && models.claudeLoggedIn,
-                    detail: !models.claudeInstalled ? "non installato" : models.claudeLoggedIn ? "pronto" : "accesso da fare")
-        EngineBadge(name: "Sul Mac", ok: state.availabilityProblem == nil,
-                    detail: (["Apple Intelligence"] + (models.downloadedVariants.isEmpty ? [] : ["Gemma"])).joined(separator: ", "))
-        EngineBadge(name: "Xcode", ok: FileManager.default.fileExists(atPath: "/Applications/Xcode.app"), detail: "per le app Apple")
+        EngineBadge(name: String(localized: "Codex"), ok: models.codexInstalled && models.codexLoggedIn,
+                    detail: !models.codexInstalled ? String(localized: "non installato") : models.codexLoggedIn ? "pronto" : String(localized: "accesso da fare"))
+        EngineBadge(name: String(localized: "Claude Code"), ok: models.claudeInstalled && models.claudeLoggedIn,
+                    detail: !models.claudeInstalled ? String(localized: "non installato") : models.claudeLoggedIn ? "pronto" : String(localized: "accesso da fare"))
+        EngineBadge(name: String(localized: "Sul Mac"), ok: state.availabilityProblem == nil,
+                    detail: ([String(localized: "Apple Intelligence")] + (models.downloadedVariants.isEmpty ? [] : [String(localized: "Gemma")])).joined(separator: ", "))
+        EngineBadge(name: String(localized: "Xcode"), ok: FileManager.default.fileExists(atPath: "/Applications/Xcode.app"), detail: String(localized: "per le app Apple"))
     }
 }
 
@@ -232,7 +232,7 @@ struct CodeWorkspaceView: View {
         let run = state.devRun(for: project)
         let isolated = state.currentCodeSession?.isolation == .worktree
         return VStack(alignment: .leading, spacing: 10) {
-            PageHeader(eyebrow: isolated ? "Progetto di codice · copia isolata" : "Progetto di codice", title: project.name) {
+            PageHeader(eyebrow: isolated ? String(localized: "Progetto di codice · copia isolata") : String(localized: "Progetto di codice"), title: project.name) {
                 Menu {
                     Button("Mostra nel Finder") { NSWorkspace.shared.activateFileViewerSelecting([working.folder]) }
                     Button("Apri nel Terminale") { NSWorkspace.shared.open([working.folder], withApplicationAt: URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"), configuration: .init()) }
@@ -250,7 +250,7 @@ struct CodeWorkspaceView: View {
                 .menuIndicator(.hidden)
                 .buttonStyle(.glass)
                 .fixedSize()
-                .iconHelp("Altre azioni")
+                .iconHelp(String(localized: "Altre azioni"))
                 runButtons(command: command, run: run)
             }
             HStack(spacing: 8) {
@@ -260,8 +260,8 @@ struct CodeWorkspaceView: View {
                     .glassEffect(.regular, in: .capsule)
                 if let session = state.currentCodeSession, session.isolation == .worktree {
                     Text(session.workingFolder == nil
-                         ? "La copia sarà creata al primo invio"
-                         : "Applica le modifiche dalla revisione")
+                         ? String(localized: "La copia sarà creata al primo invio")
+                         : String(localized: "Applica le modifiche dalla revisione"))
                         .foregroundStyle(.purple)
                 }
                 // Le app aperte in questa sessione (Safari con l'anteprima, Note…): restano con lei.
@@ -302,7 +302,7 @@ struct CodeWorkspaceView: View {
                     .buttonStyle(.glassProminent)
                     .tint(.purple)
                     .disabled(run.url == nil)
-                    .help(run.url == nil ? "Il server sta partendo…" : "Apri l'app web nel Safari di questa sessione")
+                    .help(run.url == nil ? String(localized: "Il server sta partendo…") : String(localized: "Apri l'app web nel Safari di questa sessione"))
                 Button(role: .destructive) { state.stopProject(project) } label: { Label("Ferma", systemImage: "stop.fill") }
                     .buttonStyle(.glass)
             } else {
@@ -316,11 +316,11 @@ struct CodeWorkspaceView: View {
                 Button(role: .destructive) { state.stopProject(project) } label: { Label("Ferma", systemImage: "stop.fill") }
                     .buttonStyle(.glass)
             } else {
-                Button { state.runProject(project) } label: { Label(command?.label ?? "Esegui", systemImage: command?.kind == .xcode ? "hammer.fill" : "play.fill") }
+                Button { state.runProject(project) } label: { Label(command?.label ?? String(localized: "Esegui"), systemImage: command?.kind == .xcode ? "hammer.fill" : "play.fill") }
                     .buttonStyle(.glassProminent)
                     .tint(.purple)
                     .disabled(command == nil)
-                    .help(command == nil ? "Non so ancora come avviare questo progetto: chiedilo all'agente" : "Avvia il progetto (\(command?.label ?? ""))")
+                    .help(command == nil ? String(localized: "Non so ancora come avviare questo progetto: chiedilo all'assistente") : String(localized: "Avvia il progetto (\(command?.label ?? ""))"))
             }
         }
     }
@@ -414,12 +414,12 @@ struct CodePanel: View {
     private var suggestions: [String] {
         let folder = state.workingCodeProject(project).folder
         func has(_ name: String) -> Bool { FileManager.default.fileExists(atPath: folder.appending(path: name).path) }
-        if has("package.json") { return ["Spiegami la struttura del progetto", "Aggiungi una pagina di contatti", "Trova e correggi gli errori di TypeScript"] }
+        if has("package.json") { return [String(localized: "Spiegami la struttura del progetto"), String(localized: "Aggiungi una pagina di contatti"), String(localized: "Trova e correggi gli errori di TypeScript")] }
         if (try? FileManager.default.contentsOfDirectory(atPath: folder.path))?.contains(where: { $0.hasSuffix(".xcodeproj") }) == true {
-            return ["Spiegami la struttura dell'app", "Aggiungi una schermata delle impostazioni", "Compila e correggi gli errori"]
+            return [String(localized: "Spiegami la struttura dell'app"), String(localized: "Aggiungi una schermata delle impostazioni"), String(localized: "Compila e correggi gli errori")]
         }
-        if has("index.html") { return ["Controlla la pagina e correggi gli errori", "Rendi il sito responsive e aggiungi il tema scuro", "Aggiungi un modulo di contatto"] }
-        return ["Crea un sito di presentazione con index.html, style.css e script.js", "Crea un piccolo gioco nel browser", "Spiegami come iniziare"]
+        if has("index.html") { return [String(localized: "Controlla la pagina e correggi gli errori"), String(localized: "Rendi il sito responsive e aggiungi il tema scuro"), String(localized: "Aggiungi un modulo di contatto")] }
+        return [String(localized: "Crea un sito di presentazione con index.html, style.css e script.js"), String(localized: "Crea un piccolo gioco nel browser"), String(localized: "Spiegami come iniziare")]
     }
 
     private var header: some View {
@@ -433,15 +433,15 @@ struct CodePanel: View {
                 Divider()
                 Button("Nuova sessione") { state.newCodeSession(in: project) }
                 if let session {
-                    Button(session.workingFolder == nil ? "Elimina questa sessione" : "Elimina sessione (conserva la copia)", role: .destructive) {
+                    Button(session.workingFolder == nil ? String(localized: "Elimina questa sessione") : String(localized: "Elimina sessione (conserva la copia)"), role: .destructive) {
                         state.deleteCodeSession(session)
                     }
                     .disabled(session.running)
                 }
             } label: {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(session?.title ?? "Nuova sessione").font(DS.Fonts.bodyStrong).lineLimit(1)
-                    Text(session.map { $0.running ? "\(state.codeWorkerName($0.selection)) al lavoro…" : state.codeEngineLabel($0.selection) }
+                    Text(session?.title ?? String(localized: "Nuova sessione")).font(DS.Fonts.bodyStrong).lineLimit(1)
+                    Text(session.map { $0.running ? String(localized: "\(state.codeWorkerName($0.selection)) al lavoro…") : state.codeEngineLabel($0.selection) }
                          ?? state.codeEngineLabel(state.codeDefault))
                         .font(DS.Fonts.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
@@ -453,11 +453,11 @@ struct CodePanel: View {
                 Button { state.codeReviewSessionID = session.id } label: { Image(systemName: "square.split.2x1") }
                     .buttonStyle(.borderless)
                     .disabled(session.running || session.events.isEmpty)
-                    .iconHelp("Rivedi le modifiche")
+                    .iconHelp(String(localized: "Rivedi le modifiche"))
             }
             Button { state.newCodeSession(in: project) } label: { Image(systemName: "square.and.pencil") }
                 .buttonStyle(.borderless)
-                .iconHelp("Nuova sessione")
+                .iconHelp(String(localized: "Nuova sessione"))
         }
         .padding(.horizontal, DS.Space.md)
         .padding(.vertical, 10)
@@ -482,7 +482,7 @@ struct CodePanel: View {
                 .buttonStyle(.plain)
                 .help(previewErrors.prefix(4).joined(separator: "\n"))
             }
-            TextField(session?.mode == .plan ? "Chiedi un piano (non modifico i file)…" : "Descrivi cosa fare nel codice…", text: $input, axis: .vertical)
+            TextField(session?.mode == .plan ? String(localized: "Chiedi un piano (non modifico i file)…") : String(localized: "Descrivi cosa fare nel codice…"), text: $input, axis: .vertical)
                 .textFieldStyle(.plain)
                 .font(DS.Fonts.message)
                 .lineLimit(1...10)
@@ -505,7 +505,7 @@ struct CodePanel: View {
                             .frame(width: 28, height: 28).background(Color.primary.opacity(0.75), in: Circle())
                     }
                     .buttonStyle(.plain)
-                    .iconHelp("Interrompi")
+                    .iconHelp(String(localized: "Interrompi"))
                 } else {
                     Button { send(input) } label: {
                         Image(systemName: "arrow.up").font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
@@ -515,7 +515,7 @@ struct CodePanel: View {
                     .buttonStyle(.plain)
                     .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || session?.applied == true)
                     .keyboardShortcut(.return, modifiers: .command)
-                    .iconHelp("Invia (⌘↩)")
+                    .iconHelp(String(localized: "Invia (⌘↩)"))
                 }
             }
         }
@@ -536,7 +536,7 @@ struct CodePanel: View {
                     }
                 }
             }
-            Section(isolationLocked ? "Dove lavora (si sceglie prima della prima richiesta)" : "Dove lavora") {
+            Section(isolationLocked ? String(localized: "Dove lavora (si sceglie prima della prima richiesta)") : String(localized: "Dove lavora")) {
                 ForEach(CodeIsolation.allCases, id: \.self) { option in
                     Button { session.isolation = option; state.saveCodeSessions() } label: {
                         if option == session.isolation { Label(option.label, systemImage: "checkmark") } else { Text(option.label) }
@@ -555,7 +555,7 @@ struct CodePanel: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.visible)
         .fixedSize()
-        .help("«Modifica»: l'agente lavora sui file (con punto di ripristino). «Chiedi prima»: propone un piano senza toccare nulla. La copia isolata richiede un repository Git pulito.")
+        .help("«Modifica»: l'assistente lavora sui file (con punto di ripristino). «Chiedi prima»: propone un piano senza toccare nulla. La copia isolata richiede un repository Git pulito.")
     }
 
     private func send(_ text: String) {
@@ -643,10 +643,10 @@ struct CodeWorkGroup: View {
         let commands = events.filter { $0.kind == .command }.count
         let reads = events.filter { $0.kind == .tool }.count
         var parts: [String] = []
-        if reads > 0 { parts.append(reads == 1 ? "1 lettura" : "\(reads) letture") }
-        if commands > 0 { parts.append(commands == 1 ? "1 comando" : "\(commands) comandi") }
-        if files > 0 { parts.append(files == 1 ? "1 file cambiato" : "\(files) file cambiati") }
-        if parts.isEmpty { return events.contains { $0.kind == .thinking } ? "Ragionamento" : "\(events.count) passaggi" }
+        if reads > 0 { parts.append(reads == 1 ? String(localized: "1 lettura") : String(localized: "\(reads) letture")) }
+        if commands > 0 { parts.append(commands == 1 ? String(localized: "1 comando") : String(localized: "\(commands) comandi")) }
+        if files > 0 { parts.append(files == 1 ? String(localized: "1 file cambiato") : String(localized: "\(files) file cambiati")) }
+        if parts.isEmpty { return events.contains { $0.kind == .thinking } ? String(localized: "Ragionamento") : String(localized: "\(events.count) passaggi") }
         return parts.joined(separator: " · ")
     }
 
@@ -703,7 +703,7 @@ struct CodeReviewView: View {
                 Image(systemName: "square.split.2x1").foregroundStyle(.purple)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Revisione modifiche").font(DS.Fonts.section)
-                    Text(session.isolation == .worktree ? "Copia isolata rispetto al commit iniziale" : "Cartella originale dall'ultima richiesta")
+                    Text(session.isolation == .worktree ? String(localized: "Copia isolata rispetto al commit iniziale") : String(localized: "Cartella originale dall'ultima richiesta"))
                         .font(DS.Fonts.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -766,7 +766,7 @@ struct CodeReviewView: View {
             if session.isolation == .worktree, let review, review.error == nil {
                 Divider()
                 HStack {
-                    Text(session.applied ? "Modifiche già applicate. La copia resta disponibile per consultazione." : "Il progetto originale verrà modificato solo quando applichi.")
+                    Text(session.applied ? String(localized: "Modifiche già applicate. La copia resta disponibile per consultazione.") : String(localized: "Il progetto originale verrà modificato solo quando applichi."))
                         .font(DS.Fonts.caption).foregroundStyle(.secondary)
                     Spacer()
                     Button("Applica al progetto") {
@@ -784,7 +784,7 @@ struct CodeReviewView: View {
                 ? session.baseRevision
                 : session.events.last(where: { $0.kind == .user && $0.snapshot != nil })?.snapshot
             guard let base else {
-                review = CodeReviewResult(files: [], error: "Invia una richiesta prima di aprire la revisione.")
+                review = CodeReviewResult(files: [], error: String(localized: "Invia una richiesta prima di aprire la revisione."))
                 return
             }
             let loaded = await CodeReview.inspect(project: project.folder,
@@ -916,7 +916,7 @@ struct CodeEventRow: View {
                     ForEach(Array(files.prefix(12).enumerated()), id: \.offset) { _, file in
                         Button { open(file.path) } label: {
                             HStack(spacing: 4) {
-                                Text(file.symbol == "+" ? "Nuovo" : file.symbol == "−" ? "Tolto" : "Modificato")
+                                Text(file.symbol == "+" ? String(localized: "Nuovo") : file.symbol == "−" ? String(localized: "Tolto") : String(localized: "Modificato"))
                                     .font(.system(size: 9.5, weight: .semibold))
                                     .foregroundStyle(file.symbol == "+" ? .green : file.symbol == "−" ? .red : .blue)
                                 Text(file.path).font(.system(size: 11, design: .monospaced)).lineLimit(1).truncationMode(.middle)
@@ -928,7 +928,7 @@ struct CodeEventRow: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(file.symbol == "−")
-                        .help(file.symbol == "−" ? file.path : "Apri \(file.path) nell'editor")
+                        .help(file.symbol == "−" ? file.path : String(localized: "Apri \(file.path) nell'editor"))
                     }
                     if files.count > 12 { Text("e altri \(files.count - 12)").font(DS.Fonts.micro).foregroundStyle(.secondary) }
                 }

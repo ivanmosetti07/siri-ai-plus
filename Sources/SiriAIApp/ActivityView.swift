@@ -9,11 +9,11 @@ struct ActivityView: View {
     @State private var confirmClear = false
     var body: some View {
         GlassPage(maxWidth: 820) {
-            PageHeader(eyebrow: "Tutto sotto controllo", title: "Attività e privacy",
-                       subtitle: "Ogni cosa che Siri AI+ ha fatto per te e cosa può vedere: i dati salvati restano sul Mac; le risposte possono usare Private Cloud Compute di Apple.")
+            PageHeader(eyebrow: String(localized: "Tutto sotto controllo"), title: String(localized: "Attività e privacy"),
+                       subtitle: String(localized: "Ogni cosa che Siri AI+ ha fatto per te e cosa può vedere: i dati salvati restano sul Mac; le risposte possono usare Private Cloud Compute di Apple."))
             GlassPills(items: [
-                GlassPill(id: "0", title: "Attività recenti", value: "\(state.activity.count) azioni", symbol: "clock.arrow.circlepath", colors: Hue.blue),
-                GlassPill(id: "1", title: "Privacy e permessi", value: "\(SourceKind.allCases.filter { state.isEnabled($0) }.count) app collegate", symbol: "hand.raised.fill", colors: Hue.indigo),
+                GlassPill(id: "0", title: String(localized: "Attività recenti"), value: String(localized: "\(state.activity.count) azioni"), symbol: "clock.arrow.circlepath", colors: Hue.blue),
+                GlassPill(id: "1", title: String(localized: "Privacy e permessi"), value: String(localized: "\(SourceKind.allCases.filter { state.isEnabled($0) }.count) app collegate"), symbol: "hand.raised.fill", colors: Hue.indigo),
             ], selection: Binding(get: { String(tab) }, set: { tab = Int($0) ?? 0 }))
             Group {
                 switch tab {
@@ -38,8 +38,8 @@ struct ActivityView: View {
 
     @ViewBuilder private var activity: some View {
         if state.activity.isEmpty {
-            GlassEmptyState(symbol: "list.bullet.rectangle.fill", title: "Nessuna attività per ora",
-                            message: "Qui trovi ogni evento creato, promemoria aggiunto, email preparata e file esportato.", colors: Hue.blue)
+            GlassEmptyState(symbol: "list.bullet.rectangle.fill", title: String(localized: "Nessuna attività per ora"),
+                            message: String(localized: "Qui trovi ogni evento creato, promemoria aggiunto, email preparata e file esportato."), colors: Hue.blue)
         } else {
             ForEach(groups, id: \.day) { group in
                 VStack(alignment: .leading, spacing: 8) {
@@ -83,10 +83,10 @@ struct ActivityView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Regole di sicurezza").font(DS.Fonts.captionStrong).foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 10) {
-                    Rule(symbol: "eye", text: "Le letture mostrano subito il risultato.")
-                    Rule(symbol: "hand.raised", text: "Creazioni, modifiche ed eliminazioni partono solo dopo la tua conferma.")
-                    Rule(symbol: "paperplane", text: "Le email si aprono in Mail: l'invio lo fai tu.")
-                    Rule(symbol: "person.2", text: "Condividere un file passa sempre dal selettore di sistema.")
+                    Rule(symbol: "eye", text: String(localized: "Le letture mostrano subito il risultato."))
+                    Rule(symbol: "hand.raised", text: String(localized: "Creazioni, modifiche ed eliminazioni partono solo dopo la tua conferma."))
+                    Rule(symbol: "paperplane", text: String(localized: "Le email si aprono in Mail: l'invio lo fai tu."))
+                    Rule(symbol: "person.2", text: String(localized: "Condividere un file passa sempre dal selettore di sistema."))
                 }
                 .padding(DS.Space.lg)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -100,8 +100,8 @@ struct ActivityView: View {
     }
 
     private func dayTitle(_ day: Date) -> String {
-        if Calendar.current.isDateInToday(day) { return "Oggi" }
-        if Calendar.current.isDateInYesterday(day) { return "Ieri" }
+        if Calendar.current.isDateInToday(day) { return String(localized: "Oggi") }
+        if Calendar.current.isDateInYesterday(day) { return String(localized: "Ieri") }
         return day.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Dates.locale)).capitalized
     }
 
@@ -150,9 +150,9 @@ struct ActivityRow: View {
 
 struct AutomationsView: View {
     private let templates: [(symbol: String, title: String, detail: String)] = [
-        ("sun.horizon", "Brief del mattino", "Ogni giorno feriale alle 8:00: agenda della giornata e promemoria in scadenza."),
-        ("calendar.badge.clock", "Preparazione riunioni", "10 minuti prima di ogni riunione: riepilogo e documenti collegati."),
-        ("checkmark.seal", "Revisione del venerdì", "Venerdì alle 17:00: cosa hai completato e cosa resta per la prossima settimana."),
+        ("sun.horizon", String(localized: "Brief del mattino"), String(localized: "Ogni giorno feriale alle 8:00: agenda della giornata e promemoria in scadenza.")),
+        ("calendar.badge.clock", String(localized: "Preparazione riunioni"), String(localized: "10 minuti prima di ogni riunione: riepilogo e documenti collegati.")),
+        ("checkmark.seal", String(localized: "Revisione del venerdì"), String(localized: "Venerdì alle 17:00: cosa hai completato e cosa resta per la prossima settimana.")),
     ]
 
     var body: some View {

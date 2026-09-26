@@ -9,8 +9,8 @@ struct ConnectorsView: View {
     var body: some View {
         let ready = state.mcp.servers.filter { if case .ready = state.mcp.status[$0.id] ?? .off { true } else { false } }
         GlassPage(maxWidth: 900) {
-            PageHeader(eyebrow: "Collega i tuoi strumenti", title: "Connettori",
-                       subtitle: "Server MCP esterni: i loro strumenti diventano disponibili a Siri AI+ e agli agenti. Ogni esecuzione chiede conferma, a meno che tu non scelga «Consenti sempre» per uno strumento.") {
+            PageHeader(eyebrow: String(localized: "Collega i tuoi strumenti"), title: String(localized: "Connettori"),
+                       subtitle: String(localized: "Server MCP esterni: i loro strumenti diventano disponibili a Siri AI+ e ai Genius. Ogni esecuzione chiede conferma, a meno che tu non scelga «Consenti sempre» per uno strumento.")) {
                 Button("Importa da Claude Desktop…") { importing = true }
                     .buttonStyle(.glass)
                 Button {
@@ -19,21 +19,21 @@ struct ConnectorsView: View {
                 .buttonStyle(.glassProminent)
             }
             if state.mcp.servers.isEmpty {
-                GlassEmptyState(symbol: "puzzlepiece.extension.fill", title: "Nessun connettore",
-                                message: "Aggiungi un server locale (per esempio npx -y @modelcontextprotocol/server-filesystem ~/Documenti) o remoto via URL, oppure importa quelli di Claude Desktop.",
-                                colors: Hue.indigo, actionTitle: "Aggiungi un connettore") { editing = MCPServerConfig(name: "", transport: .stdio) }
+                GlassEmptyState(symbol: "puzzlepiece.extension.fill", title: String(localized: "Nessun connettore"),
+                                message: String(localized: "Aggiungi un server locale (per esempio npx -y @modelcontextprotocol/server-filesystem ~/Documenti) o remoto via URL, oppure importa quelli di Claude Desktop."),
+                                colors: Hue.indigo, actionTitle: String(localized: "Aggiungi un connettore")) { editing = MCPServerConfig(name: "", transport: .stdio) }
             } else {
                 GlassPanel {
                     VStack(alignment: .leading, spacing: 14) {
-                        PanelLabel(text: "Stato", symbol: "puzzlepiece.extension")
+                        PanelLabel(text: String(localized: "Stato"), symbol: "puzzlepiece.extension")
                         MetricsGrid(metrics: [
-                            DashMetric(label: "Connettori", value: "\(state.mcp.servers.count)", note: "configurati", tint: .indigo),
-                            DashMetric(label: "Collegati", value: "\(ready.count)", note: ready.count == state.mcp.servers.count ? "tutti attivi" : "gli altri sono spenti", tint: .green),
-                            DashMetric(label: "Strumenti", value: "\(state.mcp.allTools.count)", note: "a disposizione", tint: Color(red: 0.4, green: 0.7, blue: 1)),
+                            DashMetric(label: String(localized: "Connettori"), value: "\(state.mcp.servers.count)", note: "configurati", tint: .indigo),
+                            DashMetric(label: String(localized: "Collegati"), value: "\(ready.count)", note: ready.count == state.mcp.servers.count ? String(localized: "tutti attivi") : String(localized: "gli altri sono spenti"), tint: .green),
+                            DashMetric(label: String(localized: "Strumenti"), value: "\(state.mcp.allTools.count)", note: String(localized: "a disposizione"), tint: Color(red: 0.4, green: 0.7, blue: 1)),
                         ])
                     }
                 }
-                GroupTitle(text: "I tuoi connettori")
+                GroupTitle(text: String(localized: "I tuoi connettori"))
                 ForEach(state.mcp.servers) { server in
                     ServerCard(server: server) { editing = server }
                 }
@@ -89,7 +89,7 @@ struct ServerCard: View {
                     .toggleStyle(.switch)
                     .controlSize(.small)
                     .labelsHidden()
-                    .help(server.enabled ? "Disattiva il connettore" : "Attiva il connettore")
+                    .help(server.enabled ? String(localized: "Disattiva il connettore") : String(localized: "Attiva il connettore"))
                     Menu {
                         Button("Riconnetti") { state.mcp.connect(server.id, interactive: true) }.disabled(!server.enabled)
                         Button("Modifica…", action: edit)
@@ -101,7 +101,7 @@ struct ServerCard: View {
                     } label: { Image(systemName: "ellipsis.circle") }
                     .menuIndicator(.hidden)
                     .fixedSize()
-                    .iconHelp("Azioni del connettore")
+                    .iconHelp(String(localized: "Azioni del connettore"))
                 }
                 .confirmationDialog("Rimuovere «\(server.name)»?", isPresented: $confirmRemove) {
                     Button("Rimuovi", role: .destructive) { state.mcp.remove(server.id) }
@@ -109,8 +109,8 @@ struct ServerCard: View {
                 .controlSize(.small)
                 if status == .needsLogin || status == .loggingIn {
                     Text(status == .loggingIn
-                         ? "Completa l'accesso nella pagina aperta nel browser: Siri AI+ si collega da solo quando hai finito."
-                         : "Questo servizio richiede l'accesso con il tuo account. Premi «Accedi…»: si apre la sua pagina di login e di autorizzazione.")
+                         ? String(localized: "Completa l'accesso nella pagina aperta nel browser: Siri AI+ si collega da solo quando hai finito.")
+                         : String(localized: "Questo servizio richiede l'accesso con il tuo account. Premi «Accedi…»: si apre la sua pagina di login e di autorizzazione."))
                         .font(DS.Fonts.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 let tools = state.mcp.tools[server.id] ?? []
@@ -166,7 +166,7 @@ struct ServerEditor: View {
     var body: some View {
         let binding = $draft
         VStack(alignment: .leading, spacing: 14) {
-            Text(config.name.isEmpty ? "Nuovo connettore" : "Modifica «\(config.name)»").font(DS.Fonts.section)
+            Text(config.name.isEmpty ? String(localized: "Nuovo connettore") : String(localized: "Modifica «\(config.name)»")).font(DS.Fonts.section)
             Form {
                 TextField("Nome", text: binding.name)
                 Picker("Tipo", selection: binding.transport) {
@@ -251,16 +251,16 @@ struct ImportSheet: View {
             HStack {
                 Button("Carica dal file di Claude") {
                     let url = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Application Support/Claude/claude_desktop_config.json")
-                    if let content = try? String(contentsOf: url, encoding: .utf8) { text = content } else { error = "File di Claude Desktop non trovato." }
+                    if let content = try? String(contentsOf: url, encoding: .utf8) { text = content } else { error = String(localized: "File di Claude Desktop non trovato.") }
                 }
                 Spacer()
                 Button("Annulla") { dismiss() }
                 Button("Importa") {
                     do {
                         let count = try state.mcp.importClaudeDesktop(text)
-                        count > 0 ? dismiss() : (error = "Nessun server trovato nel JSON.")
+                        count > 0 ? dismiss() : (error = String(localized: "Nessun server trovato nel JSON."))
                     } catch {
-                        self.error = "JSON non valido: \(error.localizedDescription)"
+                        self.error = String(localized: "JSON non valido: \(error.localizedDescription)")
                     }
                 }
                 .buttonStyle(.borderedProminent)
@@ -270,4 +270,3 @@ struct ImportSheet: View {
         .frame(width: 560)
     }
 }
-

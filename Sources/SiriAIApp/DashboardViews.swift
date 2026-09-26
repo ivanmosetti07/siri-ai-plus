@@ -231,7 +231,7 @@ struct HourlyStrip: View {
             HStack(spacing: 0) {
                 ForEach(Array(hours.enumerated()), id: \.element.id) { index, hour in
                     VStack(spacing: 7) {
-                        Text(index == 0 ? "Ora" : String(format: "%02d", Calendar.current.component(.hour, from: hour.date)))
+                        Text(index == 0 ? String(localized: "Ora") : String(format: "%02d", Calendar.current.component(.hour, from: hour.date)))
                             .font(.system(size: 13, weight: .semibold))
                         Image(systemName: hour.condition.symbol(isDay: hour.isDay))
                             .symbolRenderingMode(.multicolor)
@@ -306,9 +306,9 @@ struct DayRing: View {
     }
 
     private var accessibilityText: String {
-        if let current = events.first(where: { $0.start <= now && $0.end > now }) { return "Adesso: \(current.title), fino alle \(clock(current.end))" }
-        if let next = events.first(where: { $0.start > now }) { return "Prossimo impegno alle \(clock(next.start)): \(next.title)" }
-        return events.isEmpty ? "Oggi nessun impegno" : "Impegni di oggi conclusi"
+        if let current = events.first(where: { $0.start <= now && $0.end > now }) { return String(localized: "Adesso: \(current.title), fino alle \(clock(current.end))") }
+        if let next = events.first(where: { $0.start > now }) { return String(localized: "Prossimo impegno alle \(clock(next.start)): \(next.title)") }
+        return events.isEmpty ? String(localized: "Oggi nessun impegno") : String(localized: "Impegni di oggi conclusi")
     }
 
     @ViewBuilder
@@ -327,8 +327,8 @@ struct DayRing: View {
                 Text(next.title).font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.8)).lineLimit(2)
             } else {
                 Text("OGGI").font(.system(size: 11, weight: .bold)).tracking(0.5).foregroundStyle(.white.opacity(0.7))
-                Text(events.isEmpty ? "Libera" : "Finito").font(.system(size: 36, weight: .bold, design: .rounded))
-                Text(events.isEmpty ? "nessun impegno" : "\(events.count) \(events.count == 1 ? "impegno concluso" : "impegni conclusi")")
+                Text(events.isEmpty ? String(localized: "Libera") : String(localized: "Finito")).font(.system(size: 36, weight: .bold, design: .rounded))
+                Text(events.isEmpty ? String(localized: "nessun impegno") : "\(events.count) \(events.count == 1 ? String(localized: "impegno concluso") : String(localized: "impegni conclusi"))")
                     .font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.8))
             }
         }
@@ -360,10 +360,10 @@ struct BusyChart: View {
         let current = Calendar.current.component(.hour, from: now)
         Chart {
             ForEach(hours, id: \.self) { hour in
-                BarMark(x: .value("Ora", hour), yStart: .value("Base", 0), yEnd: .value("Pieno", 60), width: .fixed(9))
+                BarMark(x: .value(String(localized: "Ora"), hour), yStart: .value(String(localized: "Base"), 0), yEnd: .value(String(localized: "Pieno"), 60), width: .fixed(9))
                     .foregroundStyle(.white.opacity(0.08))
                     .clipShape(Capsule())
-                BarMark(x: .value("Ora", hour), yStart: .value("Base", 0), yEnd: .value("Occupato", max(busy(hour), 0)), width: .fixed(9))
+                BarMark(x: .value(String(localized: "Ora"), hour), yStart: .value(String(localized: "Base"), 0), yEnd: .value(String(localized: "Occupato"), max(busy(hour), 0)), width: .fixed(9))
                     .foregroundStyle(hour < current ? AnyShapeStyle(Color.red.opacity(0.5)) : AnyShapeStyle(Color.red.gradient))
                     .clipShape(Capsule())
             }
@@ -422,11 +422,11 @@ struct TodoRing: View {
             VStack(spacing: 1) {
                 if open == 0 {
                     Image(systemName: "checkmark").font(.system(size: 44, weight: .bold)).symbolEffect(.drawOn, isActive: !drawn)
-                    Text(done > 0 ? "\(done) \(done == 1 ? "fatto" : "fatti") oggi" : "niente in scadenza")
+                    Text(done > 0 ? String(localized: "\(done) \(done == 1 ? "fatto" : "fatti") oggi") : String(localized: "niente in scadenza"))
                         .font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.8))
                 } else {
                     Text("\(open)").font(.system(size: 58, weight: .bold, design: .rounded)).contentTransition(.numericText())
-                    Text(open == 1 ? "da fare" : "da fare").font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.8))
+                    Text(open == 1 ? String(localized: "da fare") : String(localized: "da fare")).font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.8))
                     if done > 0 { Text("\(done) \(done == 1 ? "fatto" : "fatti")").font(.system(size: 12)).foregroundStyle(.white.opacity(0.6)) }
                 }
                 if overdue > 0 {
@@ -442,7 +442,7 @@ struct TodoRing: View {
         .frame(width: size, height: size)
         .padding(line / 2 + 12)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(open) promemoria da fare oggi, \(done) completati\(overdue > 0 ? ", \(overdue) scaduti" : "")")
+        .accessibilityLabel("\(open) promemoria da fare oggi, \(done) completati\(overdue > 0 ? String(localized: ", \(overdue) scaduti") : "")")
         .onAppear {
             withAnimation(.spring(duration: 1.3, bounce: 0.12).delay(0.3)) { drawn = true }
         }
@@ -457,10 +457,10 @@ struct WeekBars: View {
         let top = max(3, days.map(\.count).max() ?? 0)
         Chart {
             ForEach(days, id: \.date) { day in
-                BarMark(x: .value("Giorno", day.date, unit: .day), yStart: .value("Base", 0), yEnd: .value("Max", top), width: .fixed(16))
+                BarMark(x: .value(String(localized: "Giorno"), day.date, unit: .day), yStart: .value(String(localized: "Base"), 0), yEnd: .value(String(localized: "Max"), top), width: .fixed(16))
                     .foregroundStyle(.white.opacity(0.08))
                     .clipShape(Capsule())
-                BarMark(x: .value("Giorno", day.date, unit: .day), yStart: .value("Base", 0), yEnd: .value("Promemoria", day.count), width: .fixed(16))
+                BarMark(x: .value(String(localized: "Giorno"), day.date, unit: .day), yStart: .value(String(localized: "Base"), 0), yEnd: .value(String(localized: "Promemoria"), day.count), width: .fixed(16))
                     .foregroundStyle(Color.orange.gradient)
                     .clipShape(Capsule())
             }
@@ -471,7 +471,7 @@ struct WeekBars: View {
             AxisMarks(values: .stride(by: .day)) { value in
                 AxisValueLabel {
                     if let date = value.as(Date.self) {
-                        Text(Calendar.current.isDateInToday(date) ? "Oggi" : date.formatted(.dateTime.weekday(.abbreviated).locale(Dates.locale)).capitalized)
+                        Text(Calendar.current.isDateInToday(date) ? String(localized: "Oggi") : date.formatted(.dateTime.weekday(.abbreviated).locale(Dates.locale)).capitalized)
                             .font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
                     }
                 }
@@ -504,7 +504,7 @@ struct AgentsConstellation: View {
         }
         .frame(width: 300, height: 300)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(agents.isEmpty ? "Nessun agente" : "Agenti: " + agents.map(\.displayName).joined(separator: ", "))
+        .accessibilityLabel(agents.isEmpty ? String(localized: "Nessun Genius") : String(localized: "Genius: ") + agents.map(\.displayName).joined(separator: ", "))
     }
 }
 
@@ -554,17 +554,18 @@ struct RunsChart: View {
         let days = (0..<7).reversed().compactMap { calendar.date(byAdding: .day, value: -$0, to: today) }
         Chart {
             ForEach(days, id: \.self) { day in
-                BarMark(x: .value("Giorno", day, unit: .day), yStart: .value("Base", 0), yEnd: .value("Max", top), width: .fixed(16))
+                BarMark(x: .value(String(localized: "Giorno"), day, unit: .day), yStart: .value(String(localized: "Base"), 0), yEnd: .value(String(localized: "Max"), top), width: .fixed(16))
                     .foregroundStyle(.white.opacity(0.08))
                     .clipShape(Capsule())
             }
             ForEach(grouped(days), id: \.key) { item in
-                BarMark(x: .value("Giorno", item.day, unit: .day), y: .value("Esecuzioni", item.count), width: .fixed(16))
-                    .foregroundStyle(by: .value("Esito", item.label))
+                BarMark(x: .value(String(localized: "Giorno"), item.day, unit: .day), y: .value(String(localized: "Esecuzioni"), item.count), width: .fixed(16))
+                    .foregroundStyle(by: .value(String(localized: "Esito"), item.label))
                     .clipShape(Capsule())
             }
         }
-        .chartForegroundStyleScale(["Completate": Color.purple, "Da approvare": Color.orange, "Con problemi": Color.red])
+        .chartForegroundStyleScale([String(localized: "Completate"): Color.purple, String(localized: "Da approvare"): Color.orange,
+                                    String(localized: "Con problemi"): Color.red])
         .chartLegend(.hidden)
         .chartYScale(domain: 0...top)
         .chartYAxis(.hidden)
@@ -572,7 +573,7 @@ struct RunsChart: View {
             AxisMarks(values: .stride(by: .day)) { value in
                 AxisValueLabel {
                     if let date = value.as(Date.self) {
-                        Text(Calendar.current.isDateInToday(date) ? "Oggi" : date.formatted(.dateTime.weekday(.abbreviated).locale(Dates.locale)).capitalized)
+                        Text(Calendar.current.isDateInToday(date) ? String(localized: "Oggi") : date.formatted(.dateTime.weekday(.abbreviated).locale(Dates.locale)).capitalized)
                             .font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
                     }
                 }
@@ -595,9 +596,9 @@ struct RunsChart: View {
         for day in days {
             let today = runs.filter { calendar.isDate($0.date, inSameDayAs: day) }
             let groups: [(String, Int)] = [
-                ("Completate", today.filter { $0.outcome == .completata }.count),
-                ("Da approvare", today.filter { $0.outcome == .daApprovare }.count),
-                ("Con problemi", today.filter { [.errore, .interrotta].contains($0.outcome) }.count),
+                (String(localized: "Completate"), today.filter { $0.outcome == .completata }.count),
+                (String(localized: "Da approvare"), today.filter { $0.outcome == .daApprovare }.count),
+                (String(localized: "Con problemi"), today.filter { [.errore, .interrotta].contains($0.outcome) }.count),
             ]
             for (label, count) in groups where count > 0 {
                 items.append(Item(key: "\(day.timeIntervalSince1970)-\(label)", day: day, label: label, count: count))

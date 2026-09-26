@@ -31,7 +31,7 @@ struct SettingsView: View {
         TabView(selection: $tab) {
             ForEach(Tab.allCases) { item in
                 page(item)
-                    .tabItem { Label(item.rawValue, systemImage: item.symbol) }
+                    .tabItem { Label(LocalizedStringKey(item.rawValue), systemImage: item.symbol) }
                     .tag(item)
             }
         }
@@ -87,8 +87,8 @@ private struct GeneralSettings: View {
 
     var body: some View {
         @Bindable var state = state
-        SettingsGroup(title: "Meteo nella Home",
-                      footnote: "Il cielo della Home segue il meteo vero. Le previsioni arrivano da Open-Meteo, un servizio gratuito: riceve solo il nome della città o la posizione del Mac arrotondata a circa 1 km.") {
+        SettingsGroup(title: String(localized: "Meteo nella Home"),
+                      footnote: String(localized: "Il cielo della Home segue il meteo vero. Le previsioni arrivano da Open-Meteo, un servizio gratuito: riceve solo il nome della città o la posizione del Mac arrotondata a circa 1 km.")) {
             HStack {
                 TextField("Città", text: $city, prompt: Text("Roma"))
                     .textFieldStyle(.roundedBorder)
@@ -109,21 +109,21 @@ private struct GeneralSettings: View {
             }
         }
         .onAppear { city = state.weather.city }
-        SettingsGroup(title: "Ricerca sul web", footnote: "Per notizie, prezzi, meteo, risultati o quando il modello non conosce la risposta, Siri AI+ cerca con il browser e legge le prime pagine. Le domande escono dal Mac solo in questo caso.") {
+        SettingsGroup(title: String(localized: "Ricerca sul web"), footnote: String(localized: "Per notizie, prezzi, meteo, risultati o quando il modello non conosce la risposta, Siri AI+ cerca con il browser e legge le prime pagine. Le domande escono dal Mac solo in questo caso.")) {
             Toggle("Cerca sul web quando serve", isOn: $state.webEnabled).toggleStyle(.switch)
         }
-        SettingsGroup(title: "Conversazione", footnote: "Quando la conversazione riempie la finestra del modello, Siri AI+ la riassume e continua con il riassunto.") {
+        SettingsGroup(title: String(localized: "Conversazione"), footnote: String(localized: "Quando la conversazione riempie la finestra del modello, Siri AI+ la riassume e continua con il riassunto.")) {
             Text("Compattazione automatica al \(Int(state.compactionThreshold * 100))% del contesto").font(DS.Fonts.body)
             Slider(value: Binding(get: { state.compactionThreshold }, set: { state.compactionThreshold = $0; state.memoryRevision += 1 }), in: 0.6...0.9, step: 0.05)
                 .frame(maxWidth: 360)
         }
-        SettingsGroup(title: "Scorciatoie") {
+        SettingsGroup(title: String(localized: "Scorciatoie")) {
             LabeledContent("Chat rapida, in ogni app", value: "⌥⌘K")
             LabeledContent("Modalità vocale", value: "⌥⌘V")
             LabeledContent("Mostra o nascondi Siri AI+ a destra", value: "⌥⌘S")
             LabeledContent("Impostazioni", value: "⌘,")
         }
-        SettingsGroup(title: "Companion sul Mac", footnote: "Chiudere la finestra lascia disponibili la chat rapida e gli agenti. Il comando Esci li ferma fino alla prossima apertura.") {
+        SettingsGroup(title: String(localized: "Companion sul Mac"), footnote: String(localized: "Chiudere la finestra lascia disponibili la chat rapida e i Genius. Il comando Esci li ferma fino alla prossima apertura.")) {
             Toggle("Avvia Siri AI+ all'accesso", isOn: Binding(
                 get: { SMAppService.mainApp.status == .enabled },
                 set: { enabled in
@@ -131,7 +131,7 @@ private struct GeneralSettings: View {
                         if enabled { try SMAppService.mainApp.register() }
                         else { try SMAppService.mainApp.unregister() }
                         loginMessage = SMAppService.mainApp.status == .requiresApproval
-                            ? "Completa l'autorizzazione in Impostazioni di Sistema › Generali › Elementi login." : nil
+                            ? String(localized: "Completa l'autorizzazione in Impostazioni di Sistema › Generali › Elementi login.") : nil
                     } catch { loginMessage = error.localizedDescription }
                 }))
                 .toggleStyle(.switch)
@@ -156,8 +156,8 @@ private struct ModelsSettings: View {
     var body: some View {
         let models = state.models
         @Bindable var state = state
-        SettingsGroup(title: "Modello per le risposte",
-                      footnote: "Con Apple Intelligence il Mac capisce la richiesta e sceglie gli strumenti. Gli altri modelli, se l'opzione è attiva, usano da soli gli stessi strumenti dell'app (calendario, email, file, web, connettori): quello che crea o invia resta sempre una scheda da confermare. Ogni chat ricorda il suo modello: per ChatGPT e Claude scegli versione e ragionamento dal menu sotto il campo di scrittura.") {
+        SettingsGroup(title: String(localized: "Modello per le risposte"),
+                      footnote: String(localized: "Con Apple Intelligence il Mac capisce la richiesta e sceglie gli strumenti. Gli altri modelli, se l'opzione è attiva, usano da soli gli stessi strumenti dell'app (calendario, email, file, web, connettori): quello che crea o invia resta sempre una scheda da confermare. Ogni chat ricorda il suo modello: per ChatGPT e Claude scegli versione e ragionamento dal menu sotto il campo di scrittura.")) {
             Picker("Risponde", selection: Binding(get: { state.selection.provider }, set: { choice in
                 state.request(choice)
             })) {
@@ -183,11 +183,11 @@ private struct ModelsSettings: View {
             }
         }
 
-        SettingsGroup(title: "Anonimizzazione verso ChatGPT e Claude",
-                      footnote: "Prima di ogni invio a ChatGPT o Claude, Siri AI+ sostituisce sul Mac i dati personali con segnaposto come [FULLNAME_1] o [IBAN_1]: quello che scrivi, la cronologia, la memoria, le istruzioni del progetto, i file, le email e i risultati degli strumenti. Importi, date, orari, città, aziende e siti restano in chiaro, perché all'AI servono per fare conti, confronti e ricerche; puoi nasconderli qui sotto. Il dizionario resta sul Mac, con la chat, e la risposta torna leggibile; gli strumenti usano i dati veri sul Mac. Motore rizzo-pii di Rizzo AI Academy (licenza MIT), convertito per girare sul Mac: circa 35 ms ogni 120 parole.") {
+        SettingsGroup(title: String(localized: "Anonimizzazione verso ChatGPT e Claude"),
+                      footnote: String(localized: "Prima di ogni invio a ChatGPT o Claude, Siri AI+ sostituisce sul Mac i dati personali con segnaposto come [FULLNAME_1] o [IBAN_1]: quello che scrivi, la cronologia, la memoria, le istruzioni del progetto, i file, le email e i risultati degli strumenti. Importi, date, orari, città, aziende e siti restano in chiaro, perché all'AI servono per fare conti, confronti e ricerche; puoi nasconderli qui sotto. Il dizionario resta sul Mac, con la chat, e la risposta torna leggibile; gli strumenti usano i dati veri sul Mac. Motore rizzo-pii di Rizzo AI Academy (licenza MIT), convertito per girare sul Mac: circa 35 ms ogni 120 parole.")) {
             Toggle("Anonimizza prima di inviare a ChatGPT e Claude", isOn: $state.cloudPrivacy).toggleStyle(.switch)
-            status("Motore rizzo-pii", ok: PIIEngine.isInstalled,
-                   detail: PIIEngine.isInstalled ? "sul Mac · solo i dati personali · dizionario per chat" : "non installato (Support/rizzo-pii/install.sh)")
+            status(String(localized: "Motore rizzo-pii"), ok: PIIEngine.isInstalled,
+                   detail: PIIEngine.isInstalled ? String(localized: "sul Mac · solo i dati personali · dizionario per chat") : String(localized: "non installato (Support/rizzo-pii/install.sh)"))
             if state.cloudPrivacy {
                 Label("Sempre nascosti: " + PIICategory.sensitive.filter { $0 != "BUILDINGNUM" }.map(PIICategory.name).joined(separator: ", ") + ".",
                       systemImage: "eye.slash")
@@ -215,7 +215,7 @@ private struct ModelsSettings: View {
             }
         }
 
-        SettingsGroup(title: "Apple Intelligence") {
+        SettingsGroup(title: String(localized: "Apple Intelligence")) {
             if AppleResponseModel.hasPrivateCloudEntitlement {
                 Toggle("Usa Private Cloud Compute quando disponibile", isOn: $state.wantsPrivateCloud)
                     .toggleStyle(.switch)
@@ -229,23 +229,23 @@ private struct ModelsSettings: View {
             }
             if state.availabilityProblem == nil {
                 Text(state.appleResponseModel == .privateCloud
-                     ? "Le risposte usano Private Cloud Compute di Apple. Se il servizio o la quota non è disponibile, l'app continua con il modello sul Mac."
+                     ? String(localized: "Le risposte usano Private Cloud Compute di Apple. Se il servizio o la quota non è disponibile, l'app continua con il modello sul Mac.")
                      : AppleResponseModel.hasPrivateCloudEntitlement && !state.wantsPrivateCloud
-                        ? "Private Cloud Compute è disattivato: le risposte restano sul Mac."
+                        ? String(localized: "Private Cloud Compute è disattivato: le risposte restano sul Mac.")
                      : AppleResponseModel.hasPrivateCloudEntitlement
-                        ? "Private Cloud Compute non è disponibile ora o la quota è esaurita. Le risposte restano sul Mac."
-                        : "Private Cloud Compute richiede l'autorizzazione Apple per questa app. Le risposte restano sul Mac.")
+                        ? String(localized: "Private Cloud Compute non è disponibile ora o la quota è esaurita. Le risposte restano sul Mac.")
+                        : String(localized: "Private Cloud Compute richiede l'autorizzazione Apple per questa app. Le risposte restano sul Mac."))
                     .font(DS.Fonts.caption).foregroundStyle(.secondary)
                 Text("Sul Mac: \(AppleResponseModel.onDeviceSummary). Per problemi, logica e scelte ragiona prima di rispondere (catena di pensieri); i testi più lunghi della sua finestra li leggono sub-agent a pezzi; a ogni risposta riceve gli scambi recenti che ci stanno, i più vecchi pertinenti e il riassunto del resto.")
                     .font(DS.Fonts.caption).foregroundStyle(.secondary)
             }
         }
 
-        SettingsGroup(title: "Gemma 4 (Google, locale da Hugging Face)",
-                      footnote: "Il modello viene scaricato da Hugging Face sul Mac (\(GemmaVariant.folder.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))) e gira con llama.cpp sulla GPU. Consigliata per questo Mac (\(DeviceProfile.memoryGB) GB): \(DeviceProfile.recommendedGemma.label).") {
-            status("llama.cpp", ok: models.llamaInstalled, detail: models.llamaInstalled ? (models.gemmaRunning ? "Gemma in esecuzione" : "installato") : "non installato")
+        SettingsGroup(title: String(localized: "Gemma 4 (Google, locale da Hugging Face)"),
+                      footnote: String(localized: "Il modello viene scaricato da Hugging Face sul Mac (\(GemmaVariant.folder.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))) e gira con llama.cpp sulla GPU. Consigliata per questo Mac (\(DeviceProfile.memoryGB) GB): \(DeviceProfile.recommendedGemma.label).")) {
+            status("llama.cpp", ok: models.llamaInstalled, detail: models.llamaInstalled ? (models.gemmaRunning ? String(localized: "Gemma in esecuzione") : "installato") : String(localized: "non installato"))
             if !models.llamaInstalled {
-                Button(models.brewAvailable ? "Installa llama.cpp" : "Scarica llama.cpp…") { models.installLlama() }.disabled(models.isBusy("llama"))
+                Button(models.brewAvailable ? String(localized: "Installa llama.cpp") : String(localized: "Scarica llama.cpp…")) { models.installLlama() }.disabled(models.isBusy("llama"))
             }
             Divider()
             ForEach(GemmaVariant.all) { variant in
@@ -254,10 +254,10 @@ private struct ModelsSettings: View {
             job(models, keys: ["llama", "gemma-start"])
         }
 
-        SettingsGroup(title: "ds4 (antirez, locale)",
-                      footnote: "Motore per modelli come DeepSeek V4 Flash. Su Mac serve Apple Silicon con almeno 96 GB di memoria (questo Mac: \(DeviceProfile.memoryGB) GB). Il download del modello pesa decine di GB.") {
+        SettingsGroup(title: String(localized: "ds4 (antirez, locale)"),
+                      footnote: String(localized: "Motore per modelli come DeepSeek V4 Flash. Su Mac serve Apple Silicon con almeno 96 GB di memoria (questo Mac: \(DeviceProfile.memoryGB) GB). Il download del modello pesa decine di GB.")) {
             if DeviceProfile.supportsDS4 {
-                status("ds4", ok: models.ds4Running, detail: models.ds4Installed ? (models.ds4Running ? "server in esecuzione" : "installato") : "non installato")
+                status("ds4", ok: models.ds4Running, detail: models.ds4Installed ? (models.ds4Running ? String(localized: "server in esecuzione") : "installato") : String(localized: "non installato"))
                 HStack {
                     if !models.ds4Installed { Button("Installa ds4 e scarica il modello") { models.installDS4() }.disabled(models.isBusy("ds4")) }
                     else if !models.ds4Running { Button("Avvia il server ds4") { models.startDS4() }.disabled(models.isBusy("ds4-start")) }
@@ -268,10 +268,10 @@ private struct ModelsSettings: View {
             }
         }
 
-        SettingsGroup(title: "ChatGPT (abbonamento)",
-                      footnote: "Usa il tuo abbonamento ChatGPT tramite la CLI ufficiale Codex di OpenAI: l'accesso avviene nel browser con il tuo account. I modelli sono quelli del tuo account (\(models.codexModels.isEmpty ? "l'elenco arriva dopo il primo uso di Codex" : models.codexModels.map(\.label).joined(separator: ", "))).") {
-            status("Codex CLI", ok: models.codexInstalled && models.codexLoggedIn,
-                   detail: !models.codexInstalled ? "non installata" : (models.codexLoggedIn ? "accesso effettuato" : "accesso da fare"))
+        SettingsGroup(title: String(localized: "ChatGPT (abbonamento)"),
+                      footnote: String(localized: "Usa il tuo abbonamento ChatGPT tramite la CLI ufficiale Codex di OpenAI: l'accesso avviene nel browser con il tuo account. I modelli sono quelli del tuo account (\(models.codexModels.isEmpty ? String(localized: "l'elenco arriva dopo il primo uso di Codex") : models.codexModels.map(\.label).joined(separator: ", "))).")) {
+            status(String(localized: "Codex CLI"), ok: models.codexInstalled && models.codexLoggedIn,
+                   detail: !models.codexInstalled ? String(localized: "non installata") : (models.codexLoggedIn ? String(localized: "accesso effettuato") : String(localized: "accesso da fare")))
             HStack {
                 if !models.codexInstalled { Button("Installa Codex CLI") { models.installCodex() }.disabled(models.isBusy("codex")) }
                 else if !models.codexLoggedIn { Button("Accedi con ChatGPT…") { models.loginCodex() }.disabled(models.isBusy("codex-login")) }
@@ -279,12 +279,12 @@ private struct ModelsSettings: View {
             }
             job(models, keys: ["codex", "codex-login"])
         }
-        SettingsGroup(title: "Claude (abbonamento)",
-                      footnote: "Usa il tuo abbonamento Claude (Pro o Max) tramite la CLI ufficiale Claude Code di Anthropic: l'accesso avviene nel browser con il tuo account. Nelle chat e nella Programmazione scegli Fable, Opus, Sonnet o Haiku e quanto ragiona.") {
-            status("Claude Code", ok: models.claudeInstalled && models.claudeLoggedIn,
-                   detail: !models.claudeInstalled ? "non installato"
-                    : models.claudeLoggedIn ? (["accesso effettuato", models.claude.email, models.claude.plan?.capitalized].compactMap { $0 }.joined(separator: " · "))
-                    : "accesso da fare")
+        SettingsGroup(title: String(localized: "Claude (abbonamento)"),
+                      footnote: String(localized: "Usa il tuo abbonamento Claude (Pro o Max) tramite la CLI ufficiale Claude Code di Anthropic: l'accesso avviene nel browser con il tuo account. Nelle chat e nella Programmazione scegli Fable, Opus, Sonnet o Haiku e quanto ragiona.")) {
+            status(String(localized: "Claude Code"), ok: models.claudeInstalled && models.claudeLoggedIn,
+                   detail: !models.claudeInstalled ? String(localized: "non installato")
+                    : models.claudeLoggedIn ? ([String(localized: "accesso effettuato"), models.claude.email, models.claude.plan?.capitalized].compactMap { $0 }.joined(separator: " · "))
+                    : String(localized: "accesso da fare"))
             HStack {
                 if !models.claudeInstalled { Button("Installa Claude Code") { models.installClaude() }.disabled(models.isBusy("claude")) }
                 else if !models.claudeLoggedIn {
@@ -336,8 +336,8 @@ private struct VoiceSettings: View {
 
     var body: some View {
         let voice = state.voice
-        SettingsGroup(title: "Voce di Siri AI+",
-                      footnote: "Voci di sistema Apple. Per voci più naturali scarica le versioni «Premium» o «Migliorata» in Impostazioni di Sistema › Accessibilità › Contenuto letto ad alta voce › Voce di sistema.") {
+        SettingsGroup(title: String(localized: "Voce di Siri AI+"),
+                      footnote: String(localized: "Voci di sistema Apple. Per voci più naturali scarica le versioni «Premium» o «Migliorata» in Impostazioni di Sistema › Accessibilità › Contenuto letto ad alta voce › Voce di sistema.")) {
             Picker("Voce", selection: Binding(get: { voice.voiceIdentifier }, set: { voice.voiceIdentifier = $0 })) {
                 Text("Automatica (la migliore installata)").tag("")
                 ForEach(VoiceMode.italianVoices, id: \.identifier) { Text(VoiceMode.label($0)).tag($0.identifier) }
@@ -348,7 +348,7 @@ private struct VoiceSettings: View {
                 Button("Prova") { voice.preview() }
             }
         }
-        SettingsGroup(title: "Modalità vocale", footnote: "Parli, fai una pausa e Siri AI+ risponde a voce, poi torna ad ascoltarti. Riconoscimento e voce restano sul Mac.") {
+        SettingsGroup(title: String(localized: "Modalità vocale"), footnote: String(localized: "Parli, fai una pausa e Siri AI+ risponde a voce, poi torna ad ascoltarti. Riconoscimento e voce restano sul Mac.")) {
             Button { voice.start(with: state) } label: { Label("Avvia la modalità vocale", systemImage: "waveform") }
                 .buttonStyle(.borderedProminent)
         }
@@ -361,21 +361,21 @@ private struct AgentSettings: View {
     @Environment(AppState.self) private var state
 
     var body: some View {
-        SettingsGroup(title: "Questo Mac") {
+        SettingsGroup(title: String(localized: "Questo Mac")) {
             LabeledContent("Chip", value: DeviceProfile.chip)
-            LabeledContent("Memoria", value: "\(DeviceProfile.memoryGB) GB")
+            LabeledContent("Memoria", value: String(localized: "\(DeviceProfile.memoryGB) GB"))
             LabeledContent("Core", value: "\(DeviceProfile.cores)")
         }
-        SettingsGroup(title: "Sub-agent in parallelo",
-                      footnote: "Per i compiti complessi Siri AI+ prepara un piano e lo fa eseguire da sub-agent, ognuno con la sua finestra di contesto: più ne lavorano insieme, più il piano è veloce, ma serve più memoria. Automatico: \(DeviceProfile.recommendedSubAgents) su questo Mac.") {
+        SettingsGroup(title: String(localized: "Sub-agent in parallelo"),
+                      footnote: String(localized: "Per i compiti complessi Siri AI+ prepara un piano e lo fa eseguire da sub-agent, ognuno con la sua finestra di contesto: più ne lavorano insieme, più il piano è veloce, ma serve più memoria. Automatico: \(DeviceProfile.recommendedSubAgents) su questo Mac.")) {
             Picker("Quanti", selection: Binding(get: { state.subAgentSetting }, set: { state.subAgentSetting = $0 })) {
                 Text("Automatico (\(DeviceProfile.recommendedSubAgents))").tag(0)
                 ForEach(1...6, id: \.self) { Text("\($0)").tag($0) }
             }
             .frame(maxWidth: 260)
         }
-        SettingsGroup(title: "Sub-agent a ogni richiesta",
-                      footnote: "Lavorano con Apple Intelligence sul Mac, in sessioni loro: gratis, privati, qualunque modello risponda nella chat.") {
+        SettingsGroup(title: String(localized: "Sub-agent a ogni richiesta"),
+                      footnote: String(localized: "Lavorano con Apple Intelligence sul Mac, in sessioni loro: gratis, privati, qualunque modello risponda nella chat.")) {
             Label("Smistatore: legge la richiesta e sceglie solo gli strumenti che servono (calendario, email, file, web, connettori…), così al modello che risponde non arrivano le descrizioni di tutti gli altri e la sua finestra di contesto resta per la conversazione e i dati. Dice anche se il compito va diviso in passi.",
                   systemImage: "arrow.triangle.branch")
             Label("Piano con i sub-agent: parte da solo per i compiti complessi con ogni modello; con Apple Intelligence parte sempre (un passo per le richieste semplici, più passi in parallelo per quelle complesse). I passaggi sono in «Come ho lavorato».",
@@ -393,7 +393,7 @@ private struct PrivacySettings: View {
     @Environment(AppState.self) private var state
 
     var body: some View {
-        SettingsGroup(title: "Dove vanno i dati") {
+        SettingsGroup(title: String(localized: "Dove vanno i dati")) {
             Label("Il pianificatore Apple, Gemma e ds4 lavorano sul Mac.", systemImage: "lock.shield")
             Label("La ricerca sul web invia solo la domanda cercata.", systemImage: "globe")
             Label("I connettori inviano ai loro servizi solo le chiamate che confermi.", systemImage: "puzzlepiece.extension")
@@ -410,7 +410,7 @@ private struct PrivacySettings: View {
             }
         }
         .font(DS.Fonts.body)
-        SettingsGroup(title: "Registro") {
+        SettingsGroup(title: String(localized: "Registro")) {
             Button("Apri Attività recenti") { state.section = .activity; NSApp.activate() }
         }
     }
@@ -437,7 +437,7 @@ private struct GemmaRow: View {
                         Image(systemName: "checkmark.circle.fill").foregroundStyle(.green).help("In uso")
                     }
                 }
-                Text(String(format: "%.1f GB · consigliati %d GB di memoria", variant.sizeGB, max(8, variant.minMemoryGB)) + (tooBig ? " · troppo grande per questo Mac" : ""))
+                Text(String(format: "%.1f GB · consigliati %d GB di memoria", variant.sizeGB, max(8, variant.minMemoryGB)) + (tooBig ? String(localized: " · troppo grande per questo Mac") : ""))
                     .font(DS.Fonts.caption).foregroundStyle(tooBig ? .orange : .secondary)
                 if let error = models.errors[variant.id] { Text(error).font(DS.Fonts.caption).foregroundStyle(.red) }
             }
@@ -451,7 +451,7 @@ private struct GemmaRow: View {
                     .controlSize(.small)
                     .disabled(state.selection.provider == .gemma && state.resolved(state.selection).model == variant.id)
                 Button(role: .destructive) { confirmDelete = true } label: { Image(systemName: "trash") }
-                    .buttonStyle(.borderless).iconHelp("Elimina il file dal Mac")
+                    .buttonStyle(.borderless).iconHelp(String(localized: "Elimina il file dal Mac"))
                     .confirmationDialog("Eliminare \(variant.label) dal Mac?", isPresented: $confirmDelete) {
                         Button("Elimina (\(String(format: "%.1f", variant.sizeGB)) GB)", role: .destructive) { models.delete(variant) }
                     } message: { Text("Il file verrà cancellato: per usarla di nuovo andrà riscaricata.") }
@@ -482,7 +482,7 @@ private struct SkillsSettings: View {
                     ForEach(skills) { skill in
                         VStack(alignment: .leading, spacing: 2) {
                             Text(skill.name).font(DS.Fonts.bodyStrong)
-                            Text(skill.inProject ? "Progetto · \(skill.description)" : skill.description)
+                            Text(skill.inProject ? String(localized: "Progetto · \(skill.description)") : skill.description)
                                 .font(DS.Fonts.caption).foregroundStyle(.secondary).lineLimit(2)
                         }
                         .tag(skill.id as String?)
@@ -496,11 +496,11 @@ private struct SkillsSettings: View {
                 }
                 Divider()
                 HStack {
-                    Button { newSkill() } label: { Image(systemName: "plus") }.iconHelp("Nuova skill")
+                    Button { newSkill() } label: { Image(systemName: "plus") }.iconHelp(String(localized: "Nuova skill"))
                     Button { confirmDelete = true } label: { Image(systemName: "minus") }
-                        .iconHelp("Sposta la skill nel Cestino").disabled(selected == nil)
+                        .iconHelp(String(localized: "Sposta la skill nel Cestino")).disabled(selected == nil)
                     Spacer()
-                    Button { NSWorkspace.shared.open(SkillStore.folder) } label: { Image(systemName: "folder") }.iconHelp("Mostra nel Finder")
+                    Button { NSWorkspace.shared.open(SkillStore.folder) } label: { Image(systemName: "folder") }.iconHelp(String(localized: "Mostra nel Finder"))
                 }
                 .buttonStyle(.borderless)
                 .padding(DS.Space.sm)
@@ -537,7 +537,7 @@ private struct SkillsSettings: View {
     }
 
     private func newSkill() {
-        if let skill = try? SkillStore.save(name: "Nuova skill", description: "Cosa fa questa procedura", cues: ["parola chiave"],
+        if let skill = try? SkillStore.save(name: String(localized: "Nuova skill"), description: String(localized: "Cosa fa questa procedura"), cues: [String(localized: "parola chiave")],
                                             body: "## Procedura\n1. Primo passo\n2. Secondo passo") {
             state.skillsRevision += 1
             selection = skill.id
@@ -548,9 +548,9 @@ private struct SkillsSettings: View {
         do {
             try text.write(to: skill.url, atomically: true, encoding: .utf8)
             state.skillsRevision += 1
-            state.showToast("Skill salvata", symbol: "wand.and.stars")
+            state.showToast(String(localized: "Skill salvata"), symbol: "wand.and.stars")
         } catch {
-            state.showToast("Non salvata: \(error.localizedDescription)", symbol: "exclamationmark.triangle.fill")
+            state.showToast(String(localized: "Non salvata: \(error.localizedDescription)"), symbol: "exclamationmark.triangle.fill")
         }
     }
 }

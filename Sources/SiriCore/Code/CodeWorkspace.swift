@@ -168,8 +168,8 @@ public enum CodeTemplate: String, CaseIterable, Identifiable, Sendable {
                                  "Interactive app with React, TypeScript and Vite, started with npm run dev.")
         case .swiftui: Language.t("App nativa Apple con SwiftUI, da aprire e avviare in Xcode.",
                                   "Native Apple app with SwiftUI, to open and run in Xcode.")
-        case .vuoto: Language.t("Una cartella con le regole per l'agente: decidi tu cosa costruire.",
-                                "A folder with the rules for the agent: you decide what to build.")
+        case .vuoto: Language.t("Una cartella con le regole per l'assistente: decidi tu cosa costruire.",
+                                 "A folder with the rules for the assistant: you decide what to build.")
         }
     }
 

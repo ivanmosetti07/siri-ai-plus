@@ -21,7 +21,7 @@ public struct PrivacyReport: Codable, Sendable, Equatable {
     /// «3 nomi, 2 codici fiscali, 1 IBAN».
     public var summary: String {
         counts.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
-            .map { "\($0.value) \(PIICategory.name($0.key))" }.joined(separator: ", ")
+            .map { "\($0.value) \(PIICategory.name($0.key, count: $0.value))" }.joined(separator: ", ")
     }
 }
 
@@ -30,7 +30,16 @@ public final class PrivacyShield: @unchecked Sendable {
     @TaskLocal public static var current: PrivacyShield?
 
     /// Detto al modello esterno prima delle istruzioni: i segnaposto sono dati veri, da usare così.
-    public static let modelRule = """
+    public static var modelRule: String { Language.isEnglish ? englishModelRule : italianModelRule }
+
+    static let englishModelRule = """
+    Privacy: some personal data reach you as placeholders in square brackets, for example [FULLNAME_1], [EMAIL_1], [IBAN_1], \
+    [CF_1]. They are real data that the app hid for privacy and puts back in place in your answer and in the tools: use them \
+    exactly as you receive them, as if they were the real values (also inside tools and in texts to write). Don't ask for the real \
+    data, don't treat them as fields to fill in, don't explain that they are placeholders and don't change their form.
+    """
+
+    static let italianModelRule = """
     Privacy: alcuni dati personali ti arrivano come segnaposto tra parentesi quadre, per esempio [FULLNAME_1], [EMAIL_1], [IBAN_1], \
     [CF_1]. Sono dati veri che l'app ha nascosto per privacy e che rimette al loro posto nella tua risposta e negli strumenti: usali \
     esattamente come li ricevi, come se fossero i valori veri (anche dentro gli strumenti e nei testi da scrivere). Non chiedere i dati \
@@ -88,7 +97,7 @@ public final class PrivacyShield: @unchecked Sendable {
             return cached
         }
         guard text.unicodeScalars.contains(where: { !$0.properties.isWhitespace }) else { return text }
-        onStatus?("Anonimizzo prima di inviare a \(destination)…")
+        onStatus?(Language.t("Anonimizzo prima di inviare a \(destination)…", "Anonymizing before sending to \(destination)…"))
         let source = PIIText(text)
         // La data e l'ora di adesso, scritte dall'app, non sono dati personali: senza, il modello non sa cos'è «domani».
         let kept = Self.scaffolding.flatMap { source.matches($0) }
@@ -121,8 +130,8 @@ public final class PrivacyShield: @unchecked Sendable {
     /// Righe di contesto scritte dall'app che restano in chiaro: «Adesso è gio 2026-09-25 13:05», «Oggi è giovedì 25 settembre 2026»,
     /// il mini-calendario dei prossimi giorni («- venerdì 2026-09-26 (domani)»).
     static let scaffolding: [NSRegularExpression] = [
-        try! NSRegularExpression(pattern: #"(?:Adesso|Oggi) è [^\n]{0,40}?\d{4}(?:-\d{2}-\d{2})?(?:,? (?:ore )?\d{1,2}[:.]\d{2})?"#),
-        try! NSRegularExpression(pattern: #"(?m)^- \p{L}+ \d{4}-\d{2}-\d{2}(?: \((?:oggi|domani)\))?$"#),
+        try! NSRegularExpression(pattern: #"(?:(?:Adesso|Oggi) è|It is now|It's now|Today is) [^\n]{0,40}?\d{4}(?:-\d{2}-\d{2})?(?:,? (?:ore |at )?\d{1,2}[:.]\d{2})?"#),
+        try! NSRegularExpression(pattern: #"(?m)^- \p{L}+ \d{4}-\d{2}-\d{2}(?: \((?:oggi|domani|today|tomorrow)\))?$"#),
     ]
 
     /// Le entità da nascondere: solo quelle delle categorie scelte. Restano in chiaro gli indirizzi IP del Mac e della rete

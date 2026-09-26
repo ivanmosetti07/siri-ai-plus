@@ -82,7 +82,7 @@ public enum CodeAgent {
             switch self {
             case .codex: "Codex"
             case .claude: "Claude Code"
-            case .local: Language.t("Agente di Siri AI+", "Siri AI+ agent")
+            case .local: Language.t("Assistente di Siri AI+", "Siri AI+ assistant")
             }
         }
     }

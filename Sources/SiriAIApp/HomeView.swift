@@ -25,7 +25,7 @@ struct HomeView: View {
         }
         // Il campo di scrittura galleggia sopra la Home: il cielo continua sotto di lui.
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            Composer(placeholder: "Chiedi qualsiasi cosa a Siri AI+…")
+            Composer(placeholder: String(localized: "Chiedi qualsiasi cosa a Siri AI+…"))
                 .frame(maxWidth: DS.readingWidth)
                 .frame(maxWidth: .infinity)
         }
@@ -38,7 +38,7 @@ struct HomeView: View {
         VStack(spacing: 0) {
             if showMigrationNotice {
                 InlineBanner(symbol: "sparkles", tint: .purple,
-                             text: "SiriAI ora si chiama Siri AI+: i tuoi dati sono al loro posto. macOS chiederà di nuovo i permessi (Calendario, Promemoria, Automazione, Microfono, Contatti) perché l'app ha un nuovo identificatore.") {
+                             text: String(localized: "SiriAI ora si chiama Siri AI+: i tuoi dati sono al loro posto. macOS chiederà di nuovo i permessi (Calendario, Promemoria, Automazione, Microfono, Contatti) perché l'app ha un nuovo identificatore.")) {
                     Button("Privacy…") { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy")!) }
                     Button("Ho capito") { UserDefaults.standard.set(false, forKey: "migrationNotice"); showMigrationNotice = false }
                         .buttonStyle(.borderedProminent)

@@ -54,21 +54,21 @@ struct CalendarAppView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            AppHeader(source: .calendar, title: "Calendario", subtitle: title, search: $search, searchPrompt: "Cerca eventi",
+            AppHeader(source: .calendar, title: String(localized: "Calendario"), subtitle: title, search: $search, searchPrompt: String(localized: "Cerca eventi"),
                       onSearch: runSearch, onRefresh: reload) {
                 Picker("Vista", selection: $modeRaw) {
-                    ForEach(Mode.allCases) { Text($0.rawValue).tag($0.rawValue) }
+                    ForEach(Mode.allCases) { Text(LocalizedStringKey($0.rawValue)).tag($0.rawValue) }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
                 .fixedSize()
                 Button("Oggi") { withAnimation(DS.Motion.standard) { anchor = .now } }
                 ControlGroup {
-                    Button { step(-1) } label: { Image(systemName: "chevron.left") }.iconHelp("Precedente")
-                    Button { step(1) } label: { Image(systemName: "chevron.right") }.iconHelp("Successivo")
+                    Button { step(-1) } label: { Image(systemName: "chevron.left") }.iconHelp(String(localized: "Precedente"))
+                    Button { step(1) } label: { Image(systemName: "chevron.right") }.iconHelp(String(localized: "Successivo"))
                 }
                 .fixedSize()
-                AppIconButton(symbol: "plus", help: "Nuovo evento", prominent: true) { newEvent(at: nil) }
+                AppIconButton(symbol: "plus", help: String(localized: "Nuovo evento"), prominent: true) { newEvent(at: nil) }
                     .disabled(!state.canWrite(.calendar))
             }
             Divider()
@@ -115,8 +115,8 @@ struct CalendarAppView: View {
         if let id = selectedID, let event = events.first(where: { $0.id == id }) {
             let detail = editing.flatMap { $0.identifier == event.identifier ? $0 : nil }
             let extra = [detail?.notes ?? "", detail?.url ?? "",
-                         (detail?.attendees ?? []).isEmpty ? "" : "Partecipanti: " + (detail?.attendees ?? []).joined(separator: ", "),
-                         detail?.organizer.map { "Organizzatore: \($0)" } ?? ""].filter { !$0.isEmpty }.joined(separator: "\n")
+                         (detail?.attendees ?? []).isEmpty ? "" : String(localized: "Partecipanti: ") + (detail?.attendees ?? []).joined(separator: ", "),
+                         detail?.organizer.map { String(localized: "Organizzatore: \($0)") } ?? ""].filter { !$0.isEmpty }.joined(separator: "\n")
             state.publish(.event(event, notes: extra), for: .app(.calendar))
         } else {
             state.publish(.calendar(range: screenRange, events: events), for: .app(.calendar))
@@ -126,11 +126,11 @@ struct CalendarAppView: View {
     /// I giorni mostrati, a parole («settimana dal 21 al 27 settembre»).
     private var screenRange: String {
         switch mode {
-        case .day: "giorno " + anchor.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Dates.locale))
+        case .day: String(localized: "giorno ") + anchor.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Dates.locale))
         case .week:
-            "settimana dal " + range.start.formatted(.dateTime.day().month(.wide).locale(Dates.locale)) + " al "
+            String(localized: "settimana dal ") + range.start.formatted(.dateTime.day().month(.wide).locale(Dates.locale)) + String(localized: " al ")
                 + range.end.addingTimeInterval(-1).formatted(.dateTime.day().month(.wide).locale(Dates.locale))
-        case .month: "mese di " + anchor.formatted(.dateTime.month(.wide).year().locale(Dates.locale))
+        case .month: String(localized: "mese di ") + anchor.formatted(.dateTime.month(.wide).year().locale(Dates.locale))
         }
     }
 
@@ -198,11 +198,11 @@ struct CalendarAppView: View {
     private func move(_ event: CalendarEvent, to start: Date, end: Date) {
         do {
             try CalendarStore.move(identifier: event.identifier, start: event.start, to: start, end: end)
-            state.appDone(.calendar, "Evento spostato", detail: "\(event.title) · \(Dates.friendly(start))")
+            state.appDone(.calendar, String(localized: "Evento spostato"), detail: "\(event.title) · \(Dates.friendly(start))")
             reload()
             if editing?.identifier == event.identifier { editing = CalendarStore.detail(identifier: event.identifier, start: start) }
         } catch {
-            state.appFailed(.calendar, "Evento non spostato", error)
+            state.appFailed(.calendar, String(localized: "Evento non spostato"), error)
             reload()
         }
     }
@@ -279,9 +279,9 @@ struct MiniMonth: View {
                 Text(shown.formatted(.dateTime.month(.wide).year().locale(Dates.locale)).capitalized).font(.system(size: 13, weight: .semibold))
                 Spacer()
                 Button { shown = cal.date(byAdding: .month, value: -1, to: shown)! } label: { Image(systemName: "chevron.left") }
-                    .buttonStyle(.borderless).iconHelp("Mese precedente")
+                    .buttonStyle(.borderless).iconHelp(String(localized: "Mese precedente"))
                 Button { shown = cal.date(byAdding: .month, value: 1, to: shown)! } label: { Image(systemName: "chevron.right") }
-                    .buttonStyle(.borderless).iconHelp("Mese successivo")
+                    .buttonStyle(.borderless).iconHelp(String(localized: "Mese successivo"))
             }
             let symbols = (0..<7).map { cal.shortStandaloneWeekdaySymbols[($0 + cal.firstWeekday - 1) % 7].prefix(1).uppercased() }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 2) {
@@ -557,7 +557,7 @@ private struct TimedEventBlock: View {
         let (days, minutes) = snapped
         if resizing {
             let end = event.end.addingTimeInterval(Double(minutes * 60))
-            return "fine \(end.formatted(.dateTime.hour().minute().locale(Dates.locale)))"
+            return String(localized: "fine \(end.formatted(.dateTime.hour().minute().locale(Dates.locale)))")
         }
         let start = Calendar.current.date(byAdding: .day, value: days, to: event.start)!.addingTimeInterval(Double(minutes * 60))
         return start.formatted(.dateTime.weekday(.abbreviated).hour().minute().locale(Dates.locale))
@@ -575,7 +575,7 @@ private struct EventChip: View {
         Button(action: action) {
             HStack(spacing: 5) {
                 if !event.isAllDay { Circle().fill(color).frame(width: 6, height: 6) }
-                Text(event.isAllDay ? event.title : "\(event.start.formatted(.dateTime.hour().minute().locale(Dates.locale))) \(event.title)")
+                Text(event.isAllDay ? event.title : String(localized: "\(event.start.formatted(.dateTime.hour().minute().locale(Dates.locale))) \(event.title)"))
                     .font(.system(size: 11, weight: event.isAllDay ? .semibold : .regular))
                     .lineLimit(1)
                 Spacer(minLength: 0)
@@ -714,7 +714,7 @@ private struct CalendarSearchResults: View {
 
     var body: some View {
         if results.isEmpty {
-            AppPlaceholder(symbol: "magnifyingglass", title: "Nessun evento trovato", message: "Cerco nel titolo, nel luogo e nelle note, sei mesi prima e dopo oggi.")
+            AppPlaceholder(symbol: "magnifyingglass", title: String(localized: "Nessun evento trovato"), message: String(localized: "Cerco nel titolo, nel luogo e nelle note, sei mesi prima e dopo oggi."))
         } else {
             List {
                 ForEach(Dictionary(grouping: results) { Calendar.current.startOfDay(for: $0.start) }.sorted { $0.key < $1.key }, id: \.key) { day, items in
@@ -725,8 +725,8 @@ private struct CalendarSearchResults: View {
                                     RoundedRectangle(cornerRadius: 2).fill(Color(event.color)).frame(width: 4, height: 30)
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(event.title).font(.system(size: 13, weight: .semibold))
-                                        Text(event.isAllDay ? "Tutto il giorno · \(event.calendarTitle)"
-                                             : "\(event.start.formatted(.dateTime.hour().minute().locale(Dates.locale)))–\(event.end.formatted(.dateTime.hour().minute().locale(Dates.locale))) · \(event.calendarTitle)")
+                                        Text(event.isAllDay ? String(localized: "Tutto il giorno · \(event.calendarTitle)")
+                                             : String(localized: "\(event.start.formatted(.dateTime.hour().minute().locale(Dates.locale)))–\(event.end.formatted(.dateTime.hour().minute().locale(Dates.locale))) · \(event.calendarTitle)"))
                                             .font(.system(size: 12)).foregroundStyle(.secondary)
                                     }
                                     Spacer()
@@ -771,9 +771,9 @@ private struct EventInspector: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
-                            Text(binding.wrappedValue.isNew ? "Nuovo evento" : "Evento").font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
+                            Text(binding.wrappedValue.isNew ? String(localized: "Nuovo evento") : String(localized: "Evento")).font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
                             Spacer()
-                            Button { onClose() } label: { Image(systemName: "xmark") }.buttonStyle(.borderless).iconHelp("Chiudi")
+                            Button { onClose() } label: { Image(systemName: "xmark") }.buttonStyle(.borderless).iconHelp(String(localized: "Chiudi"))
                                 .keyboardShortcut(.cancelAction)
                         }
                         TextField("Titolo", text: binding.title, axis: .vertical)
@@ -785,22 +785,22 @@ private struct EventInspector: View {
                             .font(.system(size: 13))
                             .disabled(!editable)
                         if !editable {
-                            Label(canWrite ? "Calendario in sola lettura" : "Calendario in sola lettura nelle impostazioni di Siri AI+", systemImage: "lock")
+                            Label(canWrite ? String(localized: "Calendario in sola lettura") : String(localized: "Calendario in sola lettura nelle impostazioni di Siri AI+"), systemImage: "lock")
                                 .font(.system(size: 12)).foregroundStyle(.secondary)
                         }
                         InspectorGroup {
-                            InspectorRow(label: "Tutto il giorno") {
+                            InspectorRow(label: String(localized: "Tutto il giorno")) {
                                 Toggle("", isOn: binding.isAllDay).labelsHidden().toggleStyle(.switch).controlSize(.small)
                             }
-                            InspectorRow(label: "Inizio") {
+                            InspectorRow(label: String(localized: "Inizio")) {
                                 DatePicker("", selection: startBinding(binding), displayedComponents: binding.wrappedValue.isAllDay ? [.date] : [.date, .hourAndMinute])
                                     .labelsHidden().datePickerStyle(.field)
                             }
-                            InspectorRow(label: "Fine") {
+                            InspectorRow(label: String(localized: "Fine")) {
                                 DatePicker("", selection: binding.end, in: binding.wrappedValue.start..., displayedComponents: binding.wrappedValue.isAllDay ? [.date] : [.date, .hourAndMinute])
                                     .labelsHidden().datePickerStyle(.field)
                             }
-                            InspectorRow(label: "Ripeti") {
+                            InspectorRow(label: String(localized: "Ripeti")) {
                                 Picker("", selection: binding.repeatRule) {
                                     ForEach(EventDetail.Repeat.allCases.filter { $0 != .custom || binding.wrappedValue.repeatRule == .custom }, id: \.self) {
                                         Text($0.label).tag($0)
@@ -808,7 +808,7 @@ private struct EventInspector: View {
                                 }
                                 .labelsHidden().fixedSize()
                             }
-                            InspectorRow(label: "Avviso", divider: false) {
+                            InspectorRow(label: String(localized: "Avviso"), divider: false) {
                                 Picker("", selection: binding.alert) {
                                     ForEach(EventDetail.Alert.allCases, id: \.self) { Text($0.label).tag($0) }
                                 }
@@ -817,7 +817,7 @@ private struct EventInspector: View {
                         }
                         .disabled(!editable)
                         InspectorGroup {
-                            InspectorRow(label: "Calendario", divider: false) {
+                            InspectorRow(label: String(localized: "Calendario"), divider: false) {
                                 Picker("", selection: binding.calendarID) {
                                     ForEach(editable ? calendars : allCalendars) { calendar in
                                         Label { Text(calendar.title) } icon: { Image(systemName: "circle.fill").foregroundStyle(Color(calendar.color)) }
@@ -828,7 +828,7 @@ private struct EventInspector: View {
                             }
                         }
                         .disabled(!editable)
-                        InspectorGroup(title: "Note e link") {
+                        InspectorGroup(title: String(localized: "Note e link")) {
                             TextField("Link", text: binding.url)
                                 .textFieldStyle(.plain).font(.system(size: 13)).padding(.vertical, 8)
                             Divider().opacity(0.6)
@@ -840,7 +840,7 @@ private struct EventInspector: View {
                         }
                         .disabled(!editable)
                         if !binding.wrappedValue.attendees.isEmpty {
-                            InspectorGroup(title: "Invitati") {
+                            InspectorGroup(title: String(localized: "Invitati")) {
                                 if let organizer = binding.wrappedValue.organizer {
                                     Label("Organizza \(organizer)", systemImage: "person.crop.circle.badge.checkmark").font(.system(size: 13)).padding(.vertical, 6)
                                 }
@@ -850,7 +850,7 @@ private struct EventInspector: View {
                             }
                         }
                         if !binding.wrappedValue.isNew {
-                            Button { state.send("Parlami dell'evento «\(binding.wrappedValue.title)» di \(Dates.friendly(binding.wrappedValue.start)) e dimmi cosa preparare") } label: {
+                            Button { state.send(String(localized: "Parlami dell'evento «\(binding.wrappedValue.title)» di \(Dates.friendly(binding.wrappedValue.start)) e dimmi cosa preparare")) } label: {
                                 Label("Chiedi a Siri AI+", systemImage: "sparkle")
                             }
                             .buttonStyle(.link)
@@ -864,8 +864,8 @@ private struct EventInspector: View {
                         Button(role: .destructive) { binding.wrappedValue.isRecurring ? (askSpan = .delete) : (confirmDelete = true) } label: {
                             Image(systemName: "trash")
                         }
-                        .iconHelp("Elimina evento")
-                        Button { duplicate() } label: { Image(systemName: "plus.square.on.square") }.iconHelp("Duplica")
+                        .iconHelp(String(localized: "Elimina evento"))
+                        Button { duplicate() } label: { Image(systemName: "plus.square.on.square") }.iconHelp(String(localized: "Duplica"))
                     }
                 } trailing: {
                     if binding.wrappedValue.isNew {
@@ -873,7 +873,7 @@ private struct EventInspector: View {
                     } else if dirty {
                         Button("Annulla modifiche") { draft = original }
                     }
-                    Button(binding.wrappedValue.isNew ? "Aggiungi" : "Salva") {
+                    Button(binding.wrappedValue.isNew ? String(localized: "Aggiungi") : String(localized: "Salva")) {
                         binding.wrappedValue.isRecurring && !binding.wrappedValue.isNew ? (askSpan = .save) : save(future: false)
                     }
                     .buttonStyle(.borderedProminent)
@@ -889,12 +889,12 @@ private struct EventInspector: View {
                 draft = value; original = value
             }
         }
-        .confirmationDialog(askSpan == .delete ? "Eliminare l'evento che si ripete?" : "Salvare le modifiche all'evento che si ripete?",
+        .confirmationDialog(askSpan == .delete ? String(localized: "Eliminare l'evento che si ripete?") : String(localized: "Salvare le modifiche all'evento che si ripete?"),
                             isPresented: Binding(get: { askSpan != nil }, set: { if !$0 { askSpan = nil } }), presenting: askSpan) { request in
-            Button(request == .delete ? "Elimina solo questo" : "Salva solo per questo", role: request == .delete ? .destructive : nil) {
+            Button(request == .delete ? String(localized: "Elimina solo questo") : String(localized: "Salva solo per questo"), role: request == .delete ? .destructive : nil) {
                 request == .delete ? delete(future: false) : save(future: false)
             }
-            Button(request == .delete ? "Elimina anche i futuri" : "Salva per tutti i futuri", role: request == .delete ? .destructive : nil) {
+            Button(request == .delete ? String(localized: "Elimina anche i futuri") : String(localized: "Salva per tutti i futuri"), role: request == .delete ? .destructive : nil) {
                 request == .delete ? delete(future: true) : save(future: true)
             }
         }
@@ -918,11 +918,11 @@ private struct EventInspector: View {
         guard let draft else { return }
         do {
             let result = try CalendarStore.save(draft, futureEvents: future)
-            state.appDone(.calendar, draft.isNew ? "Evento aggiunto" : "Evento salvato", detail: "\(draft.title) · \(Dates.friendly(draft.start))")
+            state.appDone(.calendar, draft.isNew ? String(localized: "Evento aggiunto") : String(localized: "Evento salvato"), detail: "\(draft.title) · \(Dates.friendly(draft.start))")
             original = draft
             onSaved(result.identifier, result.start)
         } catch {
-            state.appFailed(.calendar, "Evento non salvato", error)
+            state.appFailed(.calendar, String(localized: "Evento non salvato"), error)
         }
     }
 
@@ -930,10 +930,10 @@ private struct EventInspector: View {
         guard let draft else { return }
         do {
             try CalendarStore.delete(identifier: draft.identifier, start: draft.occurrence, futureEvents: future)
-            state.appDone(.calendar, "Evento eliminato", detail: draft.title)
+            state.appDone(.calendar, String(localized: "Evento eliminato"), detail: draft.title)
             onDeleted()
         } catch {
-            state.appFailed(.calendar, "Evento non eliminato", error)
+            state.appFailed(.calendar, String(localized: "Evento non eliminato"), error)
         }
     }
 
@@ -941,10 +941,10 @@ private struct EventInspector: View {
         guard let draft else { return }
         do {
             let result = try CalendarStore.duplicate(identifier: draft.identifier, start: draft.occurrence)
-            state.appDone(.calendar, "Evento duplicato", detail: draft.title)
+            state.appDone(.calendar, String(localized: "Evento duplicato"), detail: draft.title)
             onSaved(result.identifier, result.start)
         } catch {
-            state.appFailed(.calendar, "Evento non duplicato", error)
+            state.appFailed(.calendar, String(localized: "Evento non duplicato"), error)
         }
     }
 }

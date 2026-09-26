@@ -77,7 +77,7 @@ struct FilesAppView: View {
     var body: some View {
         VStack(spacing: 0) {
             if project == nil {
-                AppHeader(source: .files, title: "File", subtitle: subtitle, search: $search, searchPrompt: searchPrompt,
+                AppHeader(source: .files, title: String(localized: "File"), subtitle: subtitle, search: $search, searchPrompt: searchPrompt,
                           onSearch: runSearch, onRefresh: reload) {
                     newMenu
                 }
@@ -127,7 +127,7 @@ struct FilesAppView: View {
         }
         .onChange(of: showHidden) { _, _ in reload() }
         .onChange(of: search) { _, value in if value.isEmpty { searching = false; reload() } }
-        .confirmationDialog(trashing.count == 1 ? "Spostare «\(trashing.first?.name ?? "")» nel Cestino?" : "Spostare \(trashing.count) elementi nel Cestino?",
+        .confirmationDialog(trashing.count == 1 ? String(localized: "Spostare «\(trashing.first?.name ?? "")» nel Cestino?") : String(localized: "Spostare \(trashing.count) elementi nel Cestino?"),
                             isPresented: Binding(get: { !trashing.isEmpty }, set: { if !$0 { trashing = [] } })) {
             Button("Sposta nel Cestino", role: .destructive) { trash(trashing) }
         } message: {
@@ -137,13 +137,13 @@ struct FilesAppView: View {
 
     private var subtitle: String {
         switch place {
-        case .recents: project == nil ? "Usati di recente" : "Modificati di recente"
+        case .recents: project == nil ? String(localized: "Usati di recente") : String(localized: "Modificati di recente")
         case .folder(let url): url.path.replacingOccurrences(of: home.path, with: "~")
         }
     }
 
     private var searchPrompt: String {
-        folder.map { "Cerca in «\($0.lastPathComponent)»" } ?? (project.map { "Cerca in «\($0.name)»" } ?? "Cerca")
+        folder.map { String(localized: "Cerca in «\($0.lastPathComponent)»") } ?? (project.map { String(localized: "Cerca in «\($0.name)»") } ?? String(localized: "Cerca"))
     }
 
     private var newMenu: some View {
@@ -154,7 +154,7 @@ struct FilesAppView: View {
             if project != nil { Button("Nuova pagina HTML") { newFile(ext: "html") } }
         } label: { Image(systemName: "plus") }
         .menuStyle(.button).menuIndicator(.hidden).buttonStyle(.borderless).fixedSize()
-        .iconHelp("Nuovo")
+        .iconHelp(String(localized: "Nuovo"))
         .disabled(folder == nil || !canWrite)
     }
 
@@ -162,14 +162,15 @@ struct FilesAppView: View {
 
     private var favorites: [(String, String, URL)] {
         var items: [(String, String, URL)] = [
-            ("Scrivania", "menubar.dock.rectangle", home.appending(path: "Desktop")),
-            ("Documenti", "doc", home.appending(path: "Documents")),
-            ("Download", "arrow.down.circle", home.appending(path: "Downloads")),
-            ("Inizio", "house", home),
+            (String(localized: "Scrivania"), "menubar.dock.rectangle", home.appending(path: "Desktop")),
+            (String(localized: "Documenti"), "doc", home.appending(path: "Documents")),
+            (String(localized: "Download"), "arrow.down.circle", home.appending(path: "Downloads")),
+            // «Inizio» qui è la cartella Inizio del Finder (in inglese «Home»), non l'inizio di un evento.
+            (String(localized: "files.home", defaultValue: "Inizio"), "house", home),
         ]
         let iCloud = home.appending(path: "Library/Mobile Documents/com~apple~CloudDocs")
-        if FileManager.default.fileExists(atPath: iCloud.path) { items.append(("iCloud Drive", "icloud", iCloud)) }
-        items.append(("Applicazioni", "square.grid.3x3", URL(fileURLWithPath: "/Applications")))
+        if FileManager.default.fileExists(atPath: iCloud.path) { items.append((String(localized: "iCloud Drive"), "icloud", iCloud)) }
+        items.append((String(localized: "Applicazioni"), "square.grid.3x3", URL(fileURLWithPath: "/Applications")))
         return items
     }
 
@@ -184,7 +185,7 @@ struct FilesAppView: View {
                 Section("Progetto") {
                     SourceRowLabel(title: project.name, symbol: "folder.fill", tint: .purple).tag(Place.folder(root))
                         .dropDestination(for: URL.self) { urls, _ in copy(urls, into: root); return true }
-                    SourceRowLabel(title: "Modificati di recente", symbol: "clock", tint: .accentColor).tag(Place.recents)
+                    SourceRowLabel(title: String(localized: "Modificati di recente"), symbol: "clock", tint: .accentColor).tag(Place.recents)
                 }
                 if !folders.isEmpty {
                     Section("Cartelle") {
@@ -196,7 +197,7 @@ struct FilesAppView: View {
                 }
             } else {
                 Section("Preferiti") {
-                    SourceRowLabel(title: "Recenti", symbol: "clock", tint: .accentColor).tag(Place.recents)
+                    SourceRowLabel(title: String(localized: "Recenti"), symbol: "clock", tint: .accentColor).tag(Place.recents)
                     ForEach(favorites, id: \.2) { name, symbol, url in
                         SourceRowLabel(title: name, symbol: symbol, tint: .accentColor).tag(Place.folder(url))
                             .dropDestination(for: URL.self) { urls, _ in copy(urls, into: url); return true }
@@ -242,14 +243,14 @@ struct FilesAppView: View {
     private var toolbar: some View {
         HStack(spacing: 6) {
             ControlGroup {
-                Button { goBack() } label: { Image(systemName: "chevron.left") }.disabled(back.isEmpty && opened == nil).iconHelp("Indietro")
-                Button { goForward() } label: { Image(systemName: "chevron.right") }.disabled(forward.isEmpty || opened != nil).iconHelp("Avanti")
+                Button { goBack() } label: { Image(systemName: "chevron.left") }.disabled(back.isEmpty && opened == nil).iconHelp(String(localized: "Indietro"))
+                Button { goForward() } label: { Image(systemName: "chevron.right") }.disabled(forward.isEmpty || opened != nil).iconHelp(String(localized: "Avanti"))
             }
             .fixedSize()
             PlacesMenu(favorites: project == nil ? favorites : [], project: project, folders: folders) { go($0) }
             if searchVisible && opened == nil {
                 AppSearchField(text: $search, prompt: searchPrompt, onSubmit: runSearch)
-                Button("Fine") {
+                Button(String(localized: "button.done", defaultValue: "Fine")) {
                     search = ""
                     searchVisible = false
                 }
@@ -269,13 +270,13 @@ struct FilesAppView: View {
             } else if let opened {
                 Button { state.openFile(opened.url) } label: { Image(systemName: "macwindow.on.rectangle") }
                     .buttonStyle(.borderless)
-                    .iconHelp("Apri in una scheda (resta aperto con questa chat)")
+                    .iconHelp(String(localized: "Apri in una scheda (resta aperto con questa chat)"))
                 Button { NSWorkspace.shared.activateFileViewerSelecting([opened.url]) } label: { Image(systemName: "folder") }
                     .buttonStyle(.borderless)
-                    .iconHelp("Mostra nel Finder")
-                Button { state.send("Riassumi il file \(opened.url.path)") } label: { Image(systemName: "sparkle") }
+                    .iconHelp(String(localized: "Mostra nel Finder"))
+                Button { state.send(String(localized: "Riassumi il file \(opened.url.path)")) } label: { Image(systemName: "sparkle") }
                     .buttonStyle(.borderless)
-                    .iconHelp("Chiedi a Siri AI+ di riassumerlo")
+                    .iconHelp(String(localized: "Chiedi a Siri AI+ di riassumerlo"))
             }
         }
         .padding(.horizontal, 12)
@@ -309,7 +310,7 @@ struct FilesAppView: View {
             Image(systemName: layout == .icons ? "square.grid.2x2" : "list.bullet")
         }
         .menuStyle(.button).menuIndicator(.hidden).buttonStyle(.borderless).fixedSize()
-        .iconHelp("Vista: icone o elenco, ordinamento, file nascosti")
+        .iconHelp(String(localized: "Vista: icone o elenco, ordinamento, file nascosti"))
     }
 
     private var pathBar: some View {
@@ -339,14 +340,14 @@ struct FilesAppView: View {
                 }
                 .scrollIndicators(.never)
             } else {
-                Label(project == nil ? "Usati di recente" : "Modificati di recente", systemImage: "clock").font(.system(size: 12, weight: .semibold))
+                Label(project == nil ? String(localized: "Usati di recente") : String(localized: "Modificati di recente"), systemImage: "clock").font(.system(size: 12, weight: .semibold))
             }
         }
     }
 
     private func crumbTitle(_ url: URL) -> String {
         if let project, url.standardizedFileURL == root { return project.name }
-        return url.path == "/" ? "Macintosh HD" : FileManager.default.displayName(atPath: url.path)
+        return url.path == "/" ? String(localized: "Macintosh HD") : FileManager.default.displayName(atPath: url.path)
     }
 
     private func crumbSymbol(_ url: URL) -> String {
@@ -396,13 +397,13 @@ struct FilesAppView: View {
 
     @ViewBuilder private var content: some View {
         if let error {
-            AccessNotice(symbol: "folder.badge.questionmark", title: "Cartella non leggibile", message: error,
-                         primary: ("Riprova", reload), secondary: ("Permessi", { PermissionCenter.openSettings(.fullDisk) }))
+            AccessNotice(symbol: "folder.badge.questionmark", title: String(localized: "Cartella non leggibile"), message: error,
+                         primary: (String(localized: "Riprova"), reload), secondary: (String(localized: "Permessi"), { PermissionCenter.openSettings(.fullDisk) }))
         } else if loading && entries.isEmpty {
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if entries.isEmpty {
-            AppPlaceholder(symbol: searching ? "magnifyingglass" : "folder", title: searching ? "Nessun file trovato" : "Cartella vuota",
-                           message: folder != nil && !searching ? "Trascina qui i file dal Finder per copiarli." : nil)
+            AppPlaceholder(symbol: searching ? "magnifyingglass" : "folder", title: searching ? String(localized: "Nessun file trovato") : String(localized: "Cartella vuota"),
+                           message: folder != nil && !searching ? String(localized: "Trascina qui i file dal Finder per copiarli.") : nil)
                 .dropDestination(for: URL.self) { urls, _ in if let folder { copy(urls, into: folder) }; return folder != nil }
         } else if layout == .icons {
             iconGrid
@@ -413,7 +414,7 @@ struct FilesAppView: View {
 
     private var table: some View {
         Table(of: FileEntry.self, selection: $selection, sortOrder: $sortOrder) {
-            TableColumn("Nome", value: \.name, comparator: .localizedStandard) { entry in
+            TableColumn(String(localized: "Nome"), value: \.name, comparator: .localizedStandard) { entry in
                 HStack(spacing: 8) {
                     Image(nsImage: NSWorkspace.shared.icon(forFile: entry.url.path)).resizable().frame(width: 18, height: 18)
                     if renaming == entry.url {
@@ -431,16 +432,16 @@ struct FilesAppView: View {
                 }
             }
             .width(min: 160, ideal: 280)
-            TableColumn("Modificato", value: \.sortDate) { entry in
+            TableColumn(String(localized: "Modificato"), value: \.sortDate) { entry in
                 Text(entry.modified.map { $0.formatted(.dateTime.day().month(.abbreviated).year().hour().minute().locale(Dates.locale)) } ?? "—")
                     .foregroundStyle(.secondary)
             }
             .width(min: 100, ideal: 136)
-            TableColumn("Dimensioni", value: \.sortSize) { entry in
+            TableColumn(String(localized: "Dimensioni"), value: \.sortSize) { entry in
                 Text(entry.size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "—").foregroundStyle(.secondary)
             }
             .width(min: 56, ideal: 70)
-            TableColumn("Tipo", value: \.kind) { entry in Text(entry.kind).foregroundStyle(.secondary).lineLimit(1) }
+            TableColumn(String(localized: "Tipo"), value: \.kind) { entry in Text(entry.kind).foregroundStyle(.secondary).lineLimit(1) }
                 .width(min: 60, ideal: 110)
         } rows: {
             ForEach(entries) { entry in
@@ -511,7 +512,7 @@ struct FilesAppView: View {
                            onOpenLink: { target in state.openLinkedFile(target, from: entry.url) })
                 .id(entry.url)
         } else {
-            AppPlaceholder(symbol: "doc.questionmark", title: "Non riesco ad aprire «\(entry.name)»")
+            AppPlaceholder(symbol: "doc.questionmark", title: String(localized: "Non riesco ad aprire «\(entry.name)»"))
         }
     }
 
@@ -531,7 +532,7 @@ struct FilesAppView: View {
         if let project, let root, entry.url.standardizedFileURL.path.hasPrefix(root.path + "/") {
             openedProject = project
         } else {
-            openedProject = ProjectModel(name: "File", folder: entry.url.deletingLastPathComponent(), allowWrite: canWrite)
+            openedProject = ProjectModel(name: String(localized: "File"), folder: entry.url.deletingLastPathComponent(), allowWrite: canWrite)
         }
         selection = [entry.id]
         withAnimation(DS.Motion.standard) { opened = entry }
@@ -551,7 +552,7 @@ struct FilesAppView: View {
                 }
                 Button("Apri con l'app predefinita") { NSWorkspace.shared.open(entry.url) }
             }
-            Button("Chiedi a Siri AI+") { state.send(entry.isFolder ? "Cosa c'è nella cartella \(entry.url.path)?" : "Riassumi il file \(entry.url.path)") }
+            Button("Chiedi a Siri AI+") { state.send(entry.isFolder ? String(localized: "Cosa c'è nella cartella \(entry.url.path)?") : String(localized: "Riassumi il file \(entry.url.path)")) }
             Divider()
             Button("Rinomina") { startRename(entry) }.disabled(!canWrite)
             Button("Duplica") { duplicate(entry) }.disabled(!canWrite)
@@ -566,7 +567,7 @@ struct FilesAppView: View {
             Button("Nuova cartella") { newFolder() }.disabled(!canWrite)
         }
         if !items.isEmpty {
-            Button(items.count == 1 ? "Sposta nel Cestino" : "Sposta \(items.count) elementi nel Cestino", role: .destructive) { trashing = items }
+            Button(items.count == 1 ? String(localized: "Sposta nel Cestino") : String(localized: "Sposta \(items.count) elementi nel Cestino"), role: .destructive) { trashing = items }
                 .disabled(!canWrite)
         }
     }
@@ -624,7 +625,7 @@ struct FilesAppView: View {
         } else {
             let url: URL? = if case .folder(let url) = place { url } else { nil }
             state.publish(url.map { ScreenItem.folder($0, entries: entries) }
-                          ?? ScreenItem(app: "File", kind: .overview, title: "file recenti", text: entries.prefix(30).map(\.name).joined(separator: "\n"),
+                          ?? ScreenItem(app: String(localized: "File"), kind: .overview, title: String(localized: "file recenti"), text: entries.prefix(30).map(\.name).joined(separator: "\n"),
                                         nouns: ["file", "documenti"]), for: .app(.files))
         }
     }
@@ -648,7 +649,7 @@ struct FilesAppView: View {
             } catch {
                 entries = []
                 self.error = (error as NSError).code == 257 || (error as NSError).code == 1
-                    ? "Siri AI+ non ha il permesso di aprire questa cartella. Concedi l'accesso quando macOS lo chiede, o l'accesso completo al disco."
+                    ? String(localized: "Siri AI+ non ha il permesso di aprire questa cartella. Concedi l'accesso quando macOS lo chiede, o l'accesso completo al disco.")
                     : error.localizedDescription
             }
         }
@@ -695,21 +696,23 @@ struct FilesAppView: View {
             reload()
             if let entry = entries.first(where: { $0.url == url }) { selection = [entry.id]; startRename(entry) }
             if project != nil { state.projectRevision += 1 }
-        } catch { state.appFailed(.files, "Cartella non creata", error) }
+        } catch { state.appFailed(.files, String(localized: "Cartella non creata"), error) }
     }
 
     private func newFile(ext: String) {
         guard let folder, canWrite else { return }
         let content = switch ext {
         case "md": "# Senza titolo\n\n"
-        case "html": "<!doctype html>\n<html lang=\"it\">\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <title>Pagina</title>\n</head>\n<body>\n    <h1>Ciao!</h1>\n</body>\n</html>\n"
+        case "html": (Language.system == .it
+                  ? "<!doctype html>\n<html lang=\"it\">\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <title>Pagina</title>\n</head>\n<body>\n    <h1>Ciao!</h1>\n</body>\n</html>\n"
+                  : "<!doctype html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <title>Page</title>\n</head>\n<body>\n    <h1>Hello!</h1>\n</body>\n</html>\n")
         default: ""
         }
         do {
             let url = try FileStore.newTextFile(in: folder, ext: ext, content: content)
             reload()
             if let entry = entries.first(where: { $0.url == url }) { selection = [entry.id]; startRename(entry) }
-        } catch { state.appFailed(.files, "Documento non creato", error) }
+        } catch { state.appFailed(.files, String(localized: "Documento non creato"), error) }
     }
 
     private func startRename(_ entry: FileEntry) {
@@ -722,27 +725,27 @@ struct FilesAppView: View {
         defer { renaming = nil }
         do {
             let url = try FileStore.rename(entry.url, to: newName)
-            if url != entry.url { state.appDone(.files, "Rinominato", detail: url.lastPathComponent) }
+            if url != entry.url { state.appDone(.files, String(localized: "Rinominato"), detail: url.lastPathComponent) }
             reload()
             if let renamed = entries.first(where: { $0.url == url }) { selection = [renamed.id] }
-        } catch { state.appFailed(.files, "Non rinominato", error) }
+        } catch { state.appFailed(.files, String(localized: "Non rinominato"), error) }
     }
 
     private func duplicate(_ entry: FileEntry) {
         do {
             let url = try FileStore.duplicate(entry.url)
-            state.appDone(.files, "Duplicato", detail: url.lastPathComponent)
+            state.appDone(.files, String(localized: "Duplicato"), detail: url.lastPathComponent)
             reload()
             if let copy = entries.first(where: { $0.url == url }) { selection = [copy.id] }
-        } catch { state.appFailed(.files, "Non duplicato", error) }
+        } catch { state.appFailed(.files, String(localized: "Non duplicato"), error) }
     }
 
     private func trash(_ items: [FileEntry]) {
         var moved = 0
         for item in items {
-            do { try FileStore.trash(item.url); moved += 1 } catch { state.appFailed(.files, "Non spostato nel Cestino", error) }
+            do { try FileStore.trash(item.url); moved += 1 } catch { state.appFailed(.files, String(localized: "Non spostato nel Cestino"), error) }
         }
-        if moved > 0 { state.appDone(.files, moved == 1 ? "Spostato nel Cestino" : "\(moved) elementi nel Cestino", detail: items.map(\.name).joined(separator: ", ")) }
+        if moved > 0 { state.appDone(.files, moved == 1 ? String(localized: "Spostato nel Cestino") : String(localized: "\(moved) elementi nel Cestino"), detail: items.map(\.name).joined(separator: ", ")) }
         selection = []
         trashing = []
         if items.contains(where: { $0.id == opened?.id }) { opened = nil }
@@ -755,9 +758,9 @@ struct FilesAppView: View {
         var copied = 0
         for url in urls where url.deletingLastPathComponent().standardizedFileURL != destination.standardizedFileURL {
             let target = FileStore.freeName(url.deletingPathExtension().lastPathComponent, ext: url.pathExtension, in: destination)
-            do { try FileManager.default.copyItem(at: url, to: target); copied += 1 } catch { state.appFailed(.files, "Non copiato", error) }
+            do { try FileManager.default.copyItem(at: url, to: target); copied += 1 } catch { state.appFailed(.files, String(localized: "Non copiato"), error) }
         }
-        if copied > 0 { state.appDone(.files, copied == 1 ? "File copiato" : "\(copied) file copiati", detail: destination.lastPathComponent) }
+        if copied > 0 { state.appDone(.files, copied == 1 ? String(localized: "File copiato") : String(localized: "\(copied) file copiati"), detail: destination.lastPathComponent) }
         reload()
     }
 
@@ -766,9 +769,9 @@ struct FilesAppView: View {
         guard canWrite else { return }
         var moved = 0
         for url in urls where url.deletingLastPathComponent().standardizedFileURL != destination.standardizedFileURL && url != destination {
-            do { try FileStore.move(url, into: destination); moved += 1 } catch { state.appFailed(.files, "Non spostato", error) }
+            do { try FileStore.move(url, into: destination); moved += 1 } catch { state.appFailed(.files, String(localized: "Non spostato"), error) }
         }
-        if moved > 0 { state.appDone(.files, moved == 1 ? "Spostato" : "\(moved) elementi spostati", detail: destination.lastPathComponent) }
+        if moved > 0 { state.appDone(.files, moved == 1 ? String(localized: "Spostato") : String(localized: "\(moved) elementi spostati"), detail: destination.lastPathComponent) }
         reload()
     }
 }
@@ -808,7 +811,7 @@ private struct PlacesMenu: View {
                 }
             } label: { Image(systemName: "sidebar.left") }
             .menuStyle(.button).menuIndicator(.hidden).buttonStyle(.borderless).fixedSize()
-            .iconHelp("Posizioni")
+            .iconHelp(String(localized: "Posizioni"))
         }
     }
 }
@@ -852,7 +855,7 @@ private struct FileIconCell: View {
         .contentShape(Rectangle())
         .help(entry.name)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(entry.name)\(selected ? ", selezionato" : "")")
+        .accessibilityLabel("\(entry.name)\(selected ? String(localized: ", selezionato") : "")")
     }
 }
 
@@ -909,17 +912,17 @@ private struct FileInspector: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     Text(entry.name).font(.system(size: 16, weight: .bold)).textSelection(.enabled)
                     InspectorGroup {
-                        InspectorRow(label: "Tipo") { Text(entry.kind) }
+                        InspectorRow(label: String(localized: "Tipo")) { Text(entry.kind) }
                         if let size = entry.size {
-                            InspectorRow(label: "Dimensioni") { Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file)) }
+                            InspectorRow(label: String(localized: "Dimensioni")) { Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file)) }
                         }
                         if let created = entry.created {
-                            InspectorRow(label: "Creato") { Text(Dates.friendly(created)) }
+                            InspectorRow(label: String(localized: "Creato")) { Text(Dates.friendly(created)) }
                         }
                         if let modified = entry.modified {
-                            InspectorRow(label: "Modificato") { Text(Dates.friendly(modified)) }
+                            InspectorRow(label: String(localized: "Modificato")) { Text(Dates.friendly(modified)) }
                         }
-                        InspectorRow(label: "Posizione", divider: false) {
+                        InspectorRow(label: String(localized: "Posizione"), divider: false) {
                             Text(entry.url.deletingLastPathComponent().path.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~"))
                                 .font(.system(size: 12)).textSelection(.enabled).lineLimit(3)
                         }
@@ -939,7 +942,7 @@ private struct FileInspector: View {
                             Button { NSWorkspace.shared.open(entry.url) } label: { Label("Apri con l'app del Mac", systemImage: "arrow.up.forward.app") }
                         }
                         Button { NSWorkspace.shared.activateFileViewerSelecting([entry.url]) } label: { Label("Mostra nel Finder", systemImage: "magnifyingglass") }
-                        Button { state.send(entry.isFolder ? "Cosa c'è nella cartella \(entry.url.path)?" : "Riassumi il file \(entry.url.path)") } label: {
+                        Button { state.send(entry.isFolder ? String(localized: "Cosa c'è nella cartella \(entry.url.path)?") : String(localized: "Riassumi il file \(entry.url.path)")) } label: {
                             Label("Chiedi a Siri AI+", systemImage: "sparkle")
                         }
                     }
@@ -949,8 +952,8 @@ private struct FileInspector: View {
                 .padding(16)
             }
             InspectorFooter {
-                Button(role: .destructive) { onTrash() } label: { Image(systemName: "trash") }.iconHelp("Sposta nel Cestino").disabled(!canWrite)
-                Button { onDuplicate() } label: { Image(systemName: "plus.square.on.square") }.iconHelp("Duplica").disabled(!canWrite)
+                Button(role: .destructive) { onTrash() } label: { Image(systemName: "trash") }.iconHelp(String(localized: "Sposta nel Cestino")).disabled(!canWrite)
+                Button { onDuplicate() } label: { Image(systemName: "plus.square.on.square") }.iconHelp(String(localized: "Duplica")).disabled(!canWrite)
             } trailing: {
                 Button("Rinomina", action: onRename).disabled(!canWrite)
             }

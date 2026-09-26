@@ -27,7 +27,7 @@ import UserNotifications
 
     var engine: CodeAgent.Engine { CodeAgent.Engine(selection.provider) }
 
-    init(id: UUID = UUID(), projectID: UUID, title: String = "Nuova sessione", selection: ModelSelection, mode: CodeMode = .edit,
+    init(id: UUID = UUID(), projectID: UUID, title: String = String(localized: "Nuova sessione"), selection: ModelSelection, mode: CodeMode = .edit,
          isolation: CodeIsolation = .project, workingFolder: URL? = nil, baseRevision: String? = nil, applied: Bool = false,
          externalID: String? = nil, externalEngine: String? = nil, events: [CodeEvent] = [], created: Date = .now) {
         self.id = id; self.projectID = projectID; self.title = title; self.selection = selection; self.mode = mode
@@ -94,8 +94,8 @@ extension AppState {
     func codeEngineLabel(_ selection: ModelSelection) -> String {
         let model = label(for: selection)
         switch CodeAgent.Engine(selection.provider) {
-        case .codex: return "Codex · " + model
-        case .claude: return "Claude Code · " + (model.hasPrefix("Claude ") ? String(model.dropFirst(7)) : model)
+        case .codex: return String(localized: "Codex · ") + model
+        case .claude: return String(localized: "Claude Code · ") + (model.hasPrefix("Claude ") ? String(model.dropFirst(7)) : model)
         case .local: return model
         }
     }
@@ -103,9 +103,9 @@ extension AppState {
     /// Nome breve per «… sta lavorando».
     func codeWorkerName(_ selection: ModelSelection) -> String {
         switch CodeAgent.Engine(selection.provider) {
-        case .codex: "Codex"
-        case .claude: "Claude"
-        case .local: selection.provider == .gemma ? (GemmaVariant.variant(resolved(selection).model ?? "")?.label ?? "Gemma") : selection.provider.name
+        case .codex: String(localized: "Codex")
+        case .claude: String(localized: "Claude")
+        case .local: selection.provider == .gemma ? (GemmaVariant.variant(resolved(selection).model ?? "")?.label ?? String(localized: "Gemma")) : selection.provider.name
         }
     }
 
@@ -113,19 +113,19 @@ extension AppState {
     func codeModelProblem(_ selection: ModelSelection) -> String? {
         switch selection.provider {
         case .chatgpt:
-            if !models.codexInstalled { return "Codex non è installato: installalo in Impostazioni › Modelli." }
-            if !models.codexLoggedIn { return "Accedi con il tuo account ChatGPT in Impostazioni › Modelli." }
+            if !models.codexInstalled { return String(localized: "Codex non è installato: installalo in Impostazioni › Modelli.") }
+            if !models.codexLoggedIn { return String(localized: "Accedi con il tuo account ChatGPT in Impostazioni › Modelli.") }
         case .claude:
-            if !models.claudeInstalled { return "Claude Code non è installato: installalo in Impostazioni › Modelli." }
-            if !models.claudeLoggedIn { return "Accedi con il tuo account Claude in Impostazioni › Modelli." }
+            if !models.claudeInstalled { return String(localized: "Claude Code non è installato: installalo in Impostazioni › Modelli.") }
+            if !models.claudeLoggedIn { return String(localized: "Accedi con il tuo account Claude in Impostazioni › Modelli.") }
         case .apple:
             return availabilityProblem
         case .gemma:
             guard let variant = GemmaVariant.variant(resolved(selection).model ?? ""), variant.isDownloaded else {
-                return "Gemma non è ancora scaricata: scaricala in Impostazioni › Modelli."
+                return String(localized: "Gemma non è ancora scaricata: scaricala in Impostazioni › Modelli.")
             }
         case .ds4:
-            if !models.ds4Installed { return "ds4 non è installato: installalo in Impostazioni › Modelli." }
+            if !models.ds4Installed { return String(localized: "ds4 non è installato: installalo in Impostazioni › Modelli.") }
         }
         return nil
     }
@@ -137,10 +137,10 @@ extension AppState {
             return (.apple, availabilityProblem)
         case .gemma:
             guard let variant = GemmaVariant.variant(selection.model ?? gemmaModel), variant.isDownloaded else {
-                return (nil, "Gemma non è ancora scaricata: scaricala in Impostazioni › Modelli.")
+                return (nil, String(localized: "Gemma non è ancora scaricata: scaricala in Impostazioni › Modelli."))
             }
             guard await models.ensureGemma(variant) else {
-                return (nil, models.errors["gemma-start"] ?? "Per usare Gemma serve llama.cpp: installalo in Impostazioni › Modelli.")
+                return (nil, models.errors["gemma-start"] ?? String(localized: "Per usare Gemma serve llama.cpp: installalo in Impostazioni › Modelli."))
             }
             return (.openAI(base: ExternalEngine.gemmaURL, name: "gemma", label: variant.label, contextTokens: DeviceProfile.gemmaContext,
                             thinking: selection.effort == "on"), nil)
@@ -209,7 +209,7 @@ extension AppState {
         cancelCode(session)
         if let folder = session.workingFolder, FileManager.default.fileExists(atPath: folder.path) {
             NSWorkspace.shared.activateFileViewerSelecting([folder])
-            showToast("Copia isolata conservata nel Finder", symbol: "folder")
+            showToast(String(localized: "Copia isolata conservata nel Finder"), symbol: "folder")
         }
         codeSessions.removeAll { $0.id == session.id }
         forgetTabs(of: session.id)
@@ -241,19 +241,22 @@ extension AppState {
         let resume = session.externalEngine == engine.rawValue ? session.externalID : nil
         var request = prompt
         if engine != .local, resume == nil, !history.isEmpty {
-            let recap = history.suffix(8).map { "\($0.role == .user ? "Utente" : "Assistente"): \($0.text.prefix(700))" }.joined(separator: "\n\n")
-            request = "Conversazione precedente in questa sessione (con un altro modello):\n\(recap)\n\nNuova richiesta:\n\(prompt)"
+            let recap = history.suffix(8).map { "\($0.role == .user ? String(localized: "Utente") : String(localized: "Assistente")): \($0.text.prefix(700))" }.joined(separator: "\n\n")
+            request = String(localized: "Conversazione precedente in questa sessione (con un altro modello):\n\(recap)\n\nNuova richiesta:\n\(prompt)")
         }
         // «Non funziona»: gli errori che l'anteprima vede ora vanno all'agente con la richiesta.
-        if CodeAgent.mentionsProblem(prompt), let errors = browsers[session.id]?.consoleErrors, !errors.isEmpty {
-            request += "\n\nErrori letti ora da Siri AI+ nella console dell'anteprima della pagina:\n" + errors.prefix(12).map { "- " + $0 }.joined(separator: "\n")
+        // La lingua è quella in cui scrive l'utente (anche se l'interfaccia è in un'altra).
+        let language = Language.detect(prompt, fallback: .system)
+        if Language.$scoped.withValue(language, operation: { CodeAgent.mentionsProblem(prompt) }),
+           let errors = browsers[session.id]?.consoleErrors, !errors.isEmpty {
+            request += String(localized: "\n\nErrori letti ora da Siri AI+ nella console dell'anteprima della pagina:\n") + errors.prefix(12).map { "- " + $0 }.joined(separator: "\n")
         }
         codeTasks[session.id] = Task {
             let folder: URL
             if session.isolation == .worktree {
                 if let existing = session.workingFolder {
                     guard FileManager.default.fileExists(atPath: existing.path) else {
-                        session.events.append(CodeEvent(kind: .error, text: "La copia isolata non esiste più.", status: .failed))
+                        session.events.append(CodeEvent(kind: .error, text: String(localized: "La copia isolata non esiste più."), status: .failed))
                         session.running = false; codeTasks[session.id] = nil; saveCodeSessions(); return
                     }
                     folder = existing
@@ -272,11 +275,11 @@ extension AppState {
             } else {
                 folder = project.folder
             }
-            let snapshot = await CodeSnapshot.take(folder, label: "Prima di: \(prompt.prefix(60))")
+            let snapshot = await CodeSnapshot.take(folder, label: String(localized: "Prima di: \(prompt.prefix(60))"))
             user.snapshot = snapshot
             if session.events.indices.contains(userIndex) { session.events[userIndex].snapshot = snapshot }
             guard !Task.isCancelled else {
-                session.events.append(CodeEvent(kind: .error, text: "Interrotto prima dell'avvio.", status: .failed))
+                session.events.append(CodeEvent(kind: .error, text: String(localized: "Interrotto prima dell'avvio."), status: .failed))
                 session.running = false
                 codeTasks[session.id] = nil
                 saveCodeSessions()
@@ -292,13 +295,15 @@ extension AppState {
                 if let problem = local.problem {
                     outcome = CodeAgent.Outcome(ok: false, error: problem)
                 } else {
-                    outcome = await CodeAgent.run(selection: selection, mode: mode, folder: folder, prompt: request, resume: resume,
-                                                  local: local.model, history: history,
-                                                  checkPage: { page in await PageCheck.errors(in: page, readAccess: folder) }) { event in
-                        Task { @MainActor in
-                            Self.merge(event, into: session)
-                            // Un file cambiato: l'anteprima aperta si ricarica.
-                            if event.kind == .file, event.status == .ok { self.codeFilesRevision += 1 }
+                    outcome = await Language.$scoped.withValue(language) {
+                        await CodeAgent.run(selection: selection, mode: mode, folder: folder, prompt: request, resume: resume,
+                                            local: local.model, history: history,
+                                            checkPage: { page in await PageCheck.errors(in: page, readAccess: folder) }) { event in
+                            Task { @MainActor in
+                                Self.merge(event, into: session)
+                                // Un file cambiato: l'anteprima aperta si ricarica.
+                                if event.kind == .file, event.status == .ok { self.codeFilesRevision += 1 }
+                            }
                         }
                     }
                 }
@@ -313,9 +318,9 @@ extension AppState {
                 session.externalEngine = nil
             }
             if Task.isCancelled {
-                session.events.append(CodeEvent(kind: .error, text: "Interrotto.", status: .failed))
+                session.events.append(CodeEvent(kind: .error, text: String(localized: "Interrotto."), status: .failed))
             } else if !outcome.ok {
-                session.events.append(CodeEvent(kind: .error, text: outcome.error ?? "\(codeWorkerName(selection)) non ha completato la richiesta.", status: .failed))
+                session.events.append(CodeEvent(kind: .error, text: outcome.error ?? String(localized: "\(codeWorkerName(selection)) non ha completato la richiesta."), status: .failed))
             }
             // Riepilogo dei file cambiati (dal punto di ripristino).
             if let snapshot {
@@ -326,7 +331,7 @@ extension AppState {
                         let symbol = parts.first == "A" ? "+" : parts.first == "D" ? "−" : "•"
                         return "\(symbol) \(parts.count > 1 ? String(parts[1]) : line)"
                     }.joined(separator: "\n")
-                    session.events.append(CodeEvent(kind: .result, text: "\(changes.count) file cambiati in \(Int(Date.now.timeIntervalSince(started))) s", detail: list))
+                    session.events.append(CodeEvent(kind: .result, text: String(localized: "\(changes.count) file cambiati in \(Int(Date.now.timeIntervalSince(started))) s"), detail: list))
                 }
             }
             for index in session.events.indices where session.events[index].status == .running {
@@ -373,10 +378,10 @@ extension AppState {
             let folder = session.isolation == .worktree ? (session.workingFolder ?? project.folder) : project.folder
             let result = await CodeSnapshot.restore(folder, to: snapshot)
             if let error = result.error {
-                session.events.append(CodeEvent(kind: .error, text: "Ripristino non riuscito: \(error)", status: .failed))
+                session.events.append(CodeEvent(kind: .error, text: String(localized: "Ripristino non riuscito: \(error)"), status: .failed))
             } else {
-                session.events.append(CodeEvent(kind: .result, text: "Ripristinato a prima di «\(event.text.prefix(40))»: \(result.restored.count) file ripristinati, \(result.trashed.count) nel Cestino"))
-                showToast("Progetto ripristinato", symbol: "arrow.uturn.backward.circle.fill")
+                session.events.append(CodeEvent(kind: .result, text: String(localized: "Ripristinato a prima di «\(event.text.prefix(40))»: \(result.restored.count) file ripristinati, \(result.trashed.count) nel Cestino")))
+                showToast(String(localized: "Progetto ripristinato"), symbol: "arrow.uturn.backward.circle.fill")
             }
             projectRevision += 1
             saveCodeSessions()
@@ -392,9 +397,9 @@ extension AppState {
             do {
                 let count = try await CodeWorktree.apply(project: project.folder, copy: folder, base: base, reviewedRevision: reviewedRevision)
                 if count > 0 { session.applied = true }
-                session.events.append(CodeEvent(kind: .result, text: count == 0 ? "Nessuna modifica da applicare." : "\(count) file applicati alla cartella originale."))
+                session.events.append(CodeEvent(kind: .result, text: count == 0 ? String(localized: "Nessuna modifica da applicare.") : String(localized: "\(count) file applicati alla cartella originale.")))
                 projectRevision += 1
-                showToast("Modifiche applicate al progetto", symbol: "checkmark.circle.fill")
+                showToast(String(localized: "Modifiche applicate al progetto"), symbol: "checkmark.circle.fill")
             } catch {
                 session.events.append(CodeEvent(kind: .error, text: error.localizedDescription, status: .failed))
             }
@@ -404,7 +409,7 @@ extension AppState {
     private func notifyCode(project: String, ok: Bool) {
         let content = UNMutableNotificationContent()
         content.title = project
-        content.body = ok ? "Il lavoro sul codice è finito: controlla le modifiche." : "Il lavoro sul codice si è fermato con un errore."
+        content.body = ok ? String(localized: "Il lavoro sul codice è finito: controlla le modifiche.") : String(localized: "Il lavoro sul codice si è fermato con un errore.")
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
     }
 
@@ -427,7 +432,7 @@ extension AppState {
             try template.agentsFile(name: cleanName).write(to: folder.appending(path: "AGENTS.md"), atomically: true, encoding: .utf8)
             try "node_modules/\ndist/\n.build/\nDerivedData/\n.DS_Store\n".write(to: folder.appending(path: ".gitignore"), atomically: true, encoding: .utf8)
         } catch {
-            showToast("Non riesco a creare la cartella: \(error.localizedDescription)", symbol: "exclamationmark.triangle.fill")
+            showToast(String(localized: "Non riesco a creare la cartella: \(error.localizedDescription)"), symbol: "exclamationmark.triangle.fill")
             return
         }
         let project = ProjectModel(name: folder.lastPathComponent, folder: folder)
@@ -439,7 +444,7 @@ extension AppState {
         currentCodeSessionID = session.id
         section = .project(project.id)
         showAssistant = true
-        log(icon: "folder.badge.plus", title: "Progetto di codice creato", detail: folder.path, status: .done)
+        log(icon: "folder.badge.plus", title: String(localized: "Progetto di codice creato"), detail: folder.path, status: .done)
         let first = template.bootstrap(description)
         if !first.isEmpty { sendCode(first, in: session) } else { saveCodeSessions() }
     }
@@ -469,7 +474,7 @@ extension AppState {
     func runProject(_ project: ProjectModel) {
         let folder = workingCodeProject(project).folder
         guard let command = DevCommand.detect(in: folder) else {
-            showToast("Non so ancora come avviare questo progetto: chiedilo all'agente", symbol: "questionmark.circle")
+            showToast(String(localized: "Non so ancora come avviare questo progetto: chiedilo all'assistente"), symbol: "questionmark.circle")
             return
         }
         switch command.kind {
@@ -477,7 +482,7 @@ extension AppState {
             if let page = command.page { openInBrowser(page) }
         case .xcode:
             Task { _ = await Shell.run(command.command, timeout: 30) }
-            showToast("Apro il progetto in Xcode", symbol: "hammer")
+            showToast(String(localized: "Apro il progetto in Xcode"), symbol: "hammer")
         case .server, .run:
             stopProject(project)
             let run = DevRun(command: command)
@@ -486,7 +491,7 @@ extension AppState {
             // anche se nel frattempo si è passati a un'altra chat.
             if currentCodeSession == nil, openCodingProject?.id == project.id { newCodeSession(in: project) }
             let owner = tabOwner
-            run.process = Shell.Background("cd \(Shell.quote(folder.path)) && \(command.command)") { line in
+            run.process = Shell.Background(String(localized: "cd \(Shell.quote(folder.path)) && \(command.command)")) { line in
                 Task { @MainActor in
                     run.lines.append(line)
                     if run.lines.count > 800 { run.lines.removeFirst(run.lines.count - 800) }
@@ -503,7 +508,7 @@ extension AppState {
             Task {
                 let result = await run.process?.finished.value
                 run.running = false
-                run.lines.append("— terminato (codice \(result?.status ?? 0)) —")
+                run.lines.append(String(localized: "— terminato (codice \(result?.status ?? 0)) —"))
             }
         }
     }
@@ -525,10 +530,10 @@ extension AppState {
         let list = errors.prefix(12).map { "- " + $0 }.joined(separator: "\n")
         if let project = openCodingProject {
             let session = currentCodeSession ?? newCodeSession(in: project)
-            guard !session.running else { showToast("L'agente sta ancora lavorando", symbol: "hourglass"); return }
-            sendCode("Nell'anteprima della pagina ci sono questi errori:\n\(list)\nTrova la causa nel codice e correggili.", in: session)
+            guard !session.running else { showToast(String(localized: "L'assistente sta ancora lavorando"), symbol: "hourglass"); return }
+            sendCode(String(localized: "Nell'anteprima della pagina ci sono questi errori:\n\(list)\nTrova la causa nel codice e correggili."), in: session)
         } else {
-            send("Nella pagina aperta in Safari ci sono questi errori della console:\n\(list)\nCosa significano e come si correggono?")
+            send(String(localized: "Nella pagina aperta in Safari ci sono questi errori della console:\n\(list)\nCosa significano e come si correggono?"))
         }
     }
 

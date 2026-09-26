@@ -19,6 +19,7 @@ public enum ResponseStyle: String, Sendable {
 
     public static func detect(_ prompt: String) -> ResponseStyle {
         let lower = " " + prompt.lowercased() + " "
+        if Language.isEnglish { return detectInEnglish(lower) }
         let creative = ["poesia", "poesie", "racconto", "raccontami una storia", "una storia su", "una storia per", "favola", "filastrocca",
                         "canzone", "slogan", "battuta", "barzelletta", "rima", "haiku", "idee per", "idee di", "nomi per", "un nome per",
                         "inventa", "immagina", "augurio", "auguri", "brainstorming", "motto", "titoli per", "frase ad effetto", "dedica"]
@@ -40,6 +41,27 @@ public enum ResponseStyle: String, Sendable {
         return .conversation
     }
 
+    /// Lo stesso per le richieste in inglese.
+    static func detectInEnglish(_ lower: String) -> ResponseStyle {
+        let creative = ["poem", "poetry", "tell me a story", "a story about", "a story for", "short story", "fairy tale", "nursery rhyme",
+                        " song", "slogan", " joke", "rhyme", "haiku", "limerick", "ideas for", "names for", "a name for", "invent", "imagine",
+                        "birthday wishes", "greetings for", "brainstorm", "motto", "titles for", "catchphrase", "dedication"]
+        if creative.contains(where: lower.contains) { return .creative }
+        if ["pros and cons", "advantages and disadvantages", "strengths and weaknesses", "upsides and downsides"].contains(where: lower.contains) { return .prosCons }
+        let comparison = ["compare", "comparison between", "comparison of", "difference between", "differences between", "better between",
+                          " vs ", " vs. ", " versus ", "comparison table", "which is better", "side by side"]
+        if comparison.contains(where: lower.contains) { return .comparison }
+        let steps = ["steps to", "the steps", "how do i ", "how to ", "how can i ", "procedure for", "instructions for", "guide to", "step by step",
+                     "how do you renew", "how do you apply", "recipe for", "the recipe", "a recipe"]
+        if steps.contains(where: lower.contains) { return .steps }
+        let questions = [" who ", " what ", " what's", " when ", " where ", " which ", " how much", " how many", " in what year", " why ",
+                         " how does", " explain", " what is"]
+        if questions.contains(where: { lower.hasPrefix($0) || lower.contains($0) }) || lower.range(of: #"\d"#, options: .regularExpression) != nil {
+            return .factual
+        }
+        return .conversation
+    }
+
     /// Temperatura: bassa dove conta l'esattezza, alta solo per i testi creativi.
     public var temperature: Double {
         switch self {
@@ -52,7 +74,15 @@ public enum ResponseStyle: String, Sendable {
 
     /// Indicazione di formato per i modelli che scrivono testo libero (Gemma, ChatGPT, Claude).
     public var hint: String? {
-        switch self {
+        if Language.isEnglish {
+            return switch self {
+            case .comparison: "Answer with a Markdown table (one column per option, one row per aspect) and a short conclusion."
+            case .steps: "Answer with a numbered list of short, concrete steps."
+            case .prosCons: "Answer with two bullet lists, «Pros» and «Cons», and a short conclusion."
+            default: nil
+            }
+        }
+        return switch self {
         case .comparison: "Rispondi con una tabella Markdown (una colonna per ogni opzione, una riga per ogni aspetto) e una conclusione breve."
         case .steps: "Rispondi con un elenco numerato di passi brevi e concreti."
         case .prosCons: "Rispondi con due elenchi puntati, «Pro» e «Contro», e una conclusione breve."
@@ -62,13 +92,41 @@ public enum ResponseStyle: String, Sendable {
 
     /// Schema della generazione guidata con Apple Intelligence (nil = testo libero).
     var schema: GenerationSchema? {
-        switch self {
-        case .comparison: Self.comparisonSchema
-        case .steps: Self.stepsSchema
-        case .prosCons: Self.prosConsSchema
+        let english = Language.isEnglish
+        return switch self {
+        case .comparison: english ? Self.englishComparisonSchema : Self.comparisonSchema
+        case .steps: english ? Self.englishStepsSchema : Self.stepsSchema
+        case .prosCons: english ? Self.englishProsConsSchema : Self.prosConsSchema
         default: nil
         }
     }
+
+    /// Gli stessi schemi descritti in inglese (i campi restano quelli: li legge `markdown`).
+    private static let englishComparisonSchema = makeSchema("Confronto", [
+        .required("introduzione", .string, "One sentence that introduces the comparison"),
+        .required("opzioni", .array(.string, min: 2, max: 4), "The things compared, with short names"),
+        .required("aspetti", .array(.object("Aspetto", [
+            .required("aspetto", .string, "Aspect compared, for example «Time» or «Cost»"),
+            .required("valori", .array(.string, min: 2, max: 4), "One short value for each option, in the same order as the options"),
+        ]), min: 3, max: 7), "Aspects compared, one per table row"),
+        .required("conclusione", .string, "When one option or the other is better, in one or two sentences"),
+    ])
+
+    private static let englishStepsSchema = makeSchema("Procedura", [
+        .required("introduzione", .string, "An introductory sentence"),
+        .required("passi", .array(.object("Passo", [
+            .required("titolo", .string, "The action to take, short"),
+            .required("dettaglio", .string, "How to do it, in one or two sentences"),
+        ]), min: 3, max: 10), "Steps in the order in which they must be done"),
+        .optional("consiglio", .string, "A final tip or what to have ready, if useful"),
+    ])
+
+    private static let englishProsConsSchema = makeSchema("ProContro", [
+        .required("introduzione", .string, "An introductory sentence"),
+        .required("pro", .array(.string, min: 3, max: 6), "Advantages, one per item, short"),
+        .required("contro", .array(.string, min: 3, max: 6), "Disadvantages, one per item, short"),
+        .required("conclusione", .string, "A balanced conclusion in one or two sentences"),
+    ])
 
     private static let comparisonSchema = makeSchema("Confronto", [
         .required("introduzione", .string, "Una frase che introduce il confronto"),
@@ -134,11 +192,11 @@ public enum ResponseStyle: String, Sendable {
             }
             if !steps.isEmpty { parts.append(steps.joined(separator: "\n")) }
             let tip = text("consiglio")
-            if !tip.isEmpty { parts.append("**Consiglio:** \(tip)") }
+            if !tip.isEmpty { parts.append(Language.t("**Consiglio:** ", "**Tip:** ") + tip) }
         case .prosCons:
             let pro = list("pro"), contro = list("contro")
-            if !pro.isEmpty { parts.append("**Pro**\n" + pro.map { "- \($0)" }.joined(separator: "\n")) }
-            if !contro.isEmpty { parts.append("**Contro**\n" + contro.map { "- \($0)" }.joined(separator: "\n")) }
+            if !pro.isEmpty { parts.append(Language.t("**Pro**", "**Pros**") + "\n" + pro.map { "- \($0)" }.joined(separator: "\n")) }
+            if !contro.isEmpty { parts.append(Language.t("**Contro**", "**Cons**") + "\n" + contro.map { "- \($0)" }.joined(separator: "\n")) }
             let end = text("conclusione")
             if !end.isEmpty { parts.append(end) }
         default:
@@ -154,6 +212,7 @@ public enum RiskyDomain: String, Sendable {
 
     public static func detect(_ prompt: String) -> RiskyDomain? {
         let lower = " " + prompt.lowercased() + " "
+        if Language.isEnglish, let domain = detectInEnglish(lower) { return domain }
         let health = ["farmac", "medicin", " dose", "dosaggio", "sintom", "malatti", "terapia", "diagnos", "pressione alta", "febbre",
                       "antibiotic", "paracetamolo", "ibuprofene", "tachipirina", "aspirina", "vaccin", "gravidanz", "allergi", "mal di ",
                       "infiammazion", "effetti collaterali", "posso prendere", "integratore", "colesterolo", "diabete", "glicemia", "ansia",
@@ -171,9 +230,35 @@ public enum RiskyDomain: String, Sendable {
         return nil
     }
 
+    /// Le stesse parole per le domande in inglese.
+    static func detectInEnglish(_ lower: String) -> RiskyDomain? {
+        let health = ["medication", "medicine", " dose", "dosage", "symptom", "disease", "illness", "therapy", "diagnos", "high blood pressure",
+                      "fever", "antibiotic", "paracetamol", "acetaminophen", "ibuprofen", "tylenol", "aspirin", "vaccin", "pregnan", "allerg",
+                      "headache", "stomach ache", "inflammation", "side effects", "can i take", "supplement", "cholesterol", "diabetes",
+                      "blood sugar", "anxiety", "insomnia", "pediatrician", "prescription"]
+        if health.contains(where: lower.contains) { return .health }
+        let law = [" law ", " laws", "legal", "contract", "lawyer", "attorney", "traffic fine", "parking fine", "speeding fine", "pay a fine",
+                   "pay the fine", "penalty", " appeal", " my rights", "dismissal", "fired from", "probation period", "probationary period",
+                   "inheritance", "eviction", "landlord", "tenant", "civil code", "highway code", "lawsuit", " sue ", "notice period",
+                   " court", "divorce", "legal separation", "gdpr", "driving licence", "driving license", "driver's license"]
+        if law.contains(where: lower.contains) { return .law }
+        let money = ["mortgage", "interest rate", " apr", "loan", "financing", "invest", " stocks", " shares", " bonds", " etf", "pension",
+                     "retirement fund", " tax", "taxes", " vat", "deduction", "insurance", "inflation", "crypto", "bitcoin", "bank statement",
+                     "wire transfer", "credit card", "spread"]
+        if money.contains(where: lower.contains) { return .money }
+        return nil
+    }
+
     /// Una frase per la risposta: chi sentire per il proprio caso.
     public var advice: String {
-        switch self {
+        if Language.isEnglish {
+            return switch self {
+            case .health: "Health topic: end with a sentence reminding to ask a doctor or pharmacist about one's own case."
+            case .law: "Legal topic: end with a sentence reminding to check one's own case with a professional (lawyer, employment consultant, tax advisor)."
+            case .money: "Money topic: end with a sentence reminding to check the conditions of one's own case with the bank or an advisor."
+            }
+        }
+        return switch self {
         case .health: "Tema di salute: chiudi con una frase che ricorda di chiedere al medico o al farmacista per il proprio caso."
         case .law: "Tema legale: chiudi con una frase che ricorda di verificare il proprio caso con un professionista (avvocato, consulente del lavoro, CAF)."
         case .money: "Tema di soldi: chiudi con una frase che ricorda di verificare le condizioni del proprio caso con la banca o un consulente."
@@ -191,12 +276,16 @@ extension Assistant {
     /// e i modelli che non vedono le immagini. nil se il modello non sa leggere le immagini o non ci riesce.
     public func describeImage(_ url: URL) async -> String? {
         guard Agent.model.capabilities.contains(.vision) else { return nil }
-        let session = LanguageModelSession(model: Agent.model, instructions: """
+        let session = LanguageModelSession(model: Agent.model, instructions: Language.isEnglish ? """
+        Describe the content of the image precisely, in English: transcribe the visible text (titles, figures, dates, times, addresses), \
+        then the main people, objects or scene. Don't make up what can't be seen. At most 10 lines.
+        """ : """
         Descrivi con precisione il contenuto dell'immagine, in italiano: trascrivi il testo visibile (titoli, cifre, date, orari, indirizzi),         poi le persone, gli oggetti o la scena principali. Non inventare ciò che non si vede. Massimo 10 righe.
         """)
+        let ask = Language.t("Descrivi questa immagine.", "Describe this image.")
         do {
             let text = try await session.respond(options: GenerationOptions(temperature: 0.1)) {
-                "Descrivi questa immagine."
+                ask
                 Attachment(imageURL: url)
             }.content.trimmingCharacters(in: .whitespacesAndNewlines)
             return text.isEmpty ? nil : String(text.prefix(1500))
@@ -285,7 +374,8 @@ extension Assistant {
         if let missing = missingResult(in: final) {
             Agent.log("RISULTATO NON USATO (\(missing)): riscrivo la risposta")
             var retry = ""
-            let fix = "Nella risposta precedente il risultato non era quello esatto. Riscrivi la risposta alla stessa domanda usando esattamente questo risultato: \(missing). Non rifare i conti."
+            let fix = Language.t("Nella risposta precedente il risultato non era quello esatto. Riscrivi la risposta alla stessa domanda usando esattamente questo risultato: \(missing). Non rifare i conti.",
+                                 "In the previous answer the result was not the exact one. Rewrite the answer to the same question using exactly this result: \(missing). Don't redo the math.")
             for try await snapshot in chat.streamResponse(to: fix, options: GenerationOptions(temperature: 0.1)) {
                 let text = Self.cleanAnswer(snapshot.content, citations: citations)
                 guard !text.isEmpty else { continue }
@@ -299,7 +389,9 @@ extension Assistant {
 
     /// Istruzioni essenziali per il secondo tentativo dopo il filtro di sicurezza.
     static var plainInstructions: String {
-        "Sei Siri AI+, l'assistente di Ivan sul Mac. Adesso è \(Dates.format(.now)). Rispondi in italiano, in modo chiaro e utile."
+        Language.isEnglish
+            ? "You are Siri AI+, the user's assistant on the Mac. It is now \(Dates.format(.now)). Answer in English, clearly and helpfully."
+            : "Sei Siri AI+, l'assistente di \(userFirstName ?? "chi usa questo Mac") sul Mac. Adesso è \(Dates.format(.now)). Rispondi in italiano, in modo chiaro e utile."
     }
 
     /// Il filtro di sicurezza di Apple, con il tipo di errore vecchio o con quello di macOS 27.
@@ -316,9 +408,13 @@ extension Assistant {
             return String(fact[range.upperBound...]).trimmingCharacters(in: CharacterSet(charactersIn: " ."))
         }
         guard let result = results.last else { return nil }
-        // Si confrontano i numeri (6300 e 6.300 sono lo stesso numero; "22 ore e 55 minuti" → 22 e 55).
-        let digits = { (text: String) in text.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: " ", with: "") }
-        let numbers = Calculations.matches(#"\d+(?:,\d+)?"#, in: digits(result)).map(\.[0])
+        // Si confrontano i numeri (6300 e 6.300 sono lo stesso numero; "22 ore e 55 minuti" → 22 e 55). In inglese il separatore
+        // delle migliaia è la virgola (6,300) e i decimali hanno il punto.
+        let english = Language.isEnglish
+        let digits = { (text: String) in
+            text.replacingOccurrences(of: english ? "," : ".", with: "").replacingOccurrences(of: " ", with: "")
+        }
+        let numbers = Calculations.matches(english ? #"\d+(?:\.\d+)?"# : #"\d+(?:,\d+)?"#, in: digits(result)).map(\.[0])
         let answerDigits = digits(answer)
         if Self.soundsUnsure(answer) || !numbers.allSatisfy({ answerDigits.contains($0) }) { return result }
         return nil

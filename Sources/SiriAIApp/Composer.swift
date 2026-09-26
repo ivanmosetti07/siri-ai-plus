@@ -8,7 +8,7 @@ import UniformTypeIdentifiers
 struct Composer: View {
     @Environment(AppState.self) private var state
     @Environment(\.compactLayout) private var compact
-    var placeholder = "Chiedi a Siri AI+…"
+    var placeholder = String(localized: "Chiedi a Siri AI+…")
     @FocusState private var focused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showPicker = false
@@ -20,7 +20,7 @@ struct Composer: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
                         if state.planNext {
-                            Chip(label: "Piano con sub-agent", leading: AnyView(Image(systemName: "list.bullet.clipboard").font(.system(size: 11)))) {
+                            Chip(label: String(localized: "Piano con sub-agent"), leading: AnyView(Image(systemName: "list.bullet.clipboard").font(.system(size: 11)))) {
                                 state.planNext = false
                             }
                             .help("La richiesta diventa un compito a passi: catena di pensieri, sub-agent (anche in parallelo) e risposta finale")
@@ -39,7 +39,7 @@ struct Composer: View {
             if state.dictation.isListening {
                 HStack(spacing: 10) {
                     Waveform(level: state.dictation.level)
-                    Text(state.dictation.transcript.isEmpty ? "In ascolto…" : state.dictation.transcript)
+                    Text(state.dictation.transcript.isEmpty ? String(localized: "In ascolto…") : state.dictation.transcript)
                         .font(DS.Fonts.body)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
@@ -56,7 +56,7 @@ struct Composer: View {
                 }
                 .accessibilityElement(children: .combine)
             }
-            TextField(state.planNext ? "Descrivi il compito: lo divido in passi e lo affido ai sub-agent…" : placeholder,
+            TextField(state.planNext ? String(localized: "Descrivi il compito: lo divido in passi e lo affido ai sub-agent…") : placeholder,
                       text: $state.input, axis: .vertical)
                 .textFieldStyle(.plain)
                 .font(.system(size: 14))
@@ -87,9 +87,9 @@ struct Composer: View {
                 .popover(isPresented: $showPicker, arrowEdge: .top) { SourcePicker() }
                 ModelMenu()
                 Spacer()
-                ComposerButton(symbol: "waveform.circle", help: "Modalità vocale (⌥⌘V)") { state.voice.start(with: state) }
+                ComposerButton(symbol: "waveform.circle", help: String(localized: "Modalità vocale (⌥⌘V)")) { state.voice.start(with: state) }
                 ComposerButton(symbol: state.dictation.isListening ? "waveform" : "mic",
-                               help: state.dictation.isListening ? "Termina la dettatura" : "Detta",
+                               help: state.dictation.isListening ? String(localized: "Termina la dettatura") : String(localized: "Detta"),
                                active: state.dictation.isListening) {
                     state.dictation.toggle { text in
                         state.input = state.input.isEmpty ? text : state.input + " " + text
@@ -101,7 +101,7 @@ struct Composer: View {
                             .frame(width: 28, height: 28).background(Color.primary.opacity(0.75), in: Circle())
                     }
                     .buttonStyle(.plain)
-                    .iconHelp("Interrompi")
+                    .iconHelp(String(localized: "Interrompi"))
                 } else {
                     Button { state.send() } label: {
                         Image(systemName: "arrow.up").font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
@@ -111,7 +111,7 @@ struct Composer: View {
                     .buttonStyle(.plain)
                     .disabled(!state.canSend)
                     .keyboardShortcut(.return, modifiers: .command)
-                    .iconHelp("Invia (⌘↩)")
+                    .iconHelp(String(localized: "Invia (⌘↩)"))
                 }
             }
         }
@@ -147,8 +147,8 @@ extension Composer {
         }
         return Menu {
             Button { showImporter = true } label: { Label("Allega file…", systemImage: "paperclip") }
-            Button { begin("Genera un'immagine di ") } label: { Label("Crea un'immagine", systemImage: "photo.on.rectangle.angled") }
-            Button { begin("Cerca sul web ") } label: { Label("Cerca sul web", systemImage: "globe") }
+            Button { begin(String(localized: "Genera un'immagine di ")) } label: { Label("Crea un'immagine", systemImage: "photo.on.rectangle.angled") }
+            Button { begin(String(localized: "Cerca sul web ")) } label: { Label("Cerca sul web", systemImage: "globe") }
             // Come «Ricerca approfondita» in ChatGPT: la prossima richiesta diventa un compito a passi, con qualunque modello.
             Toggle(isOn: Bindable(state).planNext) { Label("Piano con sub-agent", systemImage: "list.bullet.clipboard") }
             Divider()
@@ -156,7 +156,7 @@ extension Composer {
             Button { state.newArtifact(.numbers) } label: { Label("Nuovo foglio di calcolo", systemImage: "tablecells") }
             Button { state.newArtifact(.keynote) } label: { Label("Nuova presentazione", systemImage: "play.rectangle") }
             Divider()
-            Button { state.editingAgent = AgentSpec(name: "", goal: "") } label: { Label("Nuovo agente…", systemImage: "person.badge.plus") }
+            Button { state.editingAgent = AgentSpec(name: "", goal: "") } label: { Label("Nuovo Genius…", systemImage: "person.badge.plus") }
             if !connected.isEmpty {
                 Menu {
                     ForEach(connected) { server in
@@ -175,7 +175,7 @@ extension Composer {
         .menuIndicator(.hidden)
         .menuStyle(.borderlessButton)
         .fixedSize()
-        .help("Allega, crea immagini e documenti, cerca sul web, piano con sub-agent, agenti e connettori")
+        .help("Allega, crea immagini e documenti, cerca sul web, piano con sub-agent, Genius e connettori")
     }
 
     /// Prepara la richiesta con un inizio («Genera un'immagine di …») e riporta il cursore nel campo.
@@ -302,7 +302,7 @@ struct SourcePickerCell: View {
                         }
                     }
                 Text(source.label).font(DS.Fonts.caption).lineLimit(1)
-                Text(available ? " " : (source.support == .comingSoon ? "In arrivo" : "Non collegata"))
+                Text(available ? " " : (source.support == .comingSoon ? String(localized: "In arrivo") : String(localized: "Non collegata")))
                     .font(.system(size: 9.5))
                     .foregroundStyle(.tertiary)
             }
@@ -313,7 +313,7 @@ struct SourcePickerCell: View {
         }
         .buttonStyle(.plain)
         .disabled(!available)
-        .accessibilityLabel("\(source.label)\(selected ? ", selezionata" : "")")
+        .accessibilityLabel("\(source.label)\(selected ? String(localized: ", selezionata") : "")")
     }
 }
 

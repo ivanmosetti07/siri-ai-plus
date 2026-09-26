@@ -116,6 +116,12 @@ public struct WorkContext: Sendable {
     public var readOnlyFolders: Set<String> = []
     /// Anima dell'agente (soul.md) che sta lavorando.
     public var soul: String?
+    /// Skill private del Genius che sta chattando o eseguendo una programmazione.
+    public var agentID: UUID?
+    /// Progetto reale per cercare le skill, quando `projectRoot` è un'area virtuale del Genius.
+    public var skillProjectRoot: URL?
+    /// Compito stabile di una singola esecuzione: la stessa skill guida piano, passi e sintesi.
+    public var skillTask: String?
     /// Spazio in uso (Personale, Lavoro, Programmazioni) e le sue indicazioni.
     public var spaceName: String?
     public var spaceInstructions: String?
@@ -443,7 +449,7 @@ public final class Assistant {
         // Il sub-agent smistatore legge la richiesta e sceglie gli strumenti, e dice se il lavoro va a passi; non serve quando
         // l'app sa già cosa fare (comandi su ciò che è sullo schermo o che esiste già, testi da elaborare, saluti).
         let route: ToolRoute? = shouldRoute(prompt, editingOpen: editingOpen)
-            ? await { status("Scelgo gli strumenti…"); return await routeTools(for: Self.withoutQuotes(prompt), catalog: familyCatalog(), hints: familyHints(for: prompt)) }()
+            ? await { status(Language.t("Scelgo gli strumenti…", "Choosing the tools…")); return await routeTools(for: Self.withoutQuotes(prompt), catalog: familyCatalog(), hints: familyHints(for: prompt)) }()
             : nil
         // Il piano con i sub-agent parte da solo per i compiti complessi: secondo le regole dell'app o secondo lo smistatore.
         // Una richiesta che l'app sa già dividere in comandi («cosa ho domani e scrivi a Marco…») resta divisa: ogni parte ha la sua scheda.
@@ -492,12 +498,14 @@ public final class Assistant {
         if screenPlan == nil, !screenQuestion { applyRules(to: &plan, prompt: firstPart, candidates: candidates) }
         // Con un'immagine allegata "cosa c'è in questa foto?" è una domanda sull'immagine, non una richiesta di disegnarne una,
         // e "quanto costava la spremuta?" si legge nello scontrino, non sul web.
+        let english = Language.isEnglish
+        let explicitWeb = ["cerca", "internet", "online", "sul web", "google"] + (english ? ["search", "on the web", "look up"] : [])
         if !work.images.isEmpty, plan.action == .genera_immagine,
-           !["disegna", "genera", "crea un'immagine", "crea una immagine", "illustrazione", "fammi un'immagine"].contains(where: firstPart.lowercased().contains) {
+           !(["disegna", "genera", "crea un'immagine", "crea una immagine", "illustrazione", "fammi un'immagine"]
+             + (english ? ["draw", "generate", "create an image", "make an image", "illustration", "make me a picture"] : [])).contains(where: firstPart.lowercased().contains) {
             plan.action = .rispondi
         }
-        if !work.images.isEmpty, plan.action == .cerca_web,
-           !["cerca", "internet", "online", "sul web", "google"].contains(where: firstPart.lowercased().contains) {
+        if !work.images.isEmpty, plan.action == .cerca_web, !explicitWeb.contains(where: firstPart.lowercased().contains) {
             plan.action = .rispondi
         }
         // Connettore scelto dal pianificatore senza che la richiesta lo riguardi: si ripianifica senza.
@@ -512,7 +520,9 @@ public final class Assistant {
         // Non per i conti e le date che l'app sa calcolare con i dati della domanda.
         if plan.action == .rispondi, cueCandidates == [.cerca_web], work.webEnabled, turnFacts.isEmpty, work.images.isEmpty, screenFocus == nil,
            !(Calculations.looksArithmetic(prompt) && Calculations.numbers(in: prompt).count >= 2),
-           prompt.hasSuffix("?") || ["chi ", "quanto ", "quanti ", "quando ", "dove ", "qual ", "quale ", "cosa succede", "come sta"].contains(where: prompt.lowercased().hasPrefix) {
+           prompt.hasSuffix("?") || (["chi ", "quanto ", "quanti ", "quando ", "dove ", "qual ", "quale ", "cosa succede", "come sta"]
+            + (english ? ["who ", "how much", "how many", "when ", "where ", "which ", "what is the", "what's the", "what happened", "how is"] : []))
+            .contains(where: prompt.lowercased().hasPrefix) {
             plan.action = .cerca_web
             plan.fields["cerca"] = prompt
         }
@@ -525,27 +535,32 @@ public final class Assistant {
         // Chat di un progetto: se le istruzioni indicano i file per questa richiesta (o la richiesta li nomina), rispondono loro,
         // non il web o la ricerca sul Mac, anche con altre app aperte. Chi chiede esplicitamente il web lo ottiene.
         if work.guide != nil, screenPlan == nil, [.cerca_web, .file].contains(plan.action),
-           !["cerca su", "sul web", "internet", "online", "google", "in rete", "sul mac", "nel mac", "finder", "spotlight"].contains(where: firstPart.lowercased().contains),
+           !(["cerca su", "sul web", "internet", "online", "google", "in rete", "sul mac", "nel mac", "finder", "spotlight"]
+             + (english ? ["search the", "on the web", "on my mac", "on the mac"] : [])).contains(where: firstPart.lowercased().contains),
            projectAnswers(firstPart) {
             Agent.log("PROGETTO: \(plan.action.rawValue) → rispondi con i file del progetto")
             plan = Plan(action: .rispondi, fields: [:])
         }
         // «Parliamo del lancio…», «ti dico che…»: l'utente racconta, non chiede di cercare sul web.
         if plan.action == .cerca_web,
-           firstPart.lowercased().range(of: #"^(?:allora\s+|ok\s+|dunque\s+)?(?:parliamo|parlo|discutiamo|ragioniamo|ti dico|ti racconto|sappi|tieni presente|considera)\b"#, options: .regularExpression) != nil,
-           !["cerca su", "sul web", "internet", "online", "google", "in rete"].contains(where: firstPart.lowercased().contains) {
+           firstPart.lowercased().range(of: #"^(?:allora\s+|ok\s+|dunque\s+)?(?:parliamo|parlo|discutiamo|ragioniamo|ti dico|ti racconto|sappi|tieni presente|considera)\b"#, options: .regularExpression) != nil
+            || (english && firstPart.lowercased().range(of: #"^(?:so\s+|ok\s+|okay\s+)?(?:let's talk|let me tell you|i'm telling you|let's discuss|let's think|keep in mind|consider)\b"#, options: .regularExpression) != nil),
+           !(["cerca su", "sul web", "internet", "online", "google", "in rete"] + (english ? ["search the", "on the web"] : [])).contains(where: firstPart.lowercased().contains) {
             plan = Plan(action: .rispondi, fields: [:])
         }
         // Chat figlia: «quando esce il sito?» parla di ciò che si diceva nella madre, non di qualcosa da cercare sul web.
         if plan.action == .cerca_web, let inherited, !inherited.isEmpty,
-           !["cerca su", "sul web", "internet", "online", "google", "in rete", "notizie"].contains(where: firstPart.lowercased().contains),
+           !(["cerca su", "sul web", "internet", "online", "google", "in rete", "notizie"] + (english ? ["search the", "on the web", "news"] : []))
+            .contains(where: firstPart.lowercased().contains),
            Self.significant(MemoryStore.keywords(firstPart)).intersection(Self.significant(MemoryStore.keywords(inherited))).count >= 2 {
             Agent.log("CHAT FIGLIA: cerca_web → rispondi con il contesto della madre")
             plan = Plan(action: .rispondi, fields: [:])
         }
         // Un sub-agent con un passo di ricerca non deve rispondere a memoria.
         if isSubAgent, plan.action == .rispondi, work.webEnabled,
-           ["cerca", "trova", "ricerca", "raccogli", "recupera", "verifica"].contains(where: { prompt.lowercased().hasPrefix($0) }) {
+           (["cerca", "trova", "ricerca", "raccogli", "recupera", "verifica"]
+            + (english ? ["search", "find", "research", "collect", "gather", "look up", "check", "verify", "retrieve"] : []))
+            .contains(where: { prompt.lowercased().hasPrefix($0) }) {
             plan.action = .cerca_web
         }
         // «Scrivi una frase di benvenuto per il sito»: un testo per il sito, non un sito da creare.
@@ -572,7 +587,7 @@ public final class Assistant {
         let plannable: Set<Action> = [.rispondi, .cerca_web, .leggi_pagina, .crea_documento, .file_leggi, .file_cerca, .file_elenca,
                                       .strumento_esterno, .note, .mail_leggi, .file]
         if complex, forcePlan || (screenFocus == nil && plannable.contains(plan.action)) {
-            status("Ragiono sul compito…")
+            status(Language.t("Ragiono sul compito…", "Thinking about the task…"))
             if let taskPlan = try? await makeTaskPlan(for: prompt), taskPlan.steps.count >= 2 {
                 Agent.log("PIANO DI LAVORO: \(taskPlan.steps.map(\.title))")
                 return .taskPlan(taskPlan)
@@ -606,18 +621,22 @@ public final class Assistant {
                 // tempo libero mostra il risultato dell'app: il modello piccolo può alterare il
                 // totale anche quando riceve il conto esatto nel contesto.
                 let lower = prompt.lowercased()
-                if Calculations.hasExplicitSchedule(prompt),
-                   (lower.contains("ore libere") || lower.contains("tempo libero")),
-                   turnFacts.contains(where: { $0.hasPrefix("Tempo libero tra ") }) {
+                let asksFreeTime = lower.contains("ore libere") || lower.contains("tempo libero")
+                    || (Language.isEnglish && ["free time", "free hours", "hours free", "time free", "time off"].contains(where: lower.contains))
+                if Calculations.hasExplicitSchedule(prompt), asksFreeTime,
+                   turnFacts.contains(where: { $0.hasPrefix("Tempo libero tra ") || $0.hasPrefix("Free time between ") }) {
                     return .message(turnFacts.joined(separator: "\n"))
                 }
                 // Problemi, logica e scelte con vincoli: prima la catena di pensieri (sessione a parte), poi la risposta che la segue.
                 // Se i conti li hanno già fatti le regole dell'app (orari, date, giorni) il risultato è quello: un ragionamento
                 // in più rischia solo di ricalcolarlo male.
-                let solvedByRules = !turnFacts.isEmpty && ["che giorno", "che data", "a che ora", "che ore", "quando", "quanti giorni", "quante settimane",
-                                                             "quanti mesi", "entro", "quanto manca", "mancano"].contains(where: prompt.lowercased().contains)
+                let solvedByRules = !turnFacts.isEmpty && (["che giorno", "che data", "a che ora", "che ore", "quando", "quanti giorni", "quante settimane",
+                                                              "quanti mesi", "entro", "quanto manca", "mancano"]
+                                                             + (Language.isEnglish ? ["what day", "what date", "what time", "when", "how many days", "how many weeks",
+                                                                                      "how many months", "by when", "how long until", "until", "how long ago"] : []))
+                    .contains(where: prompt.lowercased().contains)
                 if reasonsBeforeAnswering, !solvedByRules, !Self.isTextTask(prompt), responseStyle != .creative, Self.needsReasoning(prompt) {
-                    status("Ragiono passo per passo…")
+                    status(Language.t("Ragiono passo per passo…", "Reasoning step by step…"))
                     let started = Date.now
                     let conversation = prompt != rawPrompt ? recentConversation(exchanges: 2) : nil
                     if let notes = await reason(about: prompt, conversation: conversation) {
@@ -653,19 +672,19 @@ public final class Assistant {
                 return .newChat(chatRequest(from: plan, prompt: prompt))
 
             case .cerca_conversazioni:
-                status("Cerco nelle conversazioni passate…")
+                status(Language.t("Cerco nelle conversazioni passate…", "Searching past conversations…"))
                 let query = plan["cerca"] ?? prompt
                 let hits = ConversationIndex.shared.search(query, limit: budget.scale >= 2 ? 10 : 6, excluding: work.conversationID)
-                guard !hits.isEmpty else { return .message("Non trovo conversazioni passate su «\(query)».") }
+                guard !hits.isEmpty else { return .message(Language.t("Non trovo conversazioni passate su «\(query)».", "I can't find past conversations about «\(query)».")) }
                 let data = hits.map { "- «\($0.title)» (\(Dates.format($0.date, time: false))): \($0.snippet)" }.joined(separator: "\n")
                 return .reply(prompt: grounded(prompt, data, label: "conversazioni passate"))
 
             case .crea_sito:
-                status("Scrivo la pagina web…")
+                status(Language.t("Scrivo la pagina web…", "Writing the web page…"))
                 return .website(try await generateWebsite(topic: prompt))
 
             case .crea_agente:
-                status("Configuro l'agente…")
+                status(Language.t("Configuro il Genius…", "Setting up the Genius…"))
                 return .agentDraft(try await draftAgent(from: prompt))
 
             case .ricorda, .genera_immagine, .file_elenca, .file_leggi, .file_cerca, .file_scrivi, .file_sposta, .file_cartella, .file_elimina,
@@ -706,12 +725,12 @@ public final class Assistant {
                 if let blocked = check(.calendar) { return blocked }
                 guard let title = plan["titolo"] else {
                     remember("Stavo creando un evento ma manca il titolo.")
-                    return .message("Come vuoi chiamare l'evento?")
+                    return .message(Language.t("Come vuoi chiamare l'evento?", "What do you want to call the event?"))
                 }
                 // Il modello a volte mette l'orario in dal/al invece che in inizio/fine.
                 guard let start = Dates.parse(plan["inizio"]) ?? Dates.parse(plan["dal"]) ?? Dates.parse(plan["scadenza"]) else {
                     remember("Stavo creando l'evento «\(title)»: mancano data e ora.")
-                    return .message("Per quando vuoi fissare «\(title)»?")
+                    return .message(Language.t("Per quando vuoi fissare «\(title)»?", "When do you want to schedule «\(title)»?"))
                 }
                 let begin = start.hasTime ? start.date : Calendar.current.startOfDay(for: start.date)
                 let endHint = Dates.parse(plan["fine"]) ?? Dates.parse(plan["al"]).flatMap { $0.hasTime ? $0 : nil }
@@ -725,14 +744,14 @@ public final class Assistant {
 
             case .crea_promemoria:
                 if let blocked = check(.reminders) { return blocked }
-                guard let title = plan["titolo"] else { return .message("Cosa vuoi che ti ricordi?") }
+                guard let title = plan["titolo"] else { return .message(Language.t("Cosa vuoi che ti ricordi?", "What do you want me to remind you about?")) }
                 let due = Dates.parse(plan["scadenza"]) ?? Dates.parse(plan["al"]) ?? Dates.parse(plan["inizio"])
                 return .reminderDrafts([ReminderDraft(title: title, due: due?.date, dueHasTime: due?.hasTime ?? false)],
                                        list: reminderList(plan["lista"]))
 
             case .crea_lista_promemoria:
                 if let blocked = check(.reminders) { return blocked }
-                status("Preparo i promemoria…")
+                status(Language.t("Preparo i promemoria…", "Preparing the reminders…"))
                 let drafts = try await generateReminders(topic: plan["argomento"] ?? prompt)
                 return .reminderDrafts(drafts, list: reminderList(plan["lista"]))
 
@@ -754,7 +773,7 @@ public final class Assistant {
 
             case .scrivi_email:
                 if let blocked = check(.mail) { return blocked }
-                status("Scrivo l'email…")
+                status(Language.t("Scrivo l'email…", "Writing the email…"))
                 // Contatto o email sullo schermo: l'indirizzo è già noto.
                 let recipients = screenEmailAddress(for: plan["destinatari"]) ?? plan["destinatari"]
                 return .mailDraft(try await generateMail(topic: plan["argomento"] ?? prompt, recipients: recipients))
@@ -766,21 +785,21 @@ public final class Assistant {
                 }
                 // I sub-agent consegnano il documento finito; nella chat si apre subito e si riempie mentre viene scritto.
                 if isSubAgent {
-                    status("Scrivo il documento…")
+                    status(Language.t("Scrivo il documento…", "Writing the document…"))
                     return .document(try await generateDocument(topic: plan["argomento"] ?? prompt))
                 }
                 return .writeDocument(topic: plan["argomento"] ?? prompt)
 
             case .crea_foglio:
-                status("Preparo il foglio…")
+                status(Language.t("Preparo il foglio…", "Preparing the spreadsheet…"))
                 return .sheet(try await generateSheet(topic: plan["argomento"] ?? prompt))
 
             case .crea_presentazione:
-                status("Preparo le slide…")
+                status(Language.t("Preparo le slide…", "Preparing the slides…"))
                 return .deck(try await generateDeck(topic: plan["argomento"] ?? prompt))
 
             case .piano:
-                status("Preparo il piano…")
+                status(Language.t("Preparo il piano…", "Preparing the plan…"))
                 return .plan(try await generatePlan(goal: prompt))
             }
         } catch let error as WebError {
@@ -796,11 +815,11 @@ public final class Assistant {
             lastError = error.localizedDescription
             return .message(error.localizedDescription)
         } catch is CancellationError {
-            return .message("Risposta interrotta.")
+            return .message(Language.t("Risposta interrotta.", "Answer interrupted."))
         } catch {
             Agent.log("ERRORE GENERAZIONE: \(error)")
             lastError = error.localizedDescription
-            return .message("Non sono riuscito a completare la richiesta con il modello locale. Prova a riformularla in modo più semplice.")
+            return .message(Language.t("Non sono riuscito a completare la richiesta con il modello locale. Prova a riformularla in modo più semplice.", "I couldn't complete the request with the local model. Try rephrasing it more simply."))
         }
     }
 
@@ -809,9 +828,19 @@ public final class Assistant {
         // Stessa stringa per la ricerca e il taglio: con spazi iniziali gli indici non corrispondevano.
         let prompt = rawPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         let lower = prompt.lowercased()
+        let english = Language.isEnglish
+        let questionStart = #"^(?:and\s+)?(?:where|how|which|why|what|what's|who|when|whose)\b"#
         // "Ricordati che…" è memoria; "ricordami di…" resta un promemoria.
         if let range = lower.range(of: #"^(ricordati( che| di)?|ricorda che|tieni a mente( che)?|memorizza( che)?|(segnati|annotati|appuntati)( che| questa cosa)?( per dopo)?:?)\s*"#, options: .regularExpression),
            !lower.hasPrefix("ricordati di ") {
+            plan.action = .ricorda
+            let offset = lower.distance(from: lower.startIndex, to: range.upperBound)
+            plan.fields["argomento"] = prompt.count == lower.count ? String(prompt.dropFirst(offset)) : String(lower[range.upperBound...])
+            return
+        }
+        // "Remember that…" è memoria; "remember to…" resta un promemoria.
+        if english, let range = lower.range(of: #"^(please\s+)?(remember( that)?|keep in mind( that)?|note that|make a note( that)?|memori[sz]e( that)?|don't forget that|for future reference)\s*:?\s*"#, options: .regularExpression),
+           !lower.hasPrefix("remember to "), !lower.hasPrefix("please remember to ") {
             plan.action = .ricorda
             let offset = lower.distance(from: lower.startIndex, to: range.upperBound)
             plan.fields["argomento"] = prompt.count == lower.count ? String(prompt.dropFirst(offset)) : String(lower[range.upperBound...])
@@ -830,14 +859,16 @@ public final class Assistant {
         // «Dove devo salvare un appunto?», «come chiamo il report?»: domande, non richieste di creare qualcosa.
         let creations: Set<Action> = [.crea_nota, .crea_documento, .crea_foglio, .crea_presentazione, .crea_sito, .crea_lista_promemoria, .file_scrivi]
         if creations.contains(plan.action), lower.hasSuffix("?"),
-           lower.range(of: #"^(?:e\s+)?(?:dove|come|quale|quali|perch[eé]|cosa|che cosa|cos'|chi|quando|quanto|quanti)\b"#, options: .regularExpression) != nil {
+           lower.range(of: #"^(?:e\s+)?(?:dove|come|quale|quali|perch[eé]|cosa|che cosa|cos'|chi|quando|quanto|quanti)\b"#, options: .regularExpression) != nil
+            || (english && lower.range(of: questionStart, options: .regularExpression) != nil) {
             plan.action = .rispondi
             plan.fields = [:]
             return
         }
         // «Cosa ho fatto oggi?», «che cosa è stato fatto?»: una domanda, non «segna come fatto».
         if plan.action == .completa_promemoria,
-           lower.hasSuffix("?") || lower.range(of: #"^(?:e\s+)?(?:cosa|che cosa|cos'|quali|quanto|quanti|chi|come|quando|dove)\b"#, options: .regularExpression) != nil {
+           lower.hasSuffix("?") || lower.range(of: #"^(?:e\s+)?(?:cosa|che cosa|cos'|quali|quanto|quanti|chi|come|quando|dove)\b"#, options: .regularExpression) != nil
+            || (english && lower.range(of: questionStart, options: .regularExpression) != nil) {
             plan.action = candidates.contains(.agenda) ? .agenda : .rispondi
             plan.fields = [:]
             return
@@ -860,7 +891,8 @@ public final class Assistant {
             return
         }
         // "Crea una nota…": una nota nuova, anche se il testo parla di liste o promemoria.
-        if lower.range(of: #"^(?:per favore |puoi )?(?:crea|creami|fai|fammi|scrivi|scrivimi|prepara|preparami|apri|aggiungi)\s+(?:una|la)\s+(?:nuova\s+)?nota\b"#, options: .regularExpression) != nil {
+        if lower.range(of: #"^(?:per favore |puoi )?(?:crea|creami|fai|fammi|scrivi|scrivimi|prepara|preparami|apri|aggiungi)\s+(?:una|la)\s+(?:nuova\s+)?nota\b"#, options: .regularExpression) != nil
+            || (english && lower.range(of: #"^(?:please\s+|can you\s+|could you\s+)?(?:create|make|write|add|start|open|take)\s+(?:me\s+)?(?:a|the)\s+(?:new\s+)?note\b"#, options: .regularExpression) != nil) {
             plan.action = .crea_nota
             return
         }
@@ -870,10 +902,31 @@ public final class Assistant {
             plan.action = .rispondi
             return
         }
-        // Conti con tutti i dati nella domanda ("89,90 € IVA inclusa al 22%: quanto senza IVA?"): niente ricerca sul web.
-        if plan.action == .cerca_web, Calculations.looksArithmetic(prompt), Calculations.numbers(in: prompt).count >= 2,
-           !["cerca", "internet", "online", "sul web", "oggi", "attual", "aggiornat", "adesso"].contains(where: lower.contains) {
+        // Conti con tutti i dati nella domanda ("89,90 € IVA inclusa al 22%: quanto senza IVA?"): niente ricerca sul web né nei file.
+        let fileSearch: Set<Action> = [.file_cerca, .file]
+        if plan.action == .cerca_web || (fileSearch.contains(plan.action)
+                                         && !["file", "document", "cartell", "progett", "folder", "project", ".pdf", ".md", ".txt"].contains(where: lower.contains)),
+           Calculations.looksArithmetic(prompt), Calculations.numbers(in: prompt).count >= 2,
+           !["cerca", "internet", "online", "sul web", "oggi", "attual", "aggiornat", "adesso"].contains(where: lower.contains),
+           !(english && ["search", "on the web", "today", "current", "latest", "updated", "right now"].contains(where: lower.contains)) {
             plan.action = .rispondi
+            return
+        }
+        // «Jot down a couple of lines for Luke… and send them to him»: il testo si scrive per mandarlo, non per le Note.
+        if english, plan.action == .crea_nota,
+           lower.range(of: #"\b(?:and )?(?:send|text|email|forward) (?:it|them|this|that|these)(?: over)? to\b|\band (?:send|text|email) (?:it|them)\b"#, options: .regularExpression) != nil {
+            let mail = ["email", "e-mail", " mail"].contains(where: lower.contains)
+            let action: Action = mail ? .scrivi_email : .invia_messaggio
+            if availableActions.contains(action) {
+                plan.action = action
+                plan.fields = [:]
+                return
+            }
+        }
+        // «Ci sono novità dal commercialista?», «any news from the accountant?»: notizie da una persona si leggono nella posta, non sul web.
+        if availableActions.contains(.mail_leggi), Self.asksNewsFromSomeone(lower) {
+            plan.action = .mail_leggi
+            plan.fields = [:]
             return
         }
         if chatRules(to: &plan, prompt: prompt, lower: lower) { return }
@@ -881,7 +934,8 @@ public final class Assistant {
         // Un nome di file con estensione + verbo di scrittura, dentro un progetto → scrivere il file.
         if work.projectRoot != nil,
            let match = lower.range(of: #"[\w\-./]+\.(md|txt|json|csv|ya?ml|html|css|js|ts|swift|py|sh|toml)\b"#, options: .regularExpression),
-           ["crea", "scrivi", "modifica", "aggiorna", "aggiungi", "salva"].contains(where: lower.contains) {
+           (["crea", "scrivi", "modifica", "aggiorna", "aggiungi", "salva"]
+            + (english ? ["create", "write", "edit", "update", "add ", "save", "append"] : [])).contains(where: lower.contains) {
             plan.action = .file_scrivi
             plan.fields["percorso"] = String(lower[match])
             plan.fields["argomento"] = prompt
@@ -890,7 +944,7 @@ public final class Assistant {
         // «Scrivi una poesia…» in un progetto non è un file da scrivere: la richiesta deve parlare di file, cartelle o del progetto,
         // o di qualcosa che la guida del progetto trova (il registro di oggi, un cliente, un file indicato dalle istruzioni).
         if plan.action == .file_scrivi,
-           lower.range(of: #"\b(?:file|cartell[ae]|progetto|second brain|vault|inbox|registro|log)\b|\.[a-z]{2,4}\b"#, options: .regularExpression) == nil,
+           lower.range(of: #"\b(?:file|cartell[ae]|progetto|second brain|vault|inbox|registro|log|folders?|project)\b|\.[a-z]{2,4}\b"#, options: .regularExpression) == nil,
            !projectAnswers(prompt) {
             plan.action = .rispondi
             plan.fields = [:]
@@ -898,16 +952,25 @@ public final class Assistant {
         if webRules(to: &plan, prompt: prompt, lower: lower) { return }
         // "Mi ha scritto…", "email non lette": leggere, non scrivere.
         let incoming = #"(mi ha (scritto|mandato|risposto|inviato)|mi hanno scritto|ho ricevuto|(email|mail|messaggi) (di|da) |non lett|da leggere|in arrivo|arrivat)"#
-        if lower.range(of: incoming, options: .regularExpression) != nil {
-            let mail = ["mail", "email", "posta"].contains(where: lower.contains)
+        let englishIncoming = #"(sent me|wrote to me|emailed me|texted me|messaged me|did i (get|receive)|i (got|received)|(emails?|mails?|messages?|texts?) from |unread|in my inbox|arrived|came in)"#
+        if lower.range(of: incoming, options: .regularExpression) != nil || (english && lower.range(of: englishIncoming, options: .regularExpression) != nil) {
+            let mail = ["mail", "email", "posta"].contains(where: lower.contains) || (english && lower.contains("inbox"))
             let texts = ["messaggi", "messaggio", "imessage", "sms"].contains(where: lower.contains)
+                || (english && ["message", "texted", "text from", "texts from"].contains(where: lower.contains))
             if mail && availableActions.contains(.mail_leggi) { plan.action = .mail_leggi; return }
             if texts && !mail { plan.action = .messaggi; return }
+        }
+        // «Which city does my colleague work in?» dopo «my colleague works in Turin»: la risposta è nella conversazione, non sul web.
+        if english, plan.action == .cerca_web, lower.range(of: #"\b(?:my|our)\b"#, options: .regularExpression) != nil,
+           conversationCovers(prompt), !Self.isTimeSensitive(prompt) {
+            plan.action = .rispondi
+            plan.fields = [:]
+            return
         }
         // "Ricorda" solo con un'intenzione esplicita: "cosa ricordi di…" è una domanda.
         if plan.action == .ricorda { plan.action = .rispondi }
         // Azioni che creano o cercano qualcosa valgono solo se la richiesta contiene parole coerenti.
-        if let words = Self.cues[plan.action], !words.contains(where: { " \(lower) ".contains($0) }),
+        if let words = Self.activeCues[plan.action], !words.contains(where: { " \(lower) ".contains($0) }),
            !(plan.action == lastAction && isFollowUp(lower)) { plan.action = .rispondi }
 
         // Servizio collegato nominato ("su Agency OS…", "@notion") → si usano i suoi strumenti.
@@ -939,7 +1002,8 @@ public final class Assistant {
         if creating.contains(plan.action), Self.mentionsSeveralActions(prompt), work.artifactKind == nil { plan.action = .piano }
         // "Un promemoria per ogni obiettivo", "i promemoria per le scadenze": più promemoria da generare, non uno solo.
         if plan.action == .crea_promemoria,
-           ["per ogni", "per ciascun", "uno per", "per tutti", "per tutte", "i promemoria", "dei promemoria", "più promemoria"].contains(where: lower.contains) {
+           ["per ogni", "per ciascun", "uno per", "per tutti", "per tutte", "i promemoria", "dei promemoria", "più promemoria"].contains(where: lower.contains)
+            || (english && ["for each", "for every", "one for each", "one per", "for all the", "several reminders", "reminders for"].contains(where: lower.contains)) {
             plan.action = .crea_lista_promemoria
             plan.fields["argomento"] = prompt
         }
@@ -975,18 +1039,70 @@ public final class Assistant {
         .cerca_conversazioni: ["abbiamo parlato", "avevamo deciso", "avevamo detto", "ne abbiamo parlato", "conversazione precedente",
                                "chat precedente", "ti avevo detto", "ti ho detto", "ricordi quando", "l'altra volta", "cosa avevamo",
                                "di cosa abbiamo", "abbiamo deciso", "mi avevi detto", "mi hai detto"],
-        .crea_agente: ["agente", "agenti", "ogni mattina", "ogni giorno", "ogni settimana", "ogni lunedì", "ogni sera", "automaticamente", "di continuo"],
+        .crea_agente: ["agente", "agenti", "genius", "ogni mattina", "ogni giorno", "ogni settimana", "ogni lunedì", "ogni sera", "automaticamente", "di continuo"],
     ]
+
+    /// Le stesse parole per le richieste in inglese (si aggiungono a quelle italiane, vedi `activeCues`).
+    static let englishCues: [Action: [String]] = [
+        .crea_evento: ["event", "meeting", "appointment", "schedule", "calendar", "set up", "book ", " at 1", " at 2", " at 3", " at 4",
+                       " at 5", " at 6", " at 7", " at 8", " at 9", " at noon", " at midnight", "tomorrow", "monday",
+                       "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "lunch with", "dinner with", "catch up with"],
+        .crea_promemoria: ["remind me", "reminder", "to-do", "to do", "don't forget", "do not forget", "don't let me forget", "make sure i"],
+        .crea_lista_promemoria: ["reminders", "to-dos", "tasks", "checklist", "list"],
+        .scrivi_email: ["message to", "write to", "reply to", "draft"],
+        .crea_documento: ["document", "text", "letter", "article", "minutes", "essay", "write me a", "draft a", "write up"],
+        .crea_foglio: ["spreadsheet", "sheet", "table", "calculation", "estimates", "chart"],
+        .crea_presentazione: ["presentation", "slides"],
+        .genera_immagine: ["image", "draw", "illustration", "picture of", "photo of", "generate a", "wallpaper", "portrait", "sketch", "icon"],
+        .agenda: ["today", "tomorrow", "week", "day", "schedule", "plans", "what do i have", "what have i got", "what's on", "busy",
+                  "free", "calendar", "month", "weekend", "afternoon", "morning", "tonight", "this evening", "next ", "appointments"],
+        .elimina_evento: ["delete", "cancel", "remove", "clear"],
+        .completa_promemoria: ["done", "complete", "mark", "check off", "finished", "tick"],
+        .piano: ["organize", "organise", "plan", "prepare everything", "set everything up"],
+        .eventi: ["event", "events", "meeting", "appointment", "calendar"],
+        .promemoria: ["reminder", "to-do", "to do", "due", "tasks", "deadline"],
+        .calendari: ["calendars", "lists", "which lists"],
+        .mail_leggi: ["inbox", "wrote to me", "email from", "emails from", "mail from", "received", "sent me", "got anything", "get anything"],
+        .note: [" notes", " my note"], .crea_nota: ["note", "jot down", "write down"],
+        .messaggi: ["messages", "message", "texted", "text from", "chat with", "tried to reach", "reached out"],
+        .invia_messaggio: ["message", "send", "text ", "write to", "tell "],
+        .file: ["folder", "documents", "document", "find", "on my mac", "where did i put", "where's my", "where is my", "search"],
+        .cerca_web: englishWebCues, .leggi_pagina: ["page", "site", "article"],
+        .naviga: ["open", "go to", "navigate", "go back", "back", "search", "website", "site"],
+        .segui_link: ["click", "open", "go to", "follow", "section", "button"],
+        .nuova_chat: ["conversation", "sub-chat", "thread"],
+        .crea_sito: ["website", "web page", "webpage", "site"],
+        .cerca_conversazioni: ["we talked", "we discussed", "we decided", "had decided", "we said", "previous conversation", "previous chat",
+                               "i told you", "you told me", "remember when", "last time", "what did we"],
+        .crea_agente: ["agent", "genius", "every morning", "every day", "every week", "every monday", "every evening", "automatically", "continuously"],
+    ]
+
+    /// «Novità dal commercialista?», «heard back from the lawyer?»: notizie attese da una persona o da un ufficio (non da un'azienda o un tema).
+    static func asksNewsFromSomeone(_ lower: String) -> Bool {
+        let italianRoles = #"(?:commercialista|avvocat[oa]|notaio|medico|dottor\w*|dentista|banca|client[ei]|fornitor\w*|capo|ufficio|agenzia delle entrate|assicurazion\w*|amministrator\w*|condominio|scuola|professor\w*|idraulico|elettricista|architett[oa]|geometra|consulente)"#
+        let italian = #"\b(?:novit[aà]|notizie|aggiornamenti|risposte?)\s+(?:da|dal|dalla|dallo|dall'|dai|dagli|dalle)\s*(?:mi[aoei]\s+|nostr[aoei]\s+)?"# + italianRoles + #"\b"#
+        if lower.range(of: italian, options: .regularExpression) != nil { return true }
+        guard Language.isEnglish else { return false }
+        let englishRoles = #"(?:accountant|lawyer|attorney|notary|doctor|dentist|bank|client|customer|supplier|vendor|boss|manager|office|tax office|insurance|insurer|landlord|school|teacher|plumber|electrician|architect|consultant)"#
+        let english = #"\b(?:any )?(?:news|word|updates?|reply|response|answer)\s+from\s+(?:the |my |our )?"# + englishRoles + #"\b|\bheard (?:back )?from\s+(?:the |my |our )?"# + englishRoles + #"\b"#
+        return lower.range(of: english, options: .regularExpression) != nil
+    }
 
     /// Rete di sicurezza: il modello piccolo tende a scegliere una sola azione anche quando la richiesta ne elenca diverse.
     static func mentionsSeveralActions(_ prompt: String) -> Bool {
         let text = prompt.lowercased()
-        let groups = [["evento", "eventi", "riunion", "appuntament"], ["promemoria"], ["email", "e-mail", "mail"],
+        let english = Language.isEnglish
+        var groups = [["evento", "eventi", "riunion", "appuntament"], ["promemoria"], ["email", "e-mail", "mail"],
                       ["documento"], ["foglio", "tabella", "budget"], ["presentazione", "slide"]]
+        if english {
+            groups = [["event", "meeting", "appointment"], ["reminder"], ["email", "e-mail", "mail"],
+                      ["document"], ["spreadsheet", "sheet", "table", "budget"], ["presentation", "slide"]]
+        }
         let count = groups.filter { words in words.contains { text.contains($0) } }.count
         // "Scrivi un'email a Luca per spostare la riunione" è una sola azione: servono un elenco o più verbi.
         let listed = text.contains(",") || text.contains(":") || text.contains(";")
             || [" e poi ", " poi ", " e crea", " e fissa", " e prepara", " e scrivi", " e manda", " e aggiungi"].contains(where: text.contains)
+            || (english && [" and then ", " then ", " and create", " and set up", " and prepare", " and write", " and send", " and add"].contains(where: text.contains))
         return count >= 3 || (count >= 2 && listed)
     }
 
@@ -1000,6 +1116,16 @@ public final class Assistant {
         let context = preamble(for: prompt)
         // In una chat di progetto i file aperti per la richiesta valgono quanto i dati (es. agenda di oggi e registro di oggi).
         let withProject = projectContextCache?.prompt == prompt && projectContextCache?.text != nil
+        if Language.isEnglish {
+            return """
+            \(context)User request: \(prompt)
+
+            Real data:
+            \(Self.untrusted(data, label: label))
+
+            Answer usefully and concisely in English using ONLY this data\(withProject ? " and the project files shown above" : ""). If it is already shown in a card, don't repeat the full list: highlight what matters. Report titles and names exactly as they are. Don't show the IDs in square brackets. Write dates in a readable form.\(formatHint)
+            """
+        }
         return """
         \(context)Richiesta dell'utente: \(prompt)
 
@@ -1045,8 +1171,14 @@ public final class Assistant {
     /// Istruzioni della chat: le stesse per Apple Intelligence e per i modelli alternativi.
     /// Con la finestra di Apple Intelligence (4096 token) restano sotto un terzo: base breve, blocchi opzionali dosati.
     public func chatInstructions() -> String {
-        let base = """
-        Sei Siri AI+, l'assistente di Ivan sul Mac. Adesso è \(Dates.format(.now)). Rispondi in italiano, chiaro e cordiale.
+        let base = Language.isEnglish ? """
+        You are Siri AI+, \(Self.userFirstName.map { "\($0)'s" } ?? "the user's") assistant on the Mac. It is now \(Dates.format(.now)). Always answer in English, clearly and warmly.
+        Gladly answer general knowledge, history, science, advice, ideas and code questions from your own knowledge, thoroughly when needed. You can also search the web, use Calendar, Reminders, Mail, Notes, Messages and project files, and create documents, spreadsheets, presentations and images.
+        When you receive data (web, files, tools, calculations already done) rely only on it and don't make things up. Cite sources with [1], [2] only if you receive numbered web results; otherwise never write numbers in square brackets.
+        \(Self.untrustedRule)
+        Stay consistent with what was already said in the conversation and don't repeat what you already explained.
+        """ : """
+        Sei Siri AI+, l'assistente di \(Self.userFirstName ?? "chi usa questo Mac") sul Mac. Adesso è \(Dates.format(.now)). Rispondi in italiano, chiaro e cordiale.
         Rispondi volentieri alle domande di cultura generale, storia, scienza, consigli, idee e codice con le tue conoscenze, in modo completo quando serve. Sai anche cercare sul web, usare Calendario, Promemoria, Mail, Note, Messaggi e i file dei progetti, creare documenti, fogli, presentazioni e immagini.
         Quando ricevi dati (web, file, strumenti, calcoli già fatti) basati solo su quelli e non inventare. Cita le fonti con [1], [2] solo se ricevi risultati web numerati; altrimenti non scrivere mai numeri tra parentesi quadre.
         \(Self.untrustedRule)
@@ -1062,31 +1194,60 @@ public final class Assistant {
                 if budget.scale >= 2, let guide = work.guide {
                     let share = Self.instructionShare(of: budget) * 28 / 10
                     let full = guide.instructions(limit: tight ? min(6000, share / 2) : min(30_000, max(2000, share - 3000)))
-                    if !full.isEmpty { blocks.append("Istruzioni del progetto, da seguire:\n\(full)") }
+                    if !full.isEmpty { blocks.append(Language.t("Istruzioni del progetto, da seguire:", "Project instructions, to follow:") + "\n\(full)") }
                 } else if let agents = work.agents, !agents.isEmpty {
-                    blocks.append("Istruzioni del progetto (sintesi):\n\(agents.prefix(limit(1000, 600)))")
+                    blocks.append(Language.t("Istruzioni del progetto (sintesi):", "Project instructions (summary):") + "\n\(agents.prefix(limit(1000, 600)))")
                 }
             }
             if let space = work.spaceName {
-                var line = "Spazio attuale: \(space): usa solo calendari, liste, posta e servizi di questo spazio."
-                if let extra = work.spaceInstructions, !extra.isEmpty { line += " Indicazioni: \(extra.prefix(limit(600, 300)))" }
+                var line = Language.t("Spazio attuale: \(space): usa solo calendari, liste, posta e servizi di questo spazio.",
+                                      "Current space: \(space): use only the calendars, lists, mail and services of this space.")
+                if let extra = work.spaceInstructions, !extra.isEmpty { line += Language.t(" Indicazioni: ", " Guidance: ") + extra.prefix(limit(600, 300)) }
                 blocks.append(line)
             }
-            if let soul = work.soul, !soul.isEmpty { blocks.append("Sei un agente con questa anima (soul.md): seguila.\n\(soul.prefix(limit(800, 450)))") }
-            if let inherited, !inherited.isEmpty {
-                blocks.append("Questa è una chat figlia: ecco di cosa si parlava nella chat madre (usalo per capire le richieste, senza ripeterlo):\n\(inherited.prefix(limit(900, 500)))")
+            if let soul = work.soul, !soul.isEmpty {
+                blocks.append(Language.t("Sei un agente con questa anima (soul.md): seguila.", "You are an agent with this soul (soul.md): follow it.") + "\n\(soul.prefix(limit(800, 450)))")
             }
-            if let summary { blocks.append("Riassunto della parte meno recente della conversazione:\n\(summary.prefix(limit(1100, 600)))") }
+            if let task = work.skillTask, let agentID = work.agentID {
+                let skills = SkillStore.matching(task, project: work.skillProjectRoot ?? work.projectRoot, agent: agentID)
+                if !skills.isEmpty {
+                    blocks.append(Language.t("Skill pertinenti di questo Genius, da seguire durante l'esecuzione:",
+                                             "Relevant skills for this Genius, to follow during this run:") + "\n"
+                                  + skills.map { "\($0.name):\n\($0.body.prefix(limit(700, 350)))" }.joined(separator: "\n\n"))
+                }
+            }
+            if let inherited, !inherited.isEmpty {
+                blocks.append(Language.t("Questa è una chat figlia: ecco di cosa si parlava nella chat madre (usalo per capire le richieste, senza ripeterlo):",
+                                         "This is a child chat: here is what the parent chat was about (use it to understand the requests, without repeating it):")
+                              + "\n\(inherited.prefix(limit(900, 500)))")
+            }
+            if let summary {
+                blocks.append(Language.t("Riassunto della parte meno recente della conversazione:", "Summary of the older part of the conversation:") + "\n\(summary.prefix(limit(1100, 600)))")
+            }
             let text = ([base] + blocks).joined(separator: "\n")
             if Self.estimatedTokens(text) <= Self.instructionShare(of: budget) { return text }
         }
         // Su Mac dove il modello non è pronto la finestra può risultare minima: tieni prima le regole del progetto.
         if let project = work.projectName, let agents = work.agents, !agents.isEmpty {
-            let heading = "\n" + Self.projectRule(project) + "\nIstruzioni del progetto (sintesi):\n"
+            let heading = "\n" + Self.projectRule(project) + "\n" + Language.t("Istruzioni del progetto (sintesi):", "Project instructions (summary):") + "\n"
             let available = max(120, (Self.instructionShare(of: budget) - Self.estimatedTokens(base + heading)) * 2)
             return base + heading + String(agents.prefix(available))
         }
         return base
+    }
+
+    /// Nome di chi usa il Mac (dal nome dell'account), per rivolgersi a lui nelle istruzioni.
+    public nonisolated static var userFirstName: String? {
+        NSFullUserName().split(separator: " ").first.map(String.init).flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// Chi usa il Mac nei prompt: il nome dell'account («Ivan»), altrimenti «l'utente» / «the user».
+    public nonisolated static var userLabel: String { userFirstName ?? Language.t("l'utente", "the user") }
+
+    /// Come chiudere un'email o un messaggio: con il nome dell'account, se c'è.
+    nonisolated static var signatureRule: String {
+        if let name = userFirstName { return Language.t("chiusura firmata \(name)", "a closing signed \(name)") }
+        return Language.t("chiusura cordiale senza nome", "a warm closing without a name")
     }
 
     /// Stima dei token di un testo italiano (misurata: circa 2,8 caratteri per token, più ~50 di struttura).
@@ -1140,25 +1301,43 @@ public final class Assistant {
     }
 
     private func planSchema(_ actions: [Action]) -> GenerationSchema {
-        var fields: [Field] = [.required("azione", .choice(actions.map(\.rawValue)), "Azione da eseguire")]
-        fields += Self.baseFields
+        let t = Language.t
+        var fields: [Field] = [.required("azione", .choice(actions.map(\.rawValue)), t("Azione da eseguire", "Action to perform"))]
+        fields += Language.isEnglish ? Self.englishBaseFields : Self.baseFields
         if actions.contains(where: { [.file_leggi, .file_elenca, .file_scrivi, .file_sposta, .file_cartella, .file_elimina].contains($0) }) {
-            fields.append(.optional("percorso", .string, "Percorso del file o della cartella nel progetto, es. docs/note.md"))
+            fields.append(.optional("percorso", .string, t("Percorso del file o della cartella nel progetto, es. docs/note.md",
+                                                            "Path of the file or folder in the project, e.g. docs/notes.md")))
         }
         if actions.contains(.file_sposta) {
-            fields.append(.optional("destinazione", .string, "Cartella di destinazione o nuovo nome del file"))
+            fields.append(.optional("destinazione", .string, t("Cartella di destinazione o nuovo nome del file", "Destination folder or new file name")))
         }
         if actions.contains(.genera_immagine) {
-            fields.append(.optional("stile", .choice(["animazione", "illustrazione", "schizzo"]), "Stile dell'immagine"))
+            fields.append(.optional("stile", .choice(["animazione", "illustrazione", "schizzo"]), t("Stile dell'immagine", "Image style")))
         }
         if actions.contains(.strumento_esterno) {
-            fields.append(.optional("strumento", .choice(work.mcpTools.map(\.name)), "Strumento esterno da usare"))
+            fields.append(.optional("strumento", .choice(work.mcpTools.map(\.name)), t("Strumento esterno da usare", "External tool to use")))
         }
         if actions.contains(.segui_link), !work.browserLinks.isEmpty {
-            fields.append(.optional("link", .choice(work.browserLinks), "Link della pagina da aprire"))
+            fields.append(.optional("link", .choice(work.browserLinks), t("Link della pagina da aprire", "Link on the page to open")))
         }
         return makeSchema("Piano", fields)
     }
+
+    /// I campi del piano descritti in inglese (i nomi restano quelli: li legge il codice).
+    private static let englishBaseFields: [Field] = [
+        .optional("dal", .string, "Start of the period, yyyy-MM-dd"),
+        .optional("al", .string, "End of the period, yyyy-MM-dd"),
+        .optional("cerca", .string, "Word to search for in titles"),
+        .optional("titolo", .string, "Event title or reminder text, WITHOUT date, time or words like tomorrow"),
+        .optional("inizio", .string, "Event start, yyyy-MM-dd HH:mm"),
+        .optional("fine", .string, "Event end, yyyy-MM-dd HH:mm"),
+        .optional("scadenza", .string, "Reminder due date, yyyy-MM-dd HH:mm or yyyy-MM-dd"),
+        .optional("luogo", .string, "Event location"),
+        .optional("lista", .string, "Name of the calendar or list, only if the user names it"),
+        .optional("id", .string, "ID like E3 or R2 taken from the previous context"),
+        .optional("argomento", .string, "Topic of the email, document, spreadsheet, presentation or list"),
+        .optional("destinatari", .string, "Email recipients named by the user, separated by commas"),
+    ]
 
     private static let baseFields: [Field] = [
         .optional("dal", .string, "Inizio del periodo, yyyy-MM-dd"),
@@ -1216,7 +1395,62 @@ public final class Assistant {
         .nuova_chat: "nuova_chat: aprire una nuova chat o conversazione su un argomento, anche in un progetto. Usa argomento e lista con il nome del progetto.",
     ]
 
+    /// Le stesse spiegazioni per le richieste in inglese.
+    private static let englishActionHelp: [Action: String] = [
+        .rispondi: "rispondi: conversation, greetings, explanations, advice and general knowledge questions that need no personal data or recent news.",
+        .agenda: "agenda: what the user has to do in a period, events and reminders together (\"what do I have tomorrow\", \"plan my day\"). Use dal and al.",
+        .eventi: "eventi: calendar events only. Use dal, al, cerca.",
+        .promemoria: "promemoria: existing reminders only. Use lista and al.",
+        .calendari: "calendari: list of calendars and lists.",
+        .crea_evento: "crea_evento: a new event. Use titolo, inizio, fine, luogo, lista.",
+        .crea_promemoria: "crea_promemoria: ONE reminder (\"remind me to…\"). Use titolo, scadenza, lista.",
+        .crea_lista_promemoria: "crea_lista_promemoria: several reminders on a topic. Use argomento, lista.",
+        .elimina_evento: "elimina_evento: delete an existing event. Use id (E…) if it is in the context.",
+        .completa_promemoria: "completa_promemoria: mark a reminder as done. Use id (R…) if it is in the context.",
+        .modifica_evento: "modifica_evento: move, bring forward, postpone, rename or change the place or length of an existing event (\"move the meeting with Mark to 4 pm\").",
+        .modifica_promemoria: "modifica_promemoria: change the due date, text, list or priority of an existing reminder.",
+        .elimina_promemoria: "elimina_promemoria: delete an existing reminder.",
+        .modifica_nota: "modifica_nota: add text to an existing note in the Notes app (\"add milk to the shopping note\").",
+        .rispondi_email: "rispondi_email: reply to a received email. Use destinatari with the sender and argomento with what to reply.",
+        .inoltra_email: "inoltra_email: forward a received email to someone else. Use destinatari with the recipient.",
+        .scrivi_email: "scrivi_email: write or draft an email. Use argomento, destinatari.",
+        .crea_documento: "crea_documento: document, text, report, written plan. Use argomento.",
+        .crea_foglio: "crea_foglio: spreadsheet, table, budget, estimates, chart. Use argomento.",
+        .crea_presentazione: "crea_presentazione: presentation or slides. Use argomento.",
+        .piano: "piano: complex request with several actions together (\"organize the launch: events, emails and a document\").",
+        .mail_leggi: "mail_leggi: read, search or summarize received emails. Use cerca with the sender or topic if given.",
+        .note: "note: read or search the notes in the Notes app. Use cerca with the keyword.",
+        .crea_nota: "crea_nota: write a new note in the Notes app. Use titolo and argomento.",
+        .messaggi: "messaggi: read received or sent messages (iMessage/SMS). Use destinatari with the person or cerca.",
+        .invia_messaggio: "invia_messaggio: send an iMessage or SMS to someone. Use destinatari and argomento with the text.",
+        .file: "file: find or read documents and files on the Mac. Use cerca with the file name or topic.",
+        .genera_immagine: "genera_immagine: draw or create an image. Use argomento (what to draw) and stile.",
+        .ricorda: "ricorda: the user asks you to remember a piece of information (\"remember that…\"). Use argomento.",
+        .cerca_web: "cerca_web: search the internet for news, recent facts, prices, weather, results, schedules, information about companies, products or people. Use cerca with the words to search for.",
+        .leggi_pagina: "leggi_pagina: read or summarize a web page (address in the request, or the page open in the browser or in Safari). Use argomento with the address if there is one.",
+        .naviga: "naviga: open a website or search in the built-in browser. Use argomento with the address or the words to search for.",
+        .segui_link: "segui_link: open a link on the page open in the browser. Use link.",
+        .crea_sito: "crea_sito: create a web page, a website or a landing page (HTML and CSS). Use argomento.",
+        .crea_agente: "crea_agente: create an agent that works on its own on a goal, even at set times (\"every morning give me a press review\").",
+        .cerca_conversazioni: "cerca_conversazioni: search past conversations for what was said or decided. Use cerca with the keywords.",
+        .nuova_chat: "nuova_chat: open a new chat or conversation about a topic, also in a project. Use argomento and lista with the project name.",
+    ]
+
     private func plannerInstructions(_ actions: [Action], compact: Bool = false) -> String {
+        if Language.isEnglish {
+            let help = actions.compactMap { Self.englishActionHelp[$0] }.map { "- \($0)" }.joined(separator: "\n")
+            return """
+            Turn the user's request into ONE action. Choose rispondi if no action is really needed.
+            It is now \(Dates.format(.now)). Next days:
+            \(Dates.upcomingDays(14))
+
+            Actions:
+            \(help)
+            \(workInstructions(actions, compact: compact))
+            Dates as yyyy-MM-dd or yyyy-MM-dd HH:mm using the list of next days. "This week" goes from today to Sunday.
+            Fill in only the relevant fields.
+            """
+        }
         let help = actions.compactMap { Self.actionHelp[$0] }.map { "- \($0)" }.joined(separator: "\n")
         return """
         Trasforma la richiesta dell'utente in UNA azione. Scegli rispondi se nessuna azione serve davvero.
@@ -1238,12 +1472,15 @@ public final class Assistant {
     func makePlan(for prompt: String, allowed: Set<Action>, compact: Bool = false) async -> Plan {
         let actions = availableActions.filter { allowed.contains($0) || $0 == .rispondi }
         var instructions = plannerInstructions(actions, compact: compact)
-        var request = "Richiesta: \(prompt)"
+        let t = Language.t
+        var request = t("Richiesta: ", "Request: ") + prompt
         let contextLimit = compact ? 500 : 1500
         if !context.isEmpty {
-            request = "Contesto precedente:\n\(context.prefix(contextLimit))\n\n\(request)"
+            request = t("Contesto precedente:", "Previous context:") + "\n\(context.prefix(contextLimit))\n\n\(request)"
         }
-        if !compact, let recent = recentConversation(exchanges: 2, user: 260, reply: 260) { request = "Conversazione recente:\n\(recent)\n\n\(request)" }
+        if !compact, let recent = recentConversation(exchanges: 2, user: 260, reply: 260) {
+            request = t("Conversazione recente:", "Recent conversation:") + "\n\(recent)\n\n\(request)"
+        }
 
         if let screen = screenPlannerNote(compact: compact) { request = "\(screen)\n\n\(request)" }
         // Troppo lungo per la finestra del modello: si riparte subito con la versione compatta.
@@ -1302,10 +1539,11 @@ public final class Assistant {
         let dayFormat = Date.FormatStyle.dateTime.weekday(.wide).day().month(.wide).locale(Dates.locale)
         var title: String
         if allReminders {
-            title = plan["lista"].map { "Promemoria · \($0)" } ?? "Promemoria da fare"
+            title = plan["lista"].map { Language.t("Promemoria · ", "Reminders · ") + $0 } ?? Language.t("Promemoria da fare", "Reminders to do")
         } else if from == to {
             title = from.formatted(dayFormat).capitalized
-            if from == today { title = "Oggi · " + title } else if from == cal.date(byAdding: .day, value: 1, to: today) { title = "Domani · " + title }
+            if from == today { title = Language.t("Oggi · ", "Today · ") + title }
+            else if from == cal.date(byAdding: .day, value: 1, to: today) { title = Language.t("Domani · ", "Tomorrow · ") + title }
         } else {
             title = "\(from.formatted(dayFormat).capitalized) – \(to.formatted(dayFormat))"
         }
@@ -1317,25 +1555,27 @@ public final class Assistant {
     private func describe(_ agenda: Agenda) -> String {
         if agenda.showsEvents { recentEvents = agenda.events }
         if agenda.showsReminders { recentReminders = agenda.reminders + agenda.overdue }
+        let english = Language.isEnglish
+        let none = english ? "none" : "nessuno"
         var parts: [String] = []
         if agenda.showsEvents {
             let lines = agenda.events.map { e -> String in
                 let id = ids.register(event: e.identifier, start: e.start)
-                let when = e.isAllDay ? "\(Dates.format(e.start, time: false)), tutto il giorno"
+                let when = e.isAllDay ? "\(Dates.format(e.start, time: false)), \(english ? "all day" : "tutto il giorno")"
                                       : "\(Dates.format(e.start))–\(Dates.format(e.end).suffix(5))"
-                return "[\(id)] «\(e.title)» (\(when), calendario \(e.calendar))"
+                return "[\(id)] «\(e.title)» (\(when), \(english ? "calendar" : "calendario") \(e.calendar))"
             }
-            parts.append("EVENTI:\n" + (lines.isEmpty ? "nessuno" : lines.joined(separator: "\n")))
+            parts.append((english ? "EVENTS:\n" : "EVENTI:\n") + (lines.isEmpty ? none : lines.joined(separator: "\n")))
         }
         if agenda.showsReminders {
             func line(_ r: ReminderItem) -> String {
                 let id = ids.register(reminder: r.id)
-                let due = r.due.map { ", scade \(Dates.format($0, time: r.dueHasTime))" } ?? ""
-                return "[\(id)] «\(r.title)» (lista \(r.list)\(due))"
+                let due = r.due.map { (english ? ", due " : ", scade ") + Dates.format($0, time: r.dueHasTime) } ?? ""
+                return "[\(id)] «\(r.title)» (\(english ? "list" : "lista") \(r.list)\(due))"
             }
-            parts.append("PROMEMORIA:\n" + (agenda.reminders.isEmpty ? "nessuno" : agenda.reminders.map(line).joined(separator: "\n")))
+            parts.append((english ? "REMINDERS:\n" : "PROMEMORIA:\n") + (agenda.reminders.isEmpty ? none : agenda.reminders.map(line).joined(separator: "\n")))
             if !agenda.overdue.isEmpty {
-                parts.append("ARRETRATI (scaduti prima di oggi):\n" + agenda.overdue.map(line).joined(separator: "\n"))
+                parts.append((english ? "OVERDUE (due before today):\n" : "ARRETRATI (scaduti prima di oggi):\n") + agenda.overdue.map(line).joined(separator: "\n"))
             }
         }
         return "\(agenda.title)\n" + parts.joined(separator: "\n\n")
@@ -1351,17 +1591,21 @@ public final class Assistant {
         // Giornata lavorativa 9–18, oppure la finestra chiesta ("tra le 8 e le 14").
         let window = Calculations.window(in: prompt.lowercased()) ?? Calculations.Span(start: 9 * 60, end: 18 * 60)
         let analysis = Calculations.analyze(timed.map { Calculations.Span(start: minute($0.start), end: minute($0.end)) }, window: window)
-        var lines = ["ANALISI DELLA GIORNATA (calcolata dall'app, fascia \(window.label)):"]
+        let english = Language.isEnglish
+        var lines = [english ? "ANALYSIS OF THE DAY (calculated by the app, time window \(window.label)):"
+                             : "ANALISI DELLA GIORNATA (calcolata dall'app, fascia \(window.label)):"]
         for i in timed.indices {
             for j in timed.indices where j > i && timed[j].start < timed[i].end {
                 let end = min(timed[i].end, timed[j].end)
-                lines.append("- «\(timed[i].title)» e «\(timed[j].title)» si sovrappongono (\(Calculations.clock(minute(timed[j].start)))–\(Calculations.clock(minute(end)))).")
+                let span = "\(Calculations.clock(minute(timed[j].start)))–\(Calculations.clock(minute(end)))"
+                lines.append(english ? "- «\(timed[i].title)» and «\(timed[j].title)» overlap (\(span))."
+                                     : "- «\(timed[i].title)» e «\(timed[j].title)» si sovrappongono (\(span)).")
             }
         }
         let busy = analysis.busy.map(\.minutes).reduce(0, +)
         let free = analysis.free.map(\.minutes).reduce(0, +)
-        lines.append("- Occupato: \(Calculations.duration(busy)) in tutto.")
-        lines.append("- Libero nella fascia \(window.label): " + (analysis.free.isEmpty ? "niente." :
+        lines.append(english ? "- Busy: \(Calculations.duration(busy)) in total." : "- Occupato: \(Calculations.duration(busy)) in tutto.")
+        lines.append((english ? "- Free in the window \(window.label): " : "- Libero nella fascia \(window.label): ") + (analysis.free.isEmpty ? (english ? "nothing." : "niente.") :
             "\(Calculations.duration(free)) (" + analysis.free.map { "\($0.label), \(Calculations.duration($0.minutes))" }.joined(separator: "; ") + ")."))
         return lines.joined(separator: "\n")
     }
@@ -1369,7 +1613,11 @@ public final class Assistant {
     // MARK: - 3. Contenuti generati
 
     func writer(_ role: String) -> LanguageModelSession {
-        LanguageModelSession(model: Agent.model, instructions: """
+        LanguageModelSession(model: Agent.model, instructions: Language.isEnglish ? """
+        \(role) Write in English, with concrete and plausible content, without placeholders in brackets.
+        It is now \(Dates.format(.now)). Next days:
+        \(Dates.upcomingDays(14))
+        """ : """
         \(role) Scrivi in italiano, con contenuti concreti e plausibili, senza segnaposto tra parentesi.
         Adesso è \(Dates.format(.now)). Prossimi giorni:
         \(Dates.upcomingDays(14))
@@ -1383,8 +1631,8 @@ public final class Assistant {
             await writtenDocument(topic: topic) { update($0) }
         }) { return written }
         var draft = DocumentDraft(title: "", subtitle: "", sections: [])
-        let session = writer("Sei un redattore esperto di documenti di lavoro.")
-        for try await snapshot in session.streamResponse(to: "Scrivi un documento su: \(topic)", schema: Self.documentSchema) {
+        let session = writer(Self.documentRole)
+        for try await snapshot in session.streamResponse(to: Language.t("Scrivi un documento su: ", "Write a document about: ") + topic, schema: Self.documentSchema) {
             let content = snapshot.content
             let sections = content.objects("sezioni").map { DocumentDraft.Section(title: $0.string("titolo") ?? "", body: $0.string("testo") ?? "") }
             draft = DocumentDraft(title: content.string("titolo") ?? "", subtitle: content.string("sottotitolo") ?? "", sections: sections)
@@ -1393,24 +1641,35 @@ public final class Assistant {
         return draft
     }
 
-    private static let documentSchema = makeSchema("Documento", [
-        .required("titolo", .string, "Titolo del documento"),
-        .required("sottotitolo", .string, "Sottotitolo di una riga"),
-        .required("sezioni", .array(.object("Sezione", [
-            .required("titolo", .string, "Titolo della sezione"),
-            .required("testo", .string, "Testo della sezione, da 2 a 4 frasi"),
-        ]), min: 3, max: 6), "Sezioni del documento"),
-    ])
+    private static var documentRole: String {
+        Language.t("Sei un redattore esperto di documenti di lavoro.", "You are an expert writer of work documents.")
+    }
+
+    private static var documentSchema: GenerationSchema {
+        makeSchema("Documento", [
+            .required("titolo", .string, Language.t("Titolo del documento", "Document title")),
+            .required("sottotitolo", .string, Language.t("Sottotitolo di una riga", "One-line subtitle")),
+            .required("sezioni", .array(.object("Sezione", [
+                .required("titolo", .string, Language.t("Titolo della sezione", "Section title")),
+                .required("testo", .string, Language.t("Testo della sezione, da 2 a 4 frasi", "Section text, 2 to 4 sentences")),
+            ]), min: 3, max: 6), Language.t("Sezioni del documento", "Document sections")),
+        ])
+    }
 
     /// Documento scritto dal modello scelto in Markdown (nil con Apple Intelligence o se non risponde).
     func writtenDocument(topic: String, onUpdate: @escaping @MainActor (DocumentDraft) -> Void = { _ in }) async -> DocumentDraft? {
-        let request = """
+        let request = Language.isEnglish ? """
+        Write a document about: \(topic)
+
+        Markdown format: «# Title» on the first line, then a one-line subtitle, then 3 to 6 sections «## Section title» \
+        with 2-4 sentences each. No comments before or after.
+        """ : """
         Scrivi un documento su: \(topic)
 
         Formato Markdown: «# Titolo» sulla prima riga, poi un sottotitolo di una riga, poi da 3 a 6 sezioni «## Titolo della sezione» \
         con 2-4 frasi ciascuna. Niente commenti prima o dopo.
         """
-        guard let text = await externalText("Sei un redattore esperto di documenti di lavoro.", request, partial: { onUpdate(Self.documentDraft(markdown: $0)) }) else { return nil }
+        guard let text = await externalText(Self.documentRole, request, partial: { onUpdate(Self.documentDraft(markdown: $0)) }) else { return nil }
         let draft = Self.documentDraft(markdown: Self.cleanWritten(text))
         guard !draft.sections.isEmpty else { return nil }
         onUpdate(draft)
@@ -1433,10 +1692,10 @@ public final class Assistant {
 
     public func generateDocument(topic: String) async throws -> DocumentDraft {
         if let written = await writtenDocument(topic: topic) { return written }
-        let content = try await writer("Sei un redattore esperto di documenti di lavoro.")
-            .respond(to: "Scrivi un documento su: \(topic)", schema: Self.documentSchema).content
+        let content = try await writer(Self.documentRole)
+            .respond(to: Language.t("Scrivi un documento su: ", "Write a document about: ") + topic, schema: Self.documentSchema).content
         return DocumentDraft(
-            title: content.string("titolo") ?? "Documento",
+            title: content.string("titolo") ?? Language.t("Documento", "Document"),
             subtitle: content.string("sottotitolo") ?? "",
             sections: content.objects("sezioni").map {
                 .init(title: $0.string("titolo") ?? "", body: $0.string("testo") ?? "")
@@ -1444,31 +1703,39 @@ public final class Assistant {
         )
     }
 
-    private static let sheetSchema = makeSchema("Foglio", [
-        .required("titolo", .string, "Titolo del foglio"),
-        .required("colonne", .array(.string, min: 2, max: 3), "Periodi o scenari confrontati, per esempio «Ottobre», «Novembre» o «Minimo», «Massimo». Solo colonne numeriche"),
-        .required("righe", .array(.object("Riga", [
-            .required("voce", .string, "Nome della voce"),
-            .required("valori", .array(.double, min: 2, max: 4), "Un valore numerico per ogni colonna, senza simboli"),
-        ]), min: 3, max: 8), "Righe della tabella"),
-    ])
+    private static var sheetSchema: GenerationSchema {
+        makeSchema("Foglio", [
+            .required("titolo", .string, Language.t("Titolo del foglio", "Spreadsheet title")),
+            .required("colonne", .array(.string, min: 2, max: 3),
+                      Language.t("Periodi o scenari confrontati, per esempio «Ottobre», «Novembre» o «Minimo», «Massimo». Solo colonne numeriche",
+                                 "Periods or scenarios compared, for example «October», «November» or «Minimum», «Maximum». Numeric columns only")),
+            .required("righe", .array(.object("Riga", [
+                .required("voce", .string, Language.t("Nome della voce", "Item name")),
+                .required("valori", .array(.double, min: 2, max: 4), Language.t("Un valore numerico per ogni colonna, senza simboli", "One numeric value per column, without symbols")),
+            ]), min: 3, max: 8), Language.t("Righe della tabella", "Table rows")),
+        ])
+    }
 
     public func generateSheet(topic: String) async throws -> SheetDraft {
-        let role = "Sei un analista che prepara fogli di calcolo chiari e realistici."
-        let request = "Prepara una tabella per: \(topic)"
+        let role = Language.t("Sei un analista che prepara fogli di calcolo chiari e realistici.", "You are an analyst who prepares clear, realistic spreadsheets.")
+        let request = Language.t("Prepara una tabella per: ", "Prepare a table for: ") + topic
+        let fields = Language.t("\"titolo\": titolo del foglio; \"colonne\": da 2 a 3 periodi o scenari confrontati (solo colonne numeriche); \"righe\": da 3 a 8 oggetti {\"voce\": nome, \"valori\": un numero per colonna, senza simboli}",
+                                "\"titolo\": spreadsheet title; \"colonne\": 2 to 3 periods or scenarios compared (numeric columns only); \"righe\": 3 to 8 objects {\"voce\": name, \"valori\": one number per column, without symbols}")
+        let untitled = Language.t("Foglio", "Spreadsheet")
+        let item = Language.t("Voce", "Item")
         var title: String
         var columns: [String]
         var rawRows: [(label: String, values: [Double])]
-        if let json = await composeJSON(role, request, fields: "\"titolo\": titolo del foglio; \"colonne\": da 2 a 3 periodi o scenari confrontati (solo colonne numeriche); \"righe\": da 3 a 8 oggetti {\"voce\": nome, \"valori\": un numero per colonna, senza simboli}"),
+        if let json = await composeJSON(role, request, fields: fields),
            !json.objects("righe").isEmpty {
-            title = json.text("titolo") ?? "Foglio"
+            title = json.text("titolo") ?? untitled
             columns = json.texts("colonne")
-            rawRows = json.objects("righe").map { ($0.text("voce") ?? "Voce", $0.numbers("valori")) }
+            rawRows = json.objects("righe").map { ($0.text("voce") ?? item, $0.numbers("valori")) }
         } else {
             let content = try await writer(role).respond(to: request, schema: Self.sheetSchema).content
-            title = content.string("titolo") ?? "Foglio"
+            title = content.string("titolo") ?? untitled
             columns = content.strings("colonne")
-            rawRows = content.objects("righe").map { ($0.string("voce") ?? "Voce", $0.doubles("valori")) }
+            rawRows = content.objects("righe").map { ($0.string("voce") ?? item, $0.doubles("valori")) }
         }
         let width = max(columns.count, 2)
         let rows = rawRows.map { row -> SheetDraft.Row in
@@ -1476,7 +1743,8 @@ public final class Assistant {
             if values.count < width { values += Array(repeating: 0, count: width - values.count) }
             return .init(label: row.label, values: Array(values.prefix(width)))
         }
-        var sheet = SheetDraft(title: title, columns: columns.count >= 2 ? Array(columns.prefix(width)) : ["Colonna 1", "Colonna 2"], rows: rows)
+        let fallbackColumns = [Language.t("Colonna 1", "Column 1"), Language.t("Colonna 2", "Column 2")]
+        var sheet = SheetDraft(title: title, columns: columns.count >= 2 ? Array(columns.prefix(width)) : fallbackColumns, rows: rows)
         // Toglie le colonne rimaste tutte a zero (il modello a volte aggiunge colonne non numeriche).
         let empty = sheet.columns.indices.filter { i in sheet.rows.allSatisfy { !$0.values.indices.contains(i) || $0.values[i] == 0 } }
         if sheet.columns.count - empty.count >= 1 {
@@ -1488,49 +1756,65 @@ public final class Assistant {
         return sheet
     }
 
-    private static let deckSchema = makeSchema("Presentazione", [
-        .required("titolo", .string, "Titolo della presentazione"),
-        .required("sottotitolo", .string, "Sottotitolo della slide iniziale"),
-        .required("slide", .array(.object("Slide", [
-            .required("titolo", .string, "Titolo della slide"),
-            .required("punti", .array(.string, min: 2, max: 4), "Punti elenco brevi"),
-        ]), min: 3, max: 6), "Slide dopo quella iniziale"),
-    ])
+    private static var deckSchema: GenerationSchema {
+        makeSchema("Presentazione", [
+            .required("titolo", .string, Language.t("Titolo della presentazione", "Presentation title")),
+            .required("sottotitolo", .string, Language.t("Sottotitolo della slide iniziale", "Subtitle of the opening slide")),
+            .required("slide", .array(.object("Slide", [
+                .required("titolo", .string, Language.t("Titolo della slide", "Slide title")),
+                .required("punti", .array(.string, min: 2, max: 4), Language.t("Punti elenco brevi", "Short bullet points")),
+            ]), min: 3, max: 6), Language.t("Slide dopo quella iniziale", "Slides after the opening one")),
+        ])
+    }
+
+    private static var deckRole: String {
+        Language.t("Sei un esperto di presentazioni aziendali sintetiche.", "You are an expert in concise business presentations.")
+    }
 
     public func generateDeck(topic: String) async throws -> DeckDraft {
-        if let json = await composeJSON("Sei un esperto di presentazioni aziendali sintetiche.", "Prepara una presentazione su: \(topic)",
-                                        fields: "\"titolo\": titolo della presentazione; \"sottotitolo\": sottotitolo della slide iniziale; \"slide\": da 3 a 6 oggetti {\"titolo\": titolo della slide, \"punti\": da 2 a 4 punti elenco brevi}"),
+        let request = Language.t("Prepara una presentazione su: ", "Prepare a presentation about: ") + topic
+        let untitled = Language.t("Presentazione", "Presentation")
+        if let json = await composeJSON(Self.deckRole, request,
+                                        fields: Language.t("\"titolo\": titolo della presentazione; \"sottotitolo\": sottotitolo della slide iniziale; \"slide\": da 3 a 6 oggetti {\"titolo\": titolo della slide, \"punti\": da 2 a 4 punti elenco brevi}",
+                                                           "\"titolo\": presentation title; \"sottotitolo\": subtitle of the opening slide; \"slide\": 3 to 6 objects {\"titolo\": slide title, \"punti\": 2 to 4 short bullet points}")),
            !json.objects("slide").isEmpty {
-            return DeckDraft(title: json.text("titolo") ?? "Presentazione", subtitle: json.text("sottotitolo") ?? "",
+            return DeckDraft(title: json.text("titolo") ?? untitled, subtitle: json.text("sottotitolo") ?? "",
                              slides: json.objects("slide").map { .init(title: $0.text("titolo") ?? "", bullets: Array($0.texts("punti").prefix(5)).map { $0.hasSuffix("...") ? $0 : $0.trimmingCharacters(in: CharacterSet(charactersIn: ". ")) }) })
         }
-        let content = try await writer("Sei un esperto di presentazioni aziendali sintetiche.")
-            .respond(to: "Prepara una presentazione su: \(topic)", schema: Self.deckSchema).content
+        let content = try await writer(Self.deckRole)
+            .respond(to: request, schema: Self.deckSchema).content
         return DeckDraft(
-            title: content.string("titolo") ?? "Presentazione",
+            title: content.string("titolo") ?? untitled,
             subtitle: content.string("sottotitolo") ?? "",
             slides: content.objects("slide").map { .init(title: $0.string("titolo") ?? "", bullets: $0.strings("punti")) }
         )
     }
 
-    private static let mailSchema = makeSchema("Email", [
-        .required("destinatari", .array(.string, max: 6), "Nomi o indirizzi dei destinatari citati dall'utente"),
-        .required("oggetto", .string, "Oggetto dell'email"),
-        .required("corpo", .string, "Testo completo dell'email con saluto iniziale e chiusura firmata Ivan"),
-    ])
+    private static var mailSchema: GenerationSchema {
+        makeSchema("Email", [
+            .required("destinatari", .array(.string, max: 6), Language.t("Nomi o indirizzi dei destinatari citati dall'utente", "Names or addresses of the recipients mentioned by the user")),
+            .required("oggetto", .string, Language.t("Oggetto dell'email", "Email subject")),
+            .required("corpo", .string, Language.t("Testo completo dell'email con saluto iniziale e ", "Full text of the email with an opening greeting and ") + signatureRule),
+        ])
+    }
 
     public func generateMail(topic: String, recipients: String?) async throws -> MailDraft {
-        let role = "Sei l'assistente di Ivan e scrivi email professionali e cordiali. Non inventare date, orari, luoghi, numeri o impegni che l'utente non ha indicato: resta generico dove mancano i dettagli."
-        if let json = await composeJSON(role, "Scrivi un'email su: \(topic)" + (recipients.map { "\nDestinatari: \($0)" } ?? ""),
-                                        fields: "\"destinatari\": nomi o indirizzi citati dall'utente; \"oggetto\": oggetto dell'email; \"corpo\": testo completo con saluto iniziale e chiusura firmata Ivan"),
+        let english = Language.isEnglish
+        let role = english
+            ? "You are \(Self.userFirstName.map { "\($0)'s" } ?? "the user's") assistant and write professional, warm emails. Don't make up dates, times, places, numbers or commitments the user didn't give: stay general where details are missing."
+            : "Sei l'assistente di \(Self.userLabel) e scrivi email professionali e cordiali. Non inventare date, orari, luoghi, numeri o impegni che l'utente non ha indicato: resta generico dove mancano i dettagli."
+        let request = (english ? "Write an email about: " : "Scrivi un'email su: ") + topic + (recipients.map { (english ? "\nRecipients: " : "\nDestinatari: ") + $0 } ?? "")
+        let fields = english
+            ? "\"destinatari\": names or addresses mentioned by the user; \"oggetto\": email subject; \"corpo\": full text with an opening greeting and \(Self.signatureRule)"
+            : "\"destinatari\": nomi o indirizzi citati dall'utente; \"oggetto\": oggetto dell'email; \"corpo\": testo completo con saluto iniziale e \(Self.signatureRule)"
+        if let json = await composeJSON(role, request, fields: fields),
            let body = json.text("corpo") {
             var names = json.texts("destinatari")
             if names.isEmpty, let recipients { names = recipients.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) } }
             return MailDraft(recipients: names, subject: json.text("oggetto") ?? "", body: body)
         }
         let content = try await writer(role)
-            .respond(to: "Scrivi un'email su: \(topic)" + (recipients.map { "\nDestinatari: \($0)" } ?? ""),
-                     schema: Self.mailSchema).content
+            .respond(to: request, schema: Self.mailSchema).content
         var names = content.strings("destinatari")
         if names.isEmpty, let recipients {
             names = recipients.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
@@ -1538,16 +1822,24 @@ public final class Assistant {
         return MailDraft(recipients: names, subject: content.string("oggetto") ?? "", body: content.string("corpo") ?? "")
     }
 
-    private static let remindersSchema = makeSchema("Promemoria", [
-        .required("elementi", .array(.object("Elemento", [
-            .required("titolo", .string, "Cosa fare, breve"),
-            .optional("scadenza", .string, "Scadenza, yyyy-MM-dd"),
-        ]), min: 3, max: 8), "Promemoria da creare, in ordine cronologico"),
-    ])
+    private static var remindersSchema: GenerationSchema {
+        makeSchema("Promemoria", [
+            .required("elementi", .array(.object("Elemento", [
+                .required("titolo", .string, Language.t("Cosa fare, breve", "What to do, short")),
+                .optional("scadenza", .string, Language.t("Scadenza, yyyy-MM-dd", "Due date, yyyy-MM-dd")),
+            ]), min: 3, max: 8), Language.t("Promemoria da creare, in ordine cronologico", "Reminders to create, in chronological order")),
+        ])
+    }
+
+    private static var remindersRole: String {
+        Language.t("Sei un project manager che scompone gli obiettivi in attività concrete.", "You are a project manager who breaks goals down into concrete tasks.")
+    }
 
     public func generateReminders(topic: String) async throws -> [ReminderDraft] {
-        if let json = await composeJSON("Sei un project manager che scompone gli obiettivi in attività concrete.", "Elenca i promemoria per: \(topic)",
-                                        fields: "\"elementi\": da 3 a 8 oggetti in ordine cronologico {\"titolo\": cosa fare, breve; \"scadenza\": yyyy-MM-dd se serve}"),
+        let request = Language.t("Elenca i promemoria per: ", "List the reminders for: ") + topic
+        if let json = await composeJSON(Self.remindersRole, request,
+                                        fields: Language.t("\"elementi\": da 3 a 8 oggetti in ordine cronologico {\"titolo\": cosa fare, breve; \"scadenza\": yyyy-MM-dd se serve}",
+                                                           "\"elementi\": 3 to 8 objects in chronological order {\"titolo\": what to do, short; \"scadenza\": yyyy-MM-dd if needed}")),
            !json.objects("elementi").isEmpty {
             return json.objects("elementi").compactMap { item in
                 guard let title = item.text("titolo") else { return nil }
@@ -1555,8 +1847,8 @@ public final class Assistant {
                 return ReminderDraft(title: title, due: due?.date, dueHasTime: due?.hasTime ?? false)
             }
         }
-        let content = try await writer("Sei un project manager che scompone gli obiettivi in attività concrete.")
-            .respond(to: "Elenca i promemoria per: \(topic)", schema: Self.remindersSchema).content
+        let content = try await writer(Self.remindersRole)
+            .respond(to: request, schema: Self.remindersSchema).content
         return content.objects("elementi").compactMap { item in
             guard let title = item.string("titolo") else { return nil }
             let due = Dates.parse(item.string("scadenza"))
@@ -1564,24 +1856,27 @@ public final class Assistant {
         }
     }
 
-    private static let planDraftSchema = makeSchema("PianoAzioni", [
-        .required("riepilogo", .string, "Una frase che riassume il piano"),
-        .required("passi", .array(.object("Passo", [
-            .required("tipo", .choice(PlanDraft.Kind.allCases.map(\.rawValue)), "Tipo di azione"),
-            .required("titolo", .string, "Titolo dell'evento, promemoria, email o file"),
-            .optional("quando", .string, "Data e ora, yyyy-MM-dd HH:mm, solo per eventi e promemoria"),
-            .required("dettagli", .string, "Cosa verrà fatto, in una frase"),
-        ]), min: 2, max: 6), "Passi del piano, nell'ordine di esecuzione"),
-    ])
+    private static var planDraftSchema: GenerationSchema {
+        makeSchema("PianoAzioni", [
+            .required("riepilogo", .string, Language.t("Una frase che riassume il piano", "One sentence summarizing the plan")),
+            .required("passi", .array(.object("Passo", [
+                .required("tipo", .choice(PlanDraft.Kind.allCases.map(\.rawValue)), Language.t("Tipo di azione", "Kind of action")),
+                .required("titolo", .string, Language.t("Titolo dell'evento, promemoria, email o file", "Title of the event, reminder, email or file")),
+                .optional("quando", .string, Language.t("Data e ora, yyyy-MM-dd HH:mm, solo per eventi e promemoria", "Date and time, yyyy-MM-dd HH:mm, only for events and reminders")),
+                .required("dettagli", .string, Language.t("Cosa verrà fatto, in una frase", "What will be done, in one sentence")),
+            ]), min: 2, max: 6), Language.t("Passi del piano, nell'ordine di esecuzione", "Steps of the plan, in execution order")),
+        ])
+    }
 
     public func generatePlan(goal: String) async throws -> PlanDraft {
-        let content = try await writer("Sei un assistente che trasforma un obiettivo in un piano di azioni su calendario, promemoria, email e documenti.")
-            .respond(to: "Obiettivo: \(goal)", schema: Self.planDraftSchema).content
+        let content = try await writer(Language.t("Sei un assistente che trasforma un obiettivo in un piano di azioni su calendario, promemoria, email e documenti.",
+                                                  "You are an assistant who turns a goal into a plan of actions across calendar, reminders, email and documents."))
+            .respond(to: Language.t("Obiettivo: ", "Goal: ") + goal, schema: Self.planDraftSchema).content
         let steps = content.objects("passi").compactMap { step -> PlanDraft.Step? in
             guard let kind = step.string("tipo").flatMap(PlanDraft.Kind.init(rawValue:)) else { return nil }
             return .init(kind: kind, title: step.string("titolo") ?? kind.rawValue.capitalized,
                          when: step.string("quando"), detail: step.string("dettagli") ?? "")
         }
-        return PlanDraft(goal: goal, summary: content.string("riepilogo") ?? "Ecco il piano.", steps: steps)
+        return PlanDraft(goal: goal, summary: content.string("riepilogo") ?? Language.t("Ecco il piano.", "Here's the plan."), steps: steps)
     }
 }

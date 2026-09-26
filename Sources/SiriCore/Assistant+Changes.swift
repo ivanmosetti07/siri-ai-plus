@@ -454,15 +454,8 @@ extension Assistant {
 
     // MARK: - Email
 
-    /// Nome di chi usa l'app (dall'account del Mac), per le risposte scritte a suo nome; nil se non c'è.
-    /// Provvisorio: all'unione dei rami lo sostituisce `userFirstName` di Assistant.swift.
-    nonisolated static var accountFirstName: String? {
-        let first = NSFullUserName().split(separator: " ").first.map(String.init) ?? ""
-        return first.isEmpty ? nil : first
-    }
-
     private static var replySchema: GenerationSchema {
-        let name = accountFirstName
+        let name = userFirstName
         let description = Language.isEnglish
             ? "Full text of the reply: greeting, what \(name ?? "the user") wants to say, " + (name.map { "a closing signed \($0)" } ?? "a friendly closing")
             : "Testo completo della risposta: saluto, ciò che \(name ?? "l'utente") vuole dire, " + (name.map { "chiusura firmata \($0)" } ?? "chiusura cordiale")
@@ -523,7 +516,7 @@ extension Assistant {
 
     /// Risposta con le parole di chi usa l'app (per Ivan: «Ivan»): l'email ricevuta è solo da leggere.
     func writeReply(to message: MailMessage, gist: String) async throws -> String {
-        let name = Self.accountFirstName
+        let name = Self.userFirstName
         let role = Language.isEnglish
             ? "You are \(name.map { "\($0)'s" } ?? "the user's") assistant and you write short, friendly and professional email replies, in the language of the email received. Write only what \(name ?? "the user") wants to say, without inventing dates, times, commitments or details they didn't mention. Format: greeting with the sender's name on one line, blank line, the message, blank line, \(name.map { "“\($0)” on a line of its own" } ?? "a friendly closing on a line of its own"). \(Self.untrustedRule)"
             : "Sei l'assistente \(name.map { "di \($0)" } ?? "dell'utente") e scrivi risposte email brevi, cordiali e professionali, nella lingua dell'email ricevuta. Scrivi solo ciò che \(name ?? "l'utente") vuole dire, senza inventare date, orari, impegni o dettagli che non ha indicato. Formato: saluto con il nome del mittente su una riga, riga vuota, il messaggio, riga vuota, \(name.map { "«\($0)» su una riga a parte" } ?? "una chiusura cordiale su una riga a parte"). \(Self.untrustedRule)"

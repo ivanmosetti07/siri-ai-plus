@@ -9,10 +9,10 @@ public enum NoteHTML {
 
         public var label: String {
             switch self {
-            case .title: "Titolo"
-            case .heading: "Intestazione"
-            case .subheading: "Sottointestazione"
-            case .body: "Corpo"
+            case .title: Language.t("Titolo", "Title")
+            case .heading: Language.t("Intestazione", "Heading")
+            case .subheading: Language.t("Sottointestazione", "Subheading")
+            case .body: Language.t("Corpo", "Body")
             }
         }
 

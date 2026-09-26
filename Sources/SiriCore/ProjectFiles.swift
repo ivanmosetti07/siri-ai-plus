@@ -25,11 +25,12 @@ public struct ProjectFiles: Sendable {
 
         public var errorDescription: String? {
             switch self {
-            case .outsideProject(let p): "«\(p)» è fuori dalla cartella del progetto."
-            case .notFound(let p): "«\(p)» non esiste nel progetto."
-            case .unreadable(let p): "Non riesco a leggere il testo di «\(p)»."
-            case .readOnly(let p): "La cartella «\(p)» è collegata in sola lettura."
-            case .virtualRoot(let p): "«\(p)» va messo dentro una delle cartelle collegate (es. «Cartella/\(p)»)."
+            case .outsideProject(let p): Language.t("«\(p)» è fuori dalla cartella del progetto.", "“\(p)” is outside the project folder.")
+            case .notFound(let p): Language.t("«\(p)» non esiste nel progetto.", "“\(p)” doesn't exist in the project.")
+            case .unreadable(let p): Language.t("Non riesco a leggere il testo di «\(p)».", "I can't read the text of “\(p)”.")
+            case .readOnly(let p): Language.t("La cartella «\(p)» è collegata in sola lettura.", "The folder “\(p)” is linked as read-only.")
+            case .virtualRoot(let p): Language.t("«\(p)» va messo dentro una delle cartelle collegate (es. «Cartella/\(p)»).",
+                                                 "“\(p)” must go inside one of the linked folders (e.g. “Folder/\(p)”).")
             }
         }
     }
@@ -205,7 +206,7 @@ public struct ProjectFiles: Sendable {
         let url = try resolve(relative)
         guard FileManager.default.fileExists(atPath: url.path) else { throw FileError.notFound(relative) }
         let text = try Self.text(of: url)
-        return text.count > maxChars ? String(text.prefix(maxChars)) + "\n[…troncato]" : text
+        return text.count > maxChars ? String(text.prefix(maxChars)) + Language.t("\n[…troncato]", "\n[…truncated]") : text
     }
 
     static func text(of url: URL) throws -> String {
@@ -225,7 +226,7 @@ public struct ProjectFiles: Sendable {
         for entry in allEntries() where !entry.isDirectory {
             if matches.count >= limit { break }
             if entry.path.lowercased().contains(needle) {
-                matches.append(Match(path: entry.path, snippet: "nome del file"))
+                matches.append(Match(path: entry.path, snippet: Language.t("nome del file", "file name")))
                 continue
             }
             let ext = (entry.path as NSString).pathExtension.lowercased()

@@ -16,15 +16,15 @@ public enum SourceKind: String, CaseIterable, Codable, Sendable, Identifiable {
 
     public var label: String {
         switch self {
-        case .calendar: "Calendario"
+        case .calendar: Language.t("Calendario", "Calendar")
         case .mail: "Mail"
-        case .reminders: "Promemoria"
-        case .notes: "Note"
-        case .files: "File"
-        case .photos: "Foto"
-        case .messages: "Messaggi"
-        case .contacts: "Contatti"
-        case .voiceMemos: "Memo Vocali"
+        case .reminders: Language.t("Promemoria", "Reminders")
+        case .notes: Language.t("Note", "Notes")
+        case .files: Language.t("File", "Files")
+        case .photos: Language.t("Foto", "Photos")
+        case .messages: Language.t("Messaggi", "Messages")
+        case .contacts: Language.t("Contatti", "Contacts")
+        case .voiceMemos: Language.t("Memo Vocali", "Voice Memos")
         }
     }
 
@@ -40,29 +40,29 @@ public enum SourceKind: String, CaseIterable, Codable, Sendable, Identifiable {
 
     public var readCapability: String {
         switch self {
-        case .calendar: "Leggere eventi e disponibilità"
-        case .mail: "Leggere e riassumere le email"
-        case .reminders: "Leggere promemoria e liste"
-        case .notes: "Cercare e leggere le note"
-        case .files: "Cercare e leggere documenti"
-        case .photos: "Cercare foto e album sul dispositivo"
-        case .messages: "Leggere le conversazioni"
-        case .contacts: "Vedere i contatti e i loro recapiti"
-        case .voiceMemos: "Ascoltare e trascrivere le registrazioni"
+        case .calendar: Language.t("Leggere eventi e disponibilità", "Read events and availability")
+        case .mail: Language.t("Leggere e riassumere le email", "Read and summarize emails")
+        case .reminders: Language.t("Leggere promemoria e liste", "Read reminders and lists")
+        case .notes: Language.t("Cercare e leggere le note", "Search and read notes")
+        case .files: Language.t("Cercare e leggere documenti", "Search and read documents")
+        case .photos: Language.t("Cercare foto e album sul dispositivo", "Search photos and albums on the device")
+        case .messages: Language.t("Leggere le conversazioni", "Read conversations")
+        case .contacts: Language.t("Vedere i contatti e i loro recapiti", "See contacts and their details")
+        case .voiceMemos: Language.t("Ascoltare e trascrivere le registrazioni", "Listen to and transcribe recordings")
         }
     }
 
     public var writeCapability: String {
         switch self {
-        case .calendar: "Creare, spostare ed eliminare eventi"
-        case .mail: "Preparare bozze da inviare con Mail"
-        case .reminders: "Creare e completare promemoria"
-        case .notes: "Creare e modificare note"
-        case .files: "Salvare documenti"
-        case .photos: "Creare album"
-        case .messages: "Inviare messaggi"
-        case .contacts: "Creare e modificare contatti"
-        case .voiceMemos: "Registrare nuovi memo"
+        case .calendar: Language.t("Creare, spostare ed eliminare eventi", "Create, move and delete events")
+        case .mail: Language.t("Preparare bozze da inviare con Mail", "Prepare drafts to send with Mail")
+        case .reminders: Language.t("Creare e completare promemoria", "Create and complete reminders")
+        case .notes: Language.t("Creare e modificare note", "Create and edit notes")
+        case .files: Language.t("Salvare documenti", "Save documents")
+        case .photos: Language.t("Creare album", "Create albums")
+        case .messages: Language.t("Inviare messaggi", "Send messages")
+        case .contacts: Language.t("Creare e modificare contatti", "Create and edit contacts")
+        case .voiceMemos: Language.t("Registrare nuovi memo", "Record new memos")
         }
     }
 }
@@ -158,7 +158,7 @@ public struct DocumentDraft: Sendable, Equatable, Codable {
     /// Documento con esattamente il testo indicato; il nome è l'inizio del testo.
     public init(literal text: String) {
         let words = text.split(whereSeparator: \.isWhitespace).prefix(6).joined(separator: " ")
-        title = words.isEmpty ? "Documento senza titolo" : String(words.prefix(60))
+        title = words.isEmpty ? Language.t("Documento senza titolo", "Untitled document") : String(words.prefix(60))
         subtitle = ""
         sections = []
         body = text
@@ -320,7 +320,9 @@ public enum EventKitService {
         event.title = draft.title
         let writable = ek.calendars(for: .event).filter(\.allowsContentModifications)
         guard let calendar = writable.first(where: { $0.title == draft.calendar }) else {
-            throw NSError(domain: AppInfo.name, code: 3, userInfo: [NSLocalizedDescriptionKey: "Il calendario «\(draft.calendar)» non è più disponibile o modificabile. Prepara di nuovo l'evento."])
+            throw NSError(domain: AppInfo.name, code: 3, userInfo: [NSLocalizedDescriptionKey: Language.t(
+                "Il calendario «\(draft.calendar)» non è più disponibile o modificabile. Prepara di nuovo l'evento.",
+                "The calendar “\(draft.calendar)” is no longer available or editable. Prepare the event again.")])
         }
         event.calendar = calendar
         event.isAllDay = draft.isAllDay
@@ -338,7 +340,9 @@ public enum EventKitService {
         writeLock.lock(); defer { writeLock.unlock() }
         let lists = ek.calendars(for: .reminder)
         guard let calendar = lists.first(where: { $0.title == list && $0.allowsContentModifications }) else {
-            throw NSError(domain: AppInfo.name, code: 3, userInfo: [NSLocalizedDescriptionKey: "La lista «\(list)» non è più disponibile o modificabile. Prepara di nuovo il promemoria."])
+            throw NSError(domain: AppInfo.name, code: 3, userInfo: [NSLocalizedDescriptionKey: Language.t(
+                "La lista «\(list)» non è più disponibile o modificabile. Prepara di nuovo il promemoria.",
+                "The list “\(list)” is no longer available or editable. Prepare the reminder again.")])
         }
         var created: [EKReminder] = []
         do {
@@ -381,7 +385,9 @@ public enum EventKitService {
         writeLock.lock(); defer { writeLock.unlock() }
         guard let expectedTitle = action.expectedTitle, !expectedTitle.isEmpty,
               let expectedContainer = action.expectedContainer, !expectedContainer.isEmpty else {
-            throw NSError(domain: AppInfo.name, code: 5, userInfo: [NSLocalizedDescriptionKey: "La vecchia anteprima non contiene i dati necessari per verificare il bersaglio. Prepara di nuovo l'azione."])
+            throw NSError(domain: AppInfo.name, code: 5, userInfo: [NSLocalizedDescriptionKey: Language.t(
+                "La vecchia anteprima non contiene i dati necessari per verificare il bersaglio. Prepara di nuovo l'azione.",
+                "The old preview doesn't contain the data needed to check the target. Prepare the action again.")])
         }
         switch action.kind {
         case .deleteEvent(let identifier, let start):
@@ -389,17 +395,19 @@ public enum EventKitService {
             guard let event = ek.events(matching: predicate).first(where: {
                 ($0.eventIdentifier ?? $0.calendarItemIdentifier) == identifier && abs($0.startDate.timeIntervalSince(start)) < 1
             }), event.title == expectedTitle, event.calendar.title == expectedContainer else {
-                throw NSError(domain: AppInfo.name, code: 1, userInfo: [NSLocalizedDescriptionKey: "L'evento è cambiato o non è più nello stesso calendario. Prepara di nuovo l'azione."])
+                throw NSError(domain: AppInfo.name, code: 1, userInfo: [NSLocalizedDescriptionKey: Language.t(
+                    "L'evento è cambiato o non è più nello stesso calendario. Prepara di nuovo l'azione.",
+                    "The event changed or is no longer in the same calendar. Prepare the action again.")])
             }
             try ek.remove(event, span: .thisEvent, commit: true)
             Hooks.didModify()
             return !ek.events(matching: predicate).contains { ($0.eventIdentifier ?? $0.calendarItemIdentifier) == identifier && abs($0.startDate.timeIntervalSince(start)) < 1 }
         case .completeReminder(let identifier):
             guard let reminder = ek.calendarItem(withIdentifier: identifier) as? EKReminder else {
-                throw NSError(domain: AppInfo.name, code: 2, userInfo: [NSLocalizedDescriptionKey: "Il promemoria non esiste più."])
+                throw NSError(domain: AppInfo.name, code: 2, userInfo: [NSLocalizedDescriptionKey: Language.t("Il promemoria non esiste più.", "The reminder no longer exists.")])
             }
             guard reminder.title == expectedTitle, reminder.calendar.title == expectedContainer, !reminder.isCompleted else {
-                throw NSError(domain: AppInfo.name, code: 2, userInfo: [NSLocalizedDescriptionKey: "Il promemoria è cambiato. Prepara di nuovo l'azione."])
+                throw NSError(domain: AppInfo.name, code: 2, userInfo: [NSLocalizedDescriptionKey: Language.t("Il promemoria è cambiato. Prepara di nuovo l'azione.", "The reminder changed. Prepare the action again.")])
             }
             reminder.isCompleted = true
             try ek.save(reminder, commit: true)
@@ -407,10 +415,10 @@ public enum EventKitService {
             return (ek.calendarItem(withIdentifier: identifier) as? EKReminder)?.isCompleted == true
         case .deleteReminder(let identifier):
             guard let reminder = ek.calendarItem(withIdentifier: identifier) as? EKReminder else {
-                throw NSError(domain: AppInfo.name, code: 2, userInfo: [NSLocalizedDescriptionKey: "Il promemoria non esiste più."])
+                throw NSError(domain: AppInfo.name, code: 2, userInfo: [NSLocalizedDescriptionKey: Language.t("Il promemoria non esiste più.", "The reminder no longer exists.")])
             }
             guard reminder.title == expectedTitle, reminder.calendar.title == expectedContainer else {
-                throw NSError(domain: AppInfo.name, code: 2, userInfo: [NSLocalizedDescriptionKey: "Il promemoria è cambiato. Prepara di nuovo l'azione."])
+                throw NSError(domain: AppInfo.name, code: 2, userInfo: [NSLocalizedDescriptionKey: Language.t("Il promemoria è cambiato. Prepara di nuovo l'azione.", "The reminder changed. Prepare the action again.")])
             }
             try ek.remove(reminder, commit: true)
             Hooks.didModify()
@@ -438,20 +446,20 @@ public enum EventKitService {
     public static func update(identifier: String, start: Date, to draft: EventDraft, expected: EventDraft? = nil) throws -> Date {
         writeLock.lock(); defer { writeLock.unlock() }
         guard let event = occurrence(identifier: identifier, start: start) else {
-            throw NSError(domain: AppInfo.name, code: 1, userInfo: [NSLocalizedDescriptionKey: "L'evento non esiste più o è stato spostato."])
+            throw NSError(domain: AppInfo.name, code: 1, userInfo: [NSLocalizedDescriptionKey: Language.t("L'evento non esiste più o è stato spostato.", "The event no longer exists or has been moved.")])
         }
         guard event.calendar.allowsContentModifications else {
-            throw NSError(domain: AppInfo.name, code: 4, userInfo: [NSLocalizedDescriptionKey: "Il calendario «\(event.calendar.title)» è in sola lettura."])
+            throw NSError(domain: AppInfo.name, code: 4, userInfo: [NSLocalizedDescriptionKey: Language.t("Il calendario «\(event.calendar.title)» è in sola lettura.", "The calendar “\(event.calendar.title)” is read-only.")])
         }
         if let expected {
             guard event.title == expected.title, event.startDate == expected.start, event.endDate == expected.end,
                   event.calendar.title == expected.calendar else {
-                throw NSError(domain: AppInfo.name, code: 4, userInfo: [NSLocalizedDescriptionKey: "L'evento è cambiato dopo l'anteprima. Preparala di nuovo."])
+                throw NSError(domain: AppInfo.name, code: 4, userInfo: [NSLocalizedDescriptionKey: Language.t("L'evento è cambiato dopo l'anteprima. Preparala di nuovo.", "The event changed after the preview. Prepare it again.")])
             }
         }
         let destination = ek.calendars(for: .event).first { $0.allowsContentModifications && $0.title == draft.calendar }
         guard let destination else {
-            throw NSError(domain: AppInfo.name, code: 4, userInfo: [NSLocalizedDescriptionKey: "Il calendario di destinazione non è disponibile. Preparala di nuovo."])
+            throw NSError(domain: AppInfo.name, code: 4, userInfo: [NSLocalizedDescriptionKey: Language.t("Il calendario di destinazione non è disponibile. Preparala di nuovo.", "The destination calendar isn't available. Prepare it again.")])
         }
         event.title = draft.title
         event.isAllDay = draft.isAllDay
@@ -477,16 +485,16 @@ public enum EventKitService {
                               expected: ReminderDraft? = nil, expectedList: String? = nil) throws {
         writeLock.lock(); defer { writeLock.unlock() }
         guard let reminder = ek.calendarItem(withIdentifier: identifier) as? EKReminder else {
-            throw NSError(domain: AppInfo.name, code: 2, userInfo: [NSLocalizedDescriptionKey: "Il promemoria non esiste più."])
+            throw NSError(domain: AppInfo.name, code: 2, userInfo: [NSLocalizedDescriptionKey: Language.t("Il promemoria non esiste più.", "The reminder no longer exists.")])
         }
         if let expected {
             guard reminder.title == expected.title, reminder.calendar.title == expectedList,
                   reminder.dueDateComponents.flatMap({ Calendar.current.date(from: $0) }) == expected.due else {
-                throw NSError(domain: AppInfo.name, code: 2, userInfo: [NSLocalizedDescriptionKey: "Il promemoria è cambiato dopo l'anteprima. Preparalo di nuovo."])
+                throw NSError(domain: AppInfo.name, code: 2, userInfo: [NSLocalizedDescriptionKey: Language.t("Il promemoria è cambiato dopo l'anteprima. Preparalo di nuovo.", "The reminder changed after the preview. Prepare it again.")])
             }
         }
         guard let destination = ek.calendars(for: .reminder).first(where: { $0.title == list && $0.allowsContentModifications }) else {
-            throw NSError(domain: AppInfo.name, code: 2, userInfo: [NSLocalizedDescriptionKey: "La lista di destinazione non è disponibile. Prepara di nuovo il promemoria."])
+            throw NSError(domain: AppInfo.name, code: 2, userInfo: [NSLocalizedDescriptionKey: Language.t("La lista di destinazione non è disponibile. Prepara di nuovo il promemoria.", "The destination list isn't available. Prepare the reminder again.")])
         }
         reminder.title = draft.title
         // La priorità cambia solo se passa da alta a normale o viceversa (una priorità media resta).

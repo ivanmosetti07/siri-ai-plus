@@ -10,7 +10,15 @@ extension Assistant {
 
     /// Regola comune a tutti i modelli per le chat di un progetto.
     static func projectRule(_ project: String) -> String {
-        """
+        if Language.isEnglish {
+            return """
+            This chat is linked to the project «\(project)»: its folder is the main context, even when other apps are open. \
+            For questions about the work, the status, the goals, the clients, the tasks or what happened, use the project files \
+            (the ones you receive or open following the project instructions), not the calendar, notes or the web, and don't answer from memory: \
+            if a file you would need is missing, say so. Follow the project instructions to know where things are, where to save and how to behave.
+            """
+        }
+        return """
         Questa chat è collegata al progetto «\(project)»: la sua cartella è il contesto principale, anche quando sono aperte altre app. \
         Per domande sul lavoro, sullo stato, sugli obiettivi, sui clienti, sulle attività o su cosa è successo usa i file del progetto \
         (quelli che ricevi o che apri seguendo le istruzioni del progetto), non calendario, note o web, e non rispondere a memoria: \

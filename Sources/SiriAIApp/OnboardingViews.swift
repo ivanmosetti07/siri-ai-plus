@@ -42,12 +42,12 @@ struct OnboardingView: View {
                         .foregroundStyle(.secondary)
                 }
                 VStack(alignment: .leading, spacing: 16) {
-                    Feature(symbol: "lock.shield", title: "Apple Intelligence con privacy",
-                            text: "Il Mac sceglie le azioni; le risposte usano Private Cloud Compute quando è autorizzato e disponibile, altrimenti il modello locale.")
-                    Feature(symbol: "hand.raised", title: "Nessuna azione senza il tuo consenso",
-                            text: "Prima di creare, inviare o eliminare qualcosa ti mostro cosa farò.")
-                    Feature(symbol: "square.stack.3d.up", title: "Un solo posto per il tuo lavoro",
-                            text: "Calendario, promemoria, email e documenti in un'unica conversazione.")
+                    Feature(symbol: "lock.shield", title: String(localized: "Apple Intelligence con privacy"),
+                            text: String(localized: "Il Mac sceglie le azioni; le risposte usano Private Cloud Compute quando è autorizzato e disponibile, altrimenti il modello locale."))
+                    Feature(symbol: "hand.raised", title: String(localized: "Nessuna azione senza il tuo consenso"),
+                            text: String(localized: "Prima di creare, inviare o eliminare qualcosa ti mostro cosa farò."))
+                    Feature(symbol: "square.stack.3d.up", title: String(localized: "Un solo posto per il tuo lavoro"),
+                            text: String(localized: "Calendario, promemoria, email e documenti in un'unica conversazione."))
                 }
                 .frame(maxWidth: 380)
                 Button {
@@ -197,9 +197,9 @@ struct SourceRow: View {
 
     private var caption: String {
         switch source.support {
-        case .full: "\(source.readCapability). \(source.writeCapability) dopo la tua conferma."
-        case .composeOnly: "Prepara bozze che invii tu da Mail."
-        case .comingSoon: "\(source.readCapability): collegamento in preparazione."
+        case .full: String(localized: "\(source.readCapability). \(source.writeCapability) dopo la tua conferma.")
+        case .composeOnly: String(localized: "Prepara bozze che invii tu da Mail.")
+        case .comingSoon: String(localized: "\(source.readCapability): collegamento in preparazione.")
         }
     }
 }
@@ -217,7 +217,7 @@ struct SourcesSheet: View {
                     Text("Scegli cosa può usare Siri AI+ e con quale livello di accesso.").font(DS.Fonts.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button("Fine") { dismiss() }.keyboardShortcut(.defaultAction)
+                Button(String(localized: "button.done", defaultValue: "Fine")) { dismiss() }.keyboardShortcut(.defaultAction)
             }
             ScrollView { SourcesList(highlight: state.sourcesSheet) }
         }

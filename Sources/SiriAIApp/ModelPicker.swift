@@ -102,8 +102,8 @@ struct ModelPickerPanel: View {
         VStack(alignment: .leading, spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    group("Sul Mac · privati", providers: local)
-                    group("Cloud · con il tuo abbonamento", providers: cloud)
+                    group(String(localized: "Sul Mac · privati"), providers: local)
+                    group(String(localized: "Cloud · con il tuo abbonamento"), providers: cloud)
                 }
                 .padding(14)
             }
@@ -183,7 +183,7 @@ struct ModelPickerPanel: View {
         .padding(8)
         .background(selected ? Color.accentColor.opacity(0.09) : .clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(provider.name)\(selected ? ", scelto" : "")")
+        .accessibilityLabel("\(provider.name)\(selected ? String(localized: ", scelto") : "")")
     }
 
     /// Versioni e ragionamento del modello scelto.
@@ -193,7 +193,7 @@ struct ModelPickerPanel: View {
         let version = options.first { $0.id == current.model }
         if options.count > 1 {
             VStack(alignment: .leading, spacing: 6) {
-                Text(provider == .gemma ? "Versione scaricata" : "Versione").font(DS.Fonts.micro).foregroundStyle(.secondary)
+                Text(provider == .gemma ? String(localized: "Versione scaricata") : String(localized: "Versione")).font(DS.Fonts.micro).foregroundStyle(.secondary)
                 FlowLayout(spacing: 6) {
                     ForEach(options) { option in
                         let on = option.id == current.model
@@ -215,7 +215,7 @@ struct ModelPickerPanel: View {
         }
         if let version, !version.efforts.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                Text(provider == .gemma ? "Ragionamento prima di rispondere" : "Quanto ragiona").font(DS.Fonts.micro).foregroundStyle(.secondary)
+                Text(provider == .gemma ? String(localized: "Ragionamento prima di rispondere") : String(localized: "Quanto ragiona")).font(DS.Fonts.micro).foregroundStyle(.secondary)
                 Picker("Ragionamento", selection: Binding(
                     get: { current.effort ?? version.defaultEffort ?? version.efforts[0] },
                     set: { choose(ModelSelection(provider, model: version.id, effort: $0), true) })) {
@@ -234,8 +234,8 @@ struct ModelPickerPanel: View {
 
     private func effortHint(_ provider: ResponseProvider) -> String {
         provider == .gemma
-            ? "Acceso: risposte più accurate su problemi e codice, ma più lente."
-            : "Più ragionamento: risposte migliori su problemi difficili, ma più lente e con più consumo dell'abbonamento."
+            ? String(localized: "Acceso: risposte più accurate su problemi e codice, ma più lente.")
+            : String(localized: "Più ragionamento: risposte migliori su problemi difficili, ma più lente e con più consumo dell'abbonamento.")
     }
 }
 
@@ -248,14 +248,14 @@ extension AppState {
         case .apple, .ds4: return choice.provider.name
         case .gemma: return GemmaVariant.variant(choice.model ?? "")?.label ?? choice.provider.name
         case .chatgpt: return option?.label ?? choice.model ?? choice.provider.name
-        case .claude: return "Claude " + (option?.label ?? choice.model?.capitalized ?? "")
+        case .claude: return String(localized: "Claude ") + (option?.label ?? choice.model?.capitalized ?? "")
         }
     }
 
     /// Il ragionamento accanto al nome, solo quando c'è una scelta («Alto», «Ragiona» per Gemma).
     func effortBadge(for selection: ModelSelection) -> String? {
         let choice = resolved(selection)
-        if choice.provider == .gemma { return choice.effort == "on" ? "Ragiona" : nil }
+        if choice.provider == .gemma { return choice.effort == "on" ? String(localized: "Ragiona") : nil }
         return choice.effort.map(ModelCatalog.effortLabel)
     }
 
@@ -263,13 +263,13 @@ extension AppState {
     func pickerSubtitle(for provider: ResponseProvider, selection: ModelSelection?) -> String {
         let context = ContextBudget.of(provider).label
         switch provider {
-        case .apple: return "\(AppleResponseModel.onDeviceSummary) · gratis, niente esce dal Mac"
+        case .apple: return String(localized: "\(AppleResponseModel.onDeviceSummary) · gratis, niente esce dal Mac")
         case .gemma:
-            let name = selection.flatMap { GemmaVariant.variant(resolved($0).model ?? "")?.label } ?? GemmaVariant.variant(gemmaModel)?.label ?? "Gemma 4"
-            return "\(name) · \(context) · sul Mac"
-        case .ds4: return "\(context) · sul Mac"
+            let name = selection.flatMap { GemmaVariant.variant(resolved($0).model ?? "")?.label } ?? GemmaVariant.variant(gemmaModel)?.label ?? String(localized: "Gemma 4")
+            return String(localized: "\(name) · \(context) · sul Mac")
+        case .ds4: return String(localized: "\(context) · sul Mac")
         case .chatgpt, .claude:
-            let privacy = cloudPrivacy ? "dati personali anonimizzati sul Mac" : "dati in chiaro verso \(provider.company)"
+            let privacy = cloudPrivacy ? String(localized: "dati personali anonimizzati sul Mac") : String(localized: "dati in chiaro verso \(provider.company)")
             return "\(provider == .chatgpt ? "Codex" : "Claude Code") · \(context) · \(privacy)"
         }
     }
@@ -278,14 +278,14 @@ extension AppState {
     func pickerProblem(for provider: ResponseProvider) -> String? {
         switch provider {
         case .apple: return availabilityProblem
-        case .gemma: return models.downloadedVariants.isEmpty ? "Da scaricare in Impostazioni › Modelli" : nil
-        case .ds4: return models.ds4Installed ? nil : "Da installare in Impostazioni › Modelli"
+        case .gemma: return models.downloadedVariants.isEmpty ? String(localized: "Da scaricare in Impostazioni › Modelli") : nil
+        case .ds4: return models.ds4Installed ? nil : String(localized: "Da installare in Impostazioni › Modelli")
         case .chatgpt:
-            if !models.codexInstalled { return "Serve Codex: installalo in Impostazioni › Modelli" }
-            return models.codexLoggedIn ? nil : "Accedi con il tuo account ChatGPT in Impostazioni"
+            if !models.codexInstalled { return String(localized: "Serve Codex: installalo in Impostazioni › Modelli") }
+            return models.codexLoggedIn ? nil : String(localized: "Accedi con il tuo account ChatGPT in Impostazioni")
         case .claude:
-            if !models.claudeInstalled { return "Serve Claude Code: installalo in Impostazioni › Modelli" }
-            return models.claudeLoggedIn ? nil : "Accedi con il tuo account Claude in Impostazioni"
+            if !models.claudeInstalled { return String(localized: "Serve Claude Code: installalo in Impostazioni › Modelli") }
+            return models.claudeLoggedIn ? nil : String(localized: "Accedi con il tuo account Claude in Impostazioni")
         }
     }
 }

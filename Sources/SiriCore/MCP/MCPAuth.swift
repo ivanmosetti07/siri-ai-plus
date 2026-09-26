@@ -54,12 +54,14 @@ public enum MCPAuthError: LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .discovery: "Il server chiede l'accesso ma non indica come autorizzarsi (OAuth)."
-        case .registration(let m): "Il server non accetta la registrazione automatica di Siri AI+: \(m)"
-        case .cancelled: "Accesso annullato."
-        case .timeout: "Accesso non completato: il tempo è scaduto."
-        case .denied(let m): "Accesso negato: \(m)"
-        case .token(let m): "Non riesco a ottenere il token di accesso: \(m)"
+        case .discovery: Language.t("Il server chiede l'accesso ma non indica come autorizzarsi (OAuth).",
+                                    "The server asks for access but doesn't say how to authorize (OAuth).")
+        case .registration(let m): Language.t("Il server non accetta la registrazione automatica di Siri AI+: \(m)",
+                                              "The server doesn't accept automatic registration of Siri AI+: \(m)")
+        case .cancelled: Language.t("Accesso annullato.", "Sign-in cancelled.")
+        case .timeout: Language.t("Accesso non completato: il tempo è scaduto.", "Sign-in not completed: time ran out.")
+        case .denied(let m): Language.t("Accesso negato: \(m)", "Access denied: \(m)")
+        case .token(let m): Language.t("Non riesco a ottenere il token di accesso: \(m)", "I can't get the access token: \(m)")
         }
     }
 }
@@ -105,7 +107,7 @@ public enum MCPAuth {
 
         let callback = try await listener.waitForCallback(timeout: 300)
         if let error = callback["error"] { throw MCPAuthError.denied(callback["error_description"] ?? error) }
-        guard callback["state"] == state, let code = callback["code"] else { throw MCPAuthError.denied("risposta non valida") }
+        guard callback["state"] == state, let code = callback["code"] else { throw MCPAuthError.denied(Language.t("risposta non valida", "invalid response")) }
         return try await requestToken(endpoint: metadata.tokenEndpoint, clientID: clientID, resource: resource(for: serverURL), form: [
             "grant_type": "authorization_code", "code": code, "redirect_uri": redirect, "code_verifier": verifier,
         ])
@@ -114,7 +116,7 @@ public enum MCPAuth {
     /// Rinnova l'access token con il refresh token.
     public static func refresh(_ tokens: MCPTokens) async throws -> MCPTokens {
         guard let refreshToken = tokens.refreshToken, let endpoint = URL(string: tokens.tokenEndpoint) else {
-            throw MCPAuthError.token("manca il refresh token")
+            throw MCPAuthError.token(Language.t("manca il refresh token", "the refresh token is missing"))
         }
         var renewed = try await requestToken(endpoint: endpoint, clientID: tokens.clientID, resource: tokens.resource,
                                              form: ["grant_type": "refresh_token", "refresh_token": refreshToken])
@@ -184,7 +186,7 @@ public enum MCPAuth {
 
     private static func register(_ metadata: Metadata, redirect: String, name: String) async throws -> String {
         guard let endpoint = metadata.registrationEndpoint else {
-            throw MCPAuthError.registration("manca l'endpoint di registrazione")
+            throw MCPAuthError.registration(Language.t("manca l'endpoint di registrazione", "the registration endpoint is missing"))
         }
         var request = URLRequest(url: endpoint, timeoutInterval: 20)
         request.httpMethod = "POST"
@@ -244,6 +246,8 @@ final class LoopbackListener: @unchecked Sendable {
     private var received: [String: String]?
     private var ready: CheckedContinuation<UInt16, Error>?
     private let lock = NSLock()
+    /// Lingua della pagina mostrata nel browser: quella di chi avvia il login (la risposta arriva su un'altra coda).
+    private let english = Language.isEnglish
 
     init() throws {
         let parameters = NWParameters.tcp
@@ -315,12 +319,16 @@ final class LoopbackListener: @unchecked Sendable {
             var values: [String: String] = [:]
             for item in components.queryItems ?? [] { values[item.name] = item.value ?? "" }
             let ok = values["error"] == nil
+            let english = self?.english ?? false
+            let title = ok ? (english ? "Signed in" : "Accesso completato") : (english ? "Sign-in failed" : "Accesso non riuscito")
+            let hint = ok ? (english ? "You can close this page and go back to Siri AI+." : "Puoi chiudere questa pagina e tornare a Siri AI+.")
+                : (english ? "Go back to Siri AI+ and try again." : "Torna a Siri AI+ e riprova.")
             let html = """
-            <!doctype html><html lang="it"><meta charset="utf-8"><title>Siri AI+</title>
+            <!doctype html><html lang="\(english ? "en" : "it")"><meta charset="utf-8"><title>Siri AI+</title>
             <body style="font-family:-apple-system,system-ui;display:flex;align-items:center;justify-content:center;height:90vh;background:#f5f5f7;color:#1d1d1f">
             <div style="text-align:center"><div style="font-size:44px">\(ok ? "✓" : "✕")</div>
-            <h2>\(ok ? "Accesso completato" : "Accesso non riuscito")</h2>
-            <p>\(ok ? "Puoi chiudere questa pagina e tornare a Siri AI+." : "Torna a Siri AI+ e riprova.")</p></div></body></html>
+            <h2>\(title)</h2>
+            <p>\(hint)</p></div></body></html>
             """
             let body = Data(html.utf8)
             let head = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n"

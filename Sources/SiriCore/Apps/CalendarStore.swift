@@ -38,14 +38,14 @@ public struct EventDetail: Sendable, Equatable {
 
         public var label: String {
             switch self {
-            case .never: "Mai"
-            case .daily: "Ogni giorno"
-            case .weekdays: "Nei giorni feriali"
-            case .weekly: "Ogni settimana"
-            case .biweekly: "Ogni 2 settimane"
-            case .monthly: "Ogni mese"
-            case .yearly: "Ogni anno"
-            case .custom: "Personalizzata"
+            case .never: Language.t("Mai", "Never")
+            case .daily: Language.t("Ogni giorno", "Every Day")
+            case .weekdays: Language.t("Nei giorni feriali", "Every Weekday")
+            case .weekly: Language.t("Ogni settimana", "Every Week")
+            case .biweekly: Language.t("Ogni 2 settimane", "Every 2 Weeks")
+            case .monthly: Language.t("Ogni mese", "Every Month")
+            case .yearly: Language.t("Ogni anno", "Every Year")
+            case .custom: Language.t("Personalizzata", "Custom")
             }
         }
     }
@@ -56,16 +56,16 @@ public struct EventDetail: Sendable, Equatable {
 
         public var label: String {
             switch self {
-            case .none: "Nessuno"
-            case .atStart: "All'ora dell'evento"
-            case .five: "5 minuti prima"
-            case .ten: "10 minuti prima"
-            case .fifteen: "15 minuti prima"
-            case .thirty: "30 minuti prima"
-            case .hour: "1 ora prima"
-            case .twoHours: "2 ore prima"
-            case .day: "1 giorno prima"
-            case .twoDays: "2 giorni prima"
+            case .none: Language.t("Nessuno", "None")
+            case .atStart: Language.t("All'ora dell'evento", "At time of event")
+            case .five: Language.t("5 minuti prima", "5 minutes before")
+            case .ten: Language.t("10 minuti prima", "10 minutes before")
+            case .fifteen: Language.t("15 minuti prima", "15 minutes before")
+            case .thirty: Language.t("30 minuti prima", "30 minutes before")
+            case .hour: Language.t("1 ora prima", "1 hour before")
+            case .twoHours: Language.t("2 ore prima", "2 hours before")
+            case .day: Language.t("1 giorno prima", "1 day before")
+            case .twoDays: Language.t("2 giorni prima", "2 days before")
             }
         }
     }
@@ -111,7 +111,7 @@ public enum CalendarStore {
     public static func calendars() -> [CalendarInfo] {
         ek.calendars(for: .event)
             .map { CalendarInfo(id: $0.calendarIdentifier, title: $0.title, color: RGB($0.cgColor),
-                                account: $0.source?.title ?? "Altro", writable: $0.allowsContentModifications) }
+                                account: $0.source?.title ?? Language.t("Altro", "Other"), writable: $0.allowsContentModifications) }
             .sorted { ($0.account, $0.title) < ($1.account, $1.title) }
     }
 
@@ -137,7 +137,7 @@ public enum CalendarStore {
     static func item(_ event: EKEvent) -> CalendarEvent {
         let identifier = event.eventIdentifier ?? event.calendarItemIdentifier
         return CalendarEvent(id: identifier + "@\(event.startDate.timeIntervalSince1970)", identifier: identifier,
-                             title: event.title?.isEmpty == false ? event.title! : "Nuovo evento",
+                             title: event.title?.isEmpty == false ? event.title! : Language.t("Nuovo evento", "New Event"),
                              start: event.startDate, end: event.endDate, isAllDay: event.isAllDay,
                              calendarID: event.calendar.calendarIdentifier, calendarTitle: event.calendar.title,
                              color: RGB(event.calendar.cgColor),
@@ -229,17 +229,17 @@ public enum CalendarStore {
             event = EKEvent(eventStore: ek)
         } else {
             guard let existing = occurrence(identifier: detail.identifier, start: detail.occurrence) else {
-                throw storeError("L'evento non esiste più o è stato spostato.")
+                throw storeError(Language.t("L'evento non esiste più o è stato spostato.", "The event no longer exists or has been moved."))
             }
             event = existing
         }
         guard let calendar = ek.calendar(withIdentifier: detail.calendarID) ?? (detail.isNew ? ek.defaultCalendarForNewEvents : event.calendar),
               calendar.allowsContentModifications else {
-            throw storeError("Il calendario scelto è in sola lettura.")
+            throw storeError(Language.t("Il calendario scelto è in sola lettura.", "The chosen calendar is read-only."))
         }
-        if !detail.isNew, !event.calendar.allowsContentModifications { throw storeError("Il calendario «\(event.calendar.title)» è in sola lettura.") }
+        if !detail.isNew, !event.calendar.allowsContentModifications { throw storeError(Language.t("Il calendario «\(event.calendar.title)» è in sola lettura.", "The calendar “\(event.calendar.title)” is read-only.")) }
         event.calendar = calendar
-        event.title = detail.title.trimmingCharacters(in: .whitespaces).isEmpty ? "Nuovo evento" : detail.title
+        event.title = detail.title.trimmingCharacters(in: .whitespaces).isEmpty ? Language.t("Nuovo evento", "New Event") : detail.title
         event.location = detail.location.isEmpty ? nil : detail.location
         event.notes = detail.notes.isEmpty ? nil : detail.notes
         event.url = URL(string: detail.url.trimmingCharacters(in: .whitespaces)).flatMap { $0.scheme == nil ? URL(string: "https://" + $0.absoluteString) : $0 }
@@ -272,7 +272,7 @@ public enum CalendarStore {
 
     /// Sposta un evento (trascinato nella griglia) mantenendo tutto il resto.
     public static func move(identifier: String, start: Date, to newStart: Date, end newEnd: Date) throws {
-        guard var detail = detail(identifier: identifier, start: start) else { throw storeError("L'evento non esiste più.") }
+        guard var detail = detail(identifier: identifier, start: start) else { throw storeError(Language.t("L'evento non esiste più.", "The event no longer exists.")) }
         detail.start = newStart
         detail.end = newEnd
         try save(detail)
@@ -280,8 +280,8 @@ public enum CalendarStore {
 
     public static func delete(identifier: String, start: Date, futureEvents: Bool = false) throws {
         writeLock.lock(); defer { writeLock.unlock() }
-        guard let event = occurrence(identifier: identifier, start: start) else { throw storeError("L'evento non esiste più.") }
-        guard event.calendar.allowsContentModifications else { throw storeError("Il calendario «\(event.calendar.title)» è in sola lettura.") }
+        guard let event = occurrence(identifier: identifier, start: start) else { throw storeError(Language.t("L'evento non esiste più.", "The event no longer exists.")) }
+        guard event.calendar.allowsContentModifications else { throw storeError(Language.t("Il calendario «\(event.calendar.title)» è in sola lettura.", "The calendar “\(event.calendar.title)” is read-only.")) }
         try ek.remove(event, span: futureEvents ? .futureEvents : .thisEvent, commit: true)
         Hooks.didModify()
     }
@@ -289,10 +289,10 @@ public enum CalendarStore {
     /// Copia dell'evento, lo stesso giorno subito dopo (o nello stesso orario se è di tutto il giorno).
     @discardableResult
     public static func duplicate(identifier: String, start: Date) throws -> (identifier: String, start: Date) {
-        guard var copy = detail(identifier: identifier, start: start) else { throw storeError("L'evento non esiste più.") }
+        guard var copy = detail(identifier: identifier, start: start) else { throw storeError(Language.t("L'evento non esiste più.", "The event no longer exists.")) }
         copy.identifier = ""
         copy.repeatRule = copy.repeatRule == .custom ? .never : copy.repeatRule
-        copy.title += " (copia)"
+        copy.title += Language.t(" (copia)", " (copy)")
         return try save(copy)
     }
 

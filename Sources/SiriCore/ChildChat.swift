@@ -7,9 +7,11 @@ public enum ChildChat {
     public static func handoff(title: String, turns: [ChatTurn]) -> String {
         let recent = turns.suffix(8)
         let said = recent.filter { $0.role == .user }.suffix(4).map { "- " + $0.text.replacingOccurrences(of: "\n", with: " ").prefix(320) }
-        var text = "Chat madre «\(title)». Ivan ha detto:\n" + said.joined(separator: "\n")
+        let english = Language.isEnglish
+        var text = (english ? "Parent chat «\(title)». \(Assistant.userFirstName ?? "The user") said:\n"
+                            : "Chat madre «\(title)». \(Assistant.userFirstName ?? "L'utente") ha detto:\n") + said.joined(separator: "\n")
         if let reply = recent.last(where: { $0.role == .assistant }), !Assistant.soundsUnsure(reply.text) {
-            text += "\nUltima risposta: " + reply.text.replacingOccurrences(of: "\n", with: " ").prefix(240)
+            text += (english ? "\nLast reply: " : "\nUltima risposta: ") + reply.text.replacingOccurrences(of: "\n", with: " ").prefix(240)
         }
         return text
     }
@@ -21,7 +23,13 @@ public enum ChildChat {
         let verb = #"\b(?:torna(?:re|mo)?|riporta(?:lo|la|mi)?|manda(?:lo|la)?|invia(?:lo|la)?|rimanda(?:lo|la)?)\b"#
         if lower.range(of: verb + #".*\b(?:chat\s+madre|alla\s+madre|nella\s+madre)\b"#, options: .regularExpression) != nil { return true }
         let words = lower.split(separator: " ").count
-        return lower.range(of: #"^(?:ok[, ]+|va bene[, ]+)?(?:concludi|conclusa|chiudi|termina|finisci|abbiamo finito|ho finito)\b"#, options: .regularExpression) != nil
-            && (words <= 4 || lower.contains("chat") || lower.contains("figlia"))
+        if lower.range(of: #"^(?:ok[, ]+|va bene[, ]+)?(?:concludi|conclusa|chiudi|termina|finisci|abbiamo finito|ho finito)\b"#, options: .regularExpression) != nil
+            && (words <= 4 || lower.contains("chat") || lower.contains("figlia")) { return true }
+        guard Language.isEnglish else { return false }
+        // «Go back to the parent chat», «bring it back to the main chat», «wrap up», «we're done».
+        let englishVerb = #"\b(?:go(?:ing)? back|return|bring (?:it|this|them|everything) back|send (?:it|this) back|report back)\b"#
+        if lower.range(of: englishVerb + #".*\b(?:parent|main|original|mother)\s+(?:chat|conversation|thread)\b"#, options: .regularExpression) != nil { return true }
+        return lower.range(of: #"^(?:ok[, ]+|okay[, ]+|alright[, ]+)?(?:wrap (?:it )?up|conclude|close (?:it|this)|finish|we'?re done|i'?m done|that'?s all)\b"#, options: .regularExpression) != nil
+            && (words <= 4 || lower.contains("chat") || lower.contains("child"))
     }
 }

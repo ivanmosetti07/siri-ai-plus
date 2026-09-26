@@ -350,7 +350,7 @@ struct KeynoteEditor: View {
     }
 
     private func addSlide(_ layout: SlideLayout) {
-        let slide = Slide.make(layout, title: layout == .vuota ? "" : "Titolo", subtitle: "Sottotitolo", bullets: ["Primo punto", "Secondo punto"])
+        let slide = Slide.make(layout, title: layout == .vuota ? "" : String(localized: "Titolo"), subtitle: String(localized: "Sottotitolo"), bullets: [String(localized: "Primo punto"), String(localized: "Secondo punto")])
         let insertAt = min(index + 1, deck.slides.count)
         mutate { $0.slides.insert(slide, at: insertAt) }
         selectedSlide = insertAt
@@ -364,7 +364,7 @@ struct KeynoteEditor: View {
     }
 
     private func addText() {
-        addElement(SlideElement(kind: .text, x: 0.3, y: 0.4, width: 0.4, height: 0.14, text: "Testo", fontSize: 36))
+        addElement(SlideElement(kind: .text, x: 0.3, y: 0.4, width: 0.4, height: 0.14, text: String(localized: "Testo"), fontSize: 36))
     }
 
     private func addShape(_ shape: SlideElement.Shape) {

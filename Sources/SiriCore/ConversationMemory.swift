@@ -117,7 +117,7 @@ public enum ConversationMemory {
     /// Scambi come righe di testo («Ivan: …» / «Siri AI+: …»), per riformulazioni, riassunti e richiami.
     public static func lines(_ exchanges: [Exchange]) -> String {
         exchanges.map { exchange in
-            [exchange.user.isEmpty ? nil : "Ivan: \(exchange.user)", exchange.reply.isEmpty ? nil : "\(AppInfo.name): \(exchange.reply)"]
+            [exchange.user.isEmpty ? nil : "\(Assistant.userFirstName ?? Language.t("Utente", "User")): \(exchange.user)", exchange.reply.isEmpty ? nil : "\(AppInfo.name): \(exchange.reply)"]
                 .compactMap { $0 }.joined(separator: "\n")
         }.joined(separator: "\n")
     }
