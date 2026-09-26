@@ -173,7 +173,8 @@ extension GeneratedContent {
 // MARK: - Date
 
 public enum Dates {
-    public static let locale = Locale(identifier: "it_IT")
+    /// Formati di date e numeri nella lingua della richiesta in corso (fuori da una richiesta, quella del Mac).
+    public static var locale: Locale { Language.current.locale }
 
     private static func formatter(_ format: String) -> DateFormatter {
         let f = DateFormatter()
@@ -195,20 +196,22 @@ public enum Dates {
         return nil
     }
 
-    /// Data per le persone: «oggi alle 18:00», «domani alle 9:30», «mar 22 set alle 18:00».
+    /// Data per le persone: «oggi alle 18:00», «domani alle 9:30», «mar 22 set alle 18:00»;
+    /// in inglese «today at 6:00 PM», «tomorrow at 9:30 AM», «Tue, Sep 22 at 6:00 PM».
     public static func friendly(_ date: Date, time: Bool = true) -> String {
         let cal = Calendar.current
+        let locale = Self.locale
         let clock = date.formatted(.dateTime.hour().minute().locale(locale))
         let day: String
-        if cal.isDateInToday(date) { day = "oggi" }
-        else if cal.isDateInTomorrow(date) { day = "domani" }
-        else if cal.isDateInYesterday(date) { day = "ieri" }
+        if cal.isDateInToday(date) { day = Language.t("oggi", "today") }
+        else if cal.isDateInTomorrow(date) { day = Language.t("domani", "tomorrow") }
+        else if cal.isDateInYesterday(date) { day = Language.t("ieri", "yesterday") }
         else {
             let sameYear = cal.component(.year, from: date) == cal.component(.year, from: .now)
             day = sameYear ? date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).locale(locale))
                            : date.formatted(.dateTime.day().month(.abbreviated).year().locale(locale))
         }
-        return time ? "\(day) alle \(clock)" : day
+        return time ? "\(day) \(Language.t("alle", "at")) \(clock)" : day
     }
 
     public static func format(_ date: Date, time: Bool = true) -> String {
@@ -219,15 +222,17 @@ public enum Dates {
     }
 
     /// Mini-calendario dei prossimi giorni: aiuta il modello piccolo a risolvere "domani", "venerdì"…
+    /// In inglese «- Saturday 2026-09-26 (today)».
     public static func upcomingDays(_ count: Int = 8) -> String {
         let cal = Calendar.current
         let today = cal.startOfDay(for: .now)
         let f = DateFormatter()
         f.locale = locale
         f.dateFormat = "EEEE yyyy-MM-dd"
+        let (todayLabel, tomorrowLabel) = (Language.t(" (oggi)", " (today)"), Language.t(" (domani)", " (tomorrow)"))
         return (0..<count).compactMap { offset in
             guard let d = cal.date(byAdding: .day, value: offset, to: today) else { return nil }
-            let label = offset == 0 ? " (oggi)" : offset == 1 ? " (domani)" : ""
+            let label = offset == 0 ? todayLabel : offset == 1 ? tomorrowLabel : ""
             return "- \(f.string(from: d))\(label)"
         }.joined(separator: "\n")
     }
