@@ -4,7 +4,7 @@ import Foundation
 public enum CodeMode: String, Codable, Sendable, CaseIterable, Identifiable {
     case plan, edit
     public var id: String { rawValue }
-    public var label: String { self == .plan ? "Chiedi prima" : "Modifica" }
+    public var label: String { self == .plan ? Language.t("Chiedi prima", "Ask first") : Language.t("Modifica", "Edit") }
 }
 
 public struct CodeTodo: Codable, Sendable, Equatable {
@@ -42,11 +42,27 @@ public enum CodeAgent {
 
     /// La richiesta dice che qualcosa non va («non funziona», «c'è un errore», «sistema»…).
     public static func mentionsProblem(_ prompt: String) -> Bool {
-        prompt.lowercased().range(of: #"non (?:funziona|va\b|parte|si (?:apre|vede|muove|carica|avvia))|errore|errori|\bbug|rott[oa]\b|\bsistema\b|correggi|si blocca|crash|(?:schermata|pagina) bianca|problema"#,
-                                  options: .regularExpression) != nil
+        let text = prompt.lowercased()
+        if text.range(of: #"non (?:funziona|va\b|parte|si (?:apre|vede|muove|carica|avvia))|errore|errori|\bbug|rott[oa]\b|\bsistema\b|correggi|si blocca|crash|(?:schermata|pagina) bianca|problema"#,
+                      options: .regularExpression) != nil { return true }
+        // In inglese anche le frasi inglesi («doesn't work», «there's an error», «blank page», «it freezes»…).
+        return Language.isEnglish && text.range(of: englishProblem, options: .regularExpression) != nil
     }
 
-    static let planPreamble = "Modalità «chiedi prima»: non modificare nessun file e non eseguire comandi che cambiano qualcosa. Studia il progetto e proponi un piano chiaro, a punti, di cosa faresti e quali file toccheresti. Rispondi in italiano.\n\n"
+    private static let englishProblem = #"\b(?:doesn|don|isn|aren|won|can|didn)[’']?t\s+(?:seem\s+to\s+|really\s+|even\s+)?(?:work|load|start|open|run|show|display|appear|respond|move|build|compile)"#
+        + #"|\b(?:does|do|is|are|will|can|did)\s+not\s+(?:work|load|start|open|run|show|display|appear|respond|move|build|compile)"#
+        + #"|\bnot\s+(?:working|loading|showing|starting|opening|responding|displaying)|\bstopped\s+working|\berrors?\b|\bbugs?\b|\bbuggy\b|\bbroken\b"#
+        + #"|\bfix\b|\bcrash|\bfail(?:s|ed|ing)?\b|(?:blank|white|empty)\s+(?:page|screen)|\bproblems?\b|\bissues?\b|\bwrong\b"#
+        + #"|\bfreez(?:e|es|ing)\b|\bfrozen\b|\bstuck\b|\bhangs?\b|\bnothing\s+(?:happens|shows|appears)"#
+
+    /// Preambolo della modalità «chiedi prima» per Codex e Claude Code.
+    static var planPreamble: String {
+        Language.t("Modalità «chiedi prima»: non modificare nessun file e non eseguire comandi che cambiano qualcosa. Studia il progetto e proponi un piano chiaro, a punti, di cosa faresti e quali file toccheresti. Rispondi in italiano.\n\n",
+                   "“Ask first” mode: don't change any file and don't run commands that change anything. Study the project and propose a clear plan, in bullet points, of what you would do and which files you would touch. Answer in English.\n\n")
+    }
+
+    /// La richiesta fermata da chi l'ha avviata.
+    static var interrupted: String { Language.t("Richiesta interrotta.", "Request cancelled.") }
 
     /// Chi lavora sul progetto: la CLI di ChatGPT (Codex), quella di Claude (Claude Code), oppure l'agente dell'app
     /// con un modello sul Mac (Apple Intelligence, Gemma, ds4).
@@ -66,7 +82,7 @@ public enum CodeAgent {
             switch self {
             case .codex: "Codex"
             case .claude: "Claude Code"
-            case .local: "Agente di Siri AI+"
+            case .local: Language.t("Agente di Siri AI+", "Siri AI+ agent")
             }
         }
     }
@@ -110,9 +126,23 @@ public enum CodeAgent {
     public static func run(selection: ModelSelection, mode: CodeMode, folder: URL, prompt: String, resume: String?,
                            local: LocalCodeAgent.Model? = nil, history: [ChatTurn] = [], checkPage: PageChecker? = nil,
                            onEvent: @escaping @Sendable (CodeEvent) -> Void) async -> Outcome {
+        // La chat di programmazione risponde nella lingua in cui si scrive, se chi la avvia non l'ha già scelta.
+        guard Language.scoped == nil else {
+            return await perform(selection: selection, mode: mode, folder: folder, prompt: prompt, resume: resume,
+                                 local: local, history: history, checkPage: checkPage, onEvent: onEvent)
+        }
+        return await Language.$scoped.withValue(Language.detect(prompt, fallback: .system)) {
+            await perform(selection: selection, mode: mode, folder: folder, prompt: prompt, resume: resume,
+                          local: local, history: history, checkPage: checkPage, onEvent: onEvent)
+        }
+    }
+
+    private static func perform(selection: ModelSelection, mode: CodeMode, folder: URL, prompt: String, resume: String?,
+                                local: LocalCodeAgent.Model?, history: [ChatTurn], checkPage: PageChecker?,
+                                onEvent: @escaping @Sendable (CodeEvent) -> Void) async -> Outcome {
         let engine = Engine(selection.provider)
         if engine == .local {
-            guard let local else { return Outcome(ok: false, error: "\(selection.provider.name) non è pronto.") }
+            guard let local else { return Outcome(ok: false, error: Language.t("\(selection.provider.name) non è pronto.", "\(selection.provider.name) isn't ready.")) }
             return await LocalCodeAgent.run(model: local, mode: mode, folder: folder, prompt: prompt, history: history,
                                             checkPage: checkPage, onEvent: onEvent)
         }
@@ -125,15 +155,18 @@ public enum CodeAgent {
             for event in parser.parse(line) { onEvent(event) }
         }
         let session = parser.sessionID
-        if Task.isCancelled { return Outcome(sessionID: session, ok: false, error: "Richiesta interrotta.") }
+        if Task.isCancelled { return Outcome(sessionID: session, ok: false, error: interrupted) }
         if result.status == 0, parser.sawResult || engine == .codex { return Outcome(sessionID: session, ok: !parser.failed, error: parser.errorText) }
         if engine == .claude {
             let problem = ClaudeCLI.problem(in: (parser.errorText.map { $0 + "\n" } ?? "") + result.output.suffix(400))
             return Outcome(sessionID: session, ok: false, error: problem.localizedDescription)
         }
         var message = parser.errorText ?? String(result.output.suffix(400))
-        if result.output.contains("command not found") { message = "Codex non è installato: installalo in Impostazioni › Modelli." }
-        else if result.output.lowercased().contains("login") || result.output.contains("401") { message = "Serve l'accesso a ChatGPT: accedi in Impostazioni › Modelli." }
+        if result.output.contains("command not found") {
+            message = Language.t("Codex non è installato: installalo in Impostazioni › Modelli.", "Codex isn't installed: install it in Settings › Models.")
+        } else if result.output.lowercased().contains("login") || result.output.contains("401") {
+            message = Language.t("Serve l'accesso a ChatGPT: accedi in Impostazioni › Modelli.", "You need to sign in to ChatGPT: sign in from Settings › Models.")
+        }
         return Outcome(sessionID: session, ok: false, error: message)
     }
 }
@@ -142,6 +175,8 @@ public enum CodeAgent {
 public final class CodeStreamParser: @unchecked Sendable {
     private let lock = NSLock()
     private let engine: CodeAgent.Engine
+    /// Lingua della richiesta: le righe arrivano dalla shell, fuori dal suo ambito.
+    private let language: Language
     private var _session: String?
     private var _sawResult = false
     private var _failed = false
@@ -152,7 +187,7 @@ public final class CodeStreamParser: @unchecked Sendable {
     private var todos: [CodeTodo] = []
     private var todoNumbers: [String: Int] = [:]
 
-    public init(engine: CodeAgent.Engine = .codex) { self.engine = engine }
+    public init(engine: CodeAgent.Engine = .codex, language: Language = .current) { self.engine = engine; self.language = language }
 
     public var sessionID: String? { lock.withLock { _session } }
     var sawResult: Bool { lock.withLock { _sawResult } }
@@ -161,19 +196,28 @@ public final class CodeStreamParser: @unchecked Sendable {
 
     public func parse(_ line: String) -> [CodeEvent] {
         guard let json = try? JSONValue.parse(Data(line.utf8)) else { return [] }
-        return lock.withLock { engine == .claude ? claude(json) : codex(json) }
+        return Language.$scoped.withValue(language) { lock.withLock { engine == .claude ? claude(json) : codex(json) } }
     }
+
+    /// Fine del lavoro: la chat lo nasconde (lo sostituisce il riepilogo dei file), per questo resta uguale in ogni lingua.
+    static let done = "Fatto"
+    static var todoTitle: String { Language.t("Lista delle cose da fare", "To-do list") }
+    static var created: String { Language.t("Crea", "Create") }
+    static var edited: String { Language.t("Modifica", "Edit") }
+    /// Claude Code sta scrivendo un file: quando finisce si sa se l'ha creato o modificato.
+    static var writing: String { Language.t("Scrive", "Write") }
+    static var webSearch: String { Language.t("Cerca sul web: ", "Web search: ") }
 
     // MARK: Codex
 
     private func codex(_ json: JSONValue) -> [CodeEvent] {
         let type = json["type"]?.string ?? ""
         if type == "thread.started", let id = json["thread_id"]?.string { _session = id; return [] }
-        if type == "turn.completed" { _sawResult = true; return [CodeEvent(kind: .result, text: "Fatto")] }
+        if type == "turn.completed" { _sawResult = true; return [CodeEvent(kind: .result, text: Self.done)] }
         if type == "turn.failed" || type == "error" {
             _sawResult = type == "turn.failed"
             _failed = true
-            let message = json["error"]?["message"]?.string ?? json["message"]?.string ?? "Errore"
+            let message = json["error"]?["message"]?.string ?? json["message"]?.string ?? Language.t("Errore", "Error")
             _error = message
             return [CodeEvent(kind: .error, text: message, status: .failed)]
         }
@@ -195,19 +239,20 @@ public final class CodeStreamParser: @unchecked Sendable {
         case "file_change":
             return (item["changes"]?.array ?? []).enumerated().map { index, change in
                 let kind = change["kind"]?.string ?? "update"
-                return CodeEvent(key: (key ?? "") + "-\(index)", kind: .file, text: kind == "add" ? "Crea" : kind == "delete" ? "Elimina" : "Modifica",
+                return CodeEvent(key: (key ?? "") + "-\(index)", kind: .file,
+                                 text: kind == "add" ? Self.created : kind == "delete" ? Language.t("Elimina", "Delete") : Self.edited,
                                  status: status, path: change["path"]?.string)
             }
         case "todo_list":
             let todos = (item["items"]?.array ?? []).map { CodeTodo(text: $0["text"]?.string ?? "", done: $0["completed"] == .bool(true)) }
-            return [CodeEvent(key: key, kind: .todo, text: "Lista delle cose da fare", todos: todos)]
+            return [CodeEvent(key: key, kind: .todo, text: Self.todoTitle, todos: todos)]
         case "mcp_tool_call":
             return [CodeEvent(key: key, kind: .tool, text: "\(item["server"]?.string ?? "") · \(item["tool"]?.string ?? "")", status: status)]
         case "web_search":
-            return [CodeEvent(key: key, kind: .tool, text: "Cerca sul web: \(item["query"]?.string ?? "")", status: status)]
+            return [CodeEvent(key: key, kind: .tool, text: Self.webSearch + (item["query"]?.string ?? ""), status: status)]
         case "error":
             // Avvisi di configurazione del motore: non sono errori del lavoro.
-            let message = item["message"]?.string ?? "Errore"
+            let message = item["message"]?.string ?? Language.t("Errore", "Error")
             if ["Under-development features", "Skill descriptions were shortened", "suppress_unstable_features_warning"].contains(where: message.contains) { return [] }
             return [CodeEvent(key: key, kind: .error, text: message, status: .failed)]
         default:
@@ -247,17 +292,18 @@ public final class CodeStreamParser: @unchecked Sendable {
             _sawResult = true
             if json["is_error"] == .bool(true) || json["subtype"]?.string != "success" {
                 _failed = true
-                let message = json["result"]?.string ?? json["subtype"]?.string ?? "Errore"
+                let message = json["result"]?.string ?? json["subtype"]?.string ?? Language.t("Errore", "Error")
                 _error = message
                 return [CodeEvent(kind: .error, text: message, status: .failed)]
             }
             // Comandi che richiedevano un permesso (fuori dal recinto, rete…): negati, e l'utente deve saperlo.
             let denied = (json["permission_denials"]?.array ?? []).map { denial -> String in
                 let input = denial["tool_input"]
-                return input?["command"]?.string ?? input?["file_path"]?.string ?? denial["tool_name"]?.string ?? "azione"
+                return input?["command"]?.string ?? input?["file_path"]?.string ?? denial["tool_name"]?.string ?? Language.t("azione", "action")
             }
-            var events = denied.isEmpty ? [] : [CodeEvent(kind: .error, text: "Non consentito senza il tuo permesso: " + denied.prefix(4).joined(separator: " · "), status: .failed)]
-            events.append(CodeEvent(kind: .result, text: "Fatto"))
+            var events = denied.isEmpty ? [] : [CodeEvent(kind: .error, text: Language.t("Non consentito senza il tuo permesso: ", "Not allowed without your permission: ")
+                                                          + denied.prefix(4).joined(separator: " · "), status: .failed)]
+            events.append(CodeEvent(kind: .result, text: Self.done))
             return events
         default:
             return []
@@ -273,33 +319,35 @@ public final class CodeStreamParser: @unchecked Sendable {
         case "Bash":
             event = CodeEvent(key: id, kind: .command, text: input["command"]?.string ?? "", status: .running)
         case "Write":
-            event = CodeEvent(key: id, kind: .file, text: "Scrive", status: .running, path: input["file_path"]?.string)
+            event = CodeEvent(key: id, kind: .file, text: Self.writing, status: .running, path: input["file_path"]?.string)
         case "Edit", "MultiEdit":
-            event = CodeEvent(key: id, kind: .file, text: "Modifica", status: .running, path: input["file_path"]?.string)
+            event = CodeEvent(key: id, kind: .file, text: Self.edited, status: .running, path: input["file_path"]?.string)
         case "NotebookEdit":
-            event = CodeEvent(key: id, kind: .file, text: "Modifica", status: .running, path: input["notebook_path"]?.string)
+            event = CodeEvent(key: id, kind: .file, text: Self.edited, status: .running, path: input["notebook_path"]?.string)
         case "Read":
-            event = CodeEvent(key: id, kind: .tool, text: "Legge " + ((input["file_path"]?.string).map { URL(fileURLWithPath: $0).lastPathComponent } ?? "un file"), status: .running)
+            event = CodeEvent(key: id, kind: .tool, text: Language.t("Legge ", "Read ")
+                              + ((input["file_path"]?.string).map { URL(fileURLWithPath: $0).lastPathComponent } ?? Language.t("un file", "a file")), status: .running)
         case "Glob", "Grep":
-            event = CodeEvent(key: id, kind: .tool, text: "Cerca: " + (input["pattern"]?.string ?? ""), status: .running)
+            event = CodeEvent(key: id, kind: .tool, text: Language.t("Cerca: ", "Search: ") + (input["pattern"]?.string ?? ""), status: .running)
         case "WebSearch":
-            event = CodeEvent(key: id, kind: .tool, text: "Cerca sul web: " + (input["query"]?.string ?? ""), status: .running)
+            event = CodeEvent(key: id, kind: .tool, text: Self.webSearch + (input["query"]?.string ?? ""), status: .running)
         case "WebFetch":
-            event = CodeEvent(key: id, kind: .tool, text: "Apre " + (input["url"]?.string ?? "una pagina"), status: .running)
+            event = CodeEvent(key: id, kind: .tool, text: Language.t("Apre ", "Open ") + (input["url"]?.string ?? Language.t("una pagina", "a page")), status: .running)
         case "Task", "Agent":
-            event = CodeEvent(key: id, kind: .tool, text: "Sub-agente: " + (input["description"]?.string ?? "lavoro in parallelo"), status: .running)
+            event = CodeEvent(key: id, kind: .tool, text: Language.t("Sub-agente: ", "Sub-agent: ")
+                              + (input["description"]?.string ?? Language.t("lavoro in parallelo", "parallel work")), status: .running)
         case "TodoWrite":
             todos = (input["todos"]?.array ?? []).map { CodeTodo(text: $0["content"]?.string ?? "", done: $0["status"]?.string == "completed") }
-            return [CodeEvent(kind: .todo, text: "Lista delle cose da fare", todos: todos)]
+            return [CodeEvent(kind: .todo, text: Self.todoTitle, todos: todos)]
         case "TaskCreate":
-            todos.append(CodeTodo(text: input["subject"]?.string ?? input["description"]?.string ?? "Attività", done: false))
+            todos.append(CodeTodo(text: input["subject"]?.string ?? input["description"]?.string ?? Language.t("Attività", "Task"), done: false))
             pending[id] = CodeEvent(kind: .todo, text: "\(todos.count - 1)")
-            return [CodeEvent(kind: .todo, text: "Lista delle cose da fare", todos: todos)]
+            return [CodeEvent(kind: .todo, text: Self.todoTitle, todos: todos)]
         case "TaskUpdate":
             if let number = input["taskId"]?.string ?? input["taskId"]?.number.map({ String(Int($0)) }), let index = todoNumbers[number], todos.indices.contains(index) {
                 if let status = input["status"]?.string { todos[index].done = status == "completed" }
                 if let subject = input["subject"]?.string { todos[index].text = subject }
-                return [CodeEvent(kind: .todo, text: "Lista delle cose da fare", todos: todos)]
+                return [CodeEvent(kind: .todo, text: Self.todoTitle, todos: todos)]
             }
             return []
         case "ToolSearch", "Skill", "TaskGet", "TaskList", "TaskStop", "TaskOutput":
@@ -329,7 +377,7 @@ public final class CodeStreamParser: @unchecked Sendable {
         event.status = block["is_error"] == .bool(true) ? .failed : .ok
         switch event.kind {
         case .command: event.detail = String(output.suffix(4000))
-        case .file where event.text == "Scrive": event.text = output.lowercased().contains("created") ? "Crea" : "Modifica"
+        case .file where event.text == Self.writing: event.text = output.lowercased().contains("created") ? Self.created : Self.edited
         default: break
         }
         return event
