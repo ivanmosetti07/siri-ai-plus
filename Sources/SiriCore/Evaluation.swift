@@ -303,16 +303,19 @@ public enum Evaluation {
                 assistant.work.images = provider == .apple ? [url] : []
             }
             for turn in test.turns {
-                let outcome = await assistant.handle(turn, enabled: enabled, picked: []) { _ in }
-                action = assistant.lastAction?.rawValue ?? ""
-                answer = await assistant.headlessAnswer(for: outcome, request: turn, enabled: enabled, provider: provider)
-                assistant.record(user: turn, reply: answer.text)
-                if test.turns.count > 1, turn != test.turns.last {
-                    Agent.log("VALUTAZIONE \(test.id) turno: \(turn.prefix(80)) ⟶ \(answer.outcome) · \(answer.text.prefix(160).replacingOccurrences(of: "\n", with: " ¶ "))")
-                }
-                // Come nell'app dopo ogni risposta: con Apple Intelligence la chat si compatta oltre il 75% della finestra.
-                if provider == .apple, let compaction = await assistant.compactIfNeeded() {
-                    Agent.log("VALUTAZIONE \(test.id): compattata dal \(Int(compaction.before * 100))% al \(Int(compaction.after * 100))%")
+                // Come nell'app: ogni turno nella lingua in cui è scritto (regole, risposta, compattazione).
+                await Language.$scoped.withValue(assistant.language(for: turn)) {
+                    let outcome = await assistant.handle(turn, enabled: enabled, picked: []) { _ in }
+                    action = assistant.lastAction?.rawValue ?? ""
+                    answer = await assistant.headlessAnswer(for: outcome, request: turn, enabled: enabled, provider: provider)
+                    assistant.record(user: turn, reply: answer.text)
+                    if test.turns.count > 1, turn != test.turns.last {
+                        Agent.log("VALUTAZIONE \(test.id) turno: \(turn.prefix(80)) ⟶ \(answer.outcome) · \(answer.text.prefix(160).replacingOccurrences(of: "\n", with: " ¶ "))")
+                    }
+                    // Come nell'app dopo ogni risposta: con Apple Intelligence la chat si compatta oltre il 75% della finestra.
+                    if provider == .apple, let compaction = await assistant.compactIfNeeded() {
+                        Agent.log("VALUTAZIONE \(test.id): compattata dal \(Int(compaction.before * 100))% al \(Int(compaction.after * 100))%")
+                    }
                 }
             }
             let seconds = Date.now.timeIntervalSince(started)

@@ -271,6 +271,14 @@ public final class Assistant {
     public var routesTools = ProcessInfo.processInfo.environment["SIRIAI_NO_ROUTER"] != "1"
     /// Lo smistatore della prossima richiesta, con il catalogo già letto.
     var preparedRouter: (instructions: String, session: LanguageModelSession)?
+    /// Lingua della conversazione: vale per i messaggi brevi o incerti («ok», «il secondo»).
+    public var language: Language = .system
+
+    /// Lingua di una nuova richiesta, riconosciuta dal testo (con quella della conversazione come riserva).
+    public func language(for prompt: String) -> Language {
+        language = Language.detect(prompt, fallback: language)
+        return language
+    }
 
     /// Tipo della risposta in corso (fatti, confronto, procedura, testo creativo…): temperatura e formato.
     public internal(set) var responseStyle = ResponseStyle.conversation
@@ -376,7 +384,16 @@ public final class Assistant {
     ///   - status: aggiornamenti per l'interfaccia ("Scrivo il documento…").
     public func handle(_ rawPrompt: String, enabled: Set<SourceKind>, picked: Set<SourceKind>,
                        status: @escaping @MainActor (String) -> Void) async -> Outcome {
-        status("Capisco la richiesta…")
+        // Chi avvia la richiesta (app, valutazioni) ha già scelto la lingua; i sub-agent ereditano quella della richiesta.
+        if Language.scoped != nil { return await handleRequest(rawPrompt, enabled: enabled, picked: picked, status: status) }
+        return await Language.$scoped.withValue(language(for: rawPrompt)) {
+            await handleRequest(rawPrompt, enabled: enabled, picked: picked, status: status)
+        }
+    }
+
+    private func handleRequest(_ rawPrompt: String, enabled: Set<SourceKind>, picked: Set<SourceKind>,
+                               status: @escaping @MainActor (String) -> Void) async -> Outcome {
+        status(Language.t("Capisco la richiesta…", "Understanding your request…"))
         answeredFromMemory = false
         beginRequest(rawPrompt)
         // Risposta a una domanda di prima: "la seconda" (quale evento, promemoria o nota) o il testo della risposta a un'email.

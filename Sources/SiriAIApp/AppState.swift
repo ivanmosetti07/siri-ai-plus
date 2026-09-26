@@ -1615,40 +1615,49 @@ final class AppState {
             await syncWorkContext(files: files, prompt: prompt)
             assistant.updateScreen()
             guard !Task.isCancelled else { finishResponse(); return }
-            // Calendari, liste e posta dello spazio valgono per tutta la richiesta (anche per i sub-agent); con ChatGPT e
-            // Claude anche lo scudo della chat: tutto si anonimizza sul Mac prima di partire, e le risposte tornano leggibili.
-            let shield = privacyShield(for: conversation, provider: responseSelection?.provider ?? .apple)
-            await PrivacyShield.$current.withValue(shield) {
-                await SpaceScope.$task.withValue(scope) {
-                    await respond(to: prompt, sources: sources, files: files, plan: plan)
-                }
+            // Si risponde nella lingua in cui si scrive: vale per tutta la richiesta (regole, sub-agent, risposta, memoria).
+            await Language.$scoped.withValue(assistant.language(for: prompt)) {
+                await finishRun(prompt, conversation: conversation, sources: sources, files: files, plan: plan, scope: scope)
             }
-            conversation.messages.removeAll { if case .thinking = $0.content { true } else { false } }
-            if let report = shield?.takeReport() {
-                conversation.messages.append(Message(content: .privacy(report)))
-                Agent.log("ANONIMIZZAZIONE: \(report.total) dati verso \(report.destination) (\(report.summary))")
-            }
-            if shield != nil { scheduleEngineRelease() }
-            // Se nel frattempo è stata aperta un'altra chat, la sessione del modello non è più di questa conversazione.
-            let stillOpen = conversation.id == assistantConversationID && !Task.isCancelled
-            if stillOpen { recordLastTurn(prompt) }
-            // Preferenze dette in chat ("preferisco…", "d'ora in poi…"): si salvano nella memoria, con un avviso discreto.
-            if stillOpen, MemoryStore.shared.enabled, Assistant.mayContainMemory(prompt) {
-                for fact in await assistant.memoryWorthy(prompt) where MemoryStore.shared.add(fact, source: "chat") {
-                    conversation.messages.append(Message(content: .notice("Ricordato: «\(fact)». Puoi modificarlo in Attività › Memoria.")))
-                    memoryRevision += 1
-                }
-            }
-            if stillOpen, let pending = pendingChat {
-                pendingChat = nil
-                finishResponse()
-                openRequestedChat(pending.request, project: pending.project)
-                return
-            }
-            pendingChat = nil
-            if stillOpen { await PrivacyShield.$current.withValue(shield) { await compactIfNeeded() } }
-            finishResponse()
         }
+    }
+
+    /// Il resto di `run`, nella lingua della richiesta.
+    private func finishRun(_ prompt: String, conversation: Conversation, sources: Set<SourceKind>, files: [Attachment],
+                           plan: Bool, scope: SpaceScope) async {
+        // Calendari, liste e posta dello spazio valgono per tutta la richiesta (anche per i sub-agent); con ChatGPT e
+        // Claude anche lo scudo della chat: tutto si anonimizza sul Mac prima di partire, e le risposte tornano leggibili.
+        let shield = privacyShield(for: conversation, provider: responseSelection?.provider ?? .apple)
+        await PrivacyShield.$current.withValue(shield) {
+            await SpaceScope.$task.withValue(scope) {
+                await respond(to: prompt, sources: sources, files: files, plan: plan)
+            }
+        }
+        conversation.messages.removeAll { if case .thinking = $0.content { true } else { false } }
+        if let report = shield?.takeReport() {
+            conversation.messages.append(Message(content: .privacy(report)))
+            Agent.log("ANONIMIZZAZIONE: \(report.total) dati verso \(report.destination) (\(report.summary))")
+        }
+        if shield != nil { scheduleEngineRelease() }
+        // Se nel frattempo è stata aperta un'altra chat, la sessione del modello non è più di questa conversazione.
+        let stillOpen = conversation.id == assistantConversationID && !Task.isCancelled
+        if stillOpen { recordLastTurn(prompt) }
+        // Preferenze dette in chat ("preferisco…", "d'ora in poi…"): si salvano nella memoria, con un avviso discreto.
+        if stillOpen, MemoryStore.shared.enabled, Assistant.mayContainMemory(prompt) {
+            for fact in await assistant.memoryWorthy(prompt) where MemoryStore.shared.add(fact, source: "chat") {
+                conversation.messages.append(Message(content: .notice("Ricordato: «\(fact)». Puoi modificarlo in Attività › Memoria.")))
+                memoryRevision += 1
+            }
+        }
+        if stillOpen, let pending = pendingChat {
+            pendingChat = nil
+            finishResponse()
+            openRequestedChat(pending.request, project: pending.project)
+            return
+        }
+        pendingChat = nil
+        if stillOpen { await PrivacyShield.$current.withValue(shield) { await compactIfNeeded() } }
+        finishResponse()
     }
 
     private func finishResponse() {
