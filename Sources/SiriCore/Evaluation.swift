@@ -418,8 +418,15 @@ public enum Evaluation {
         }
     }
 
-    /// Motivi per cui la risposta non va bene (vuoto = superata).
+    /// Motivi per cui la risposta non va bene (vuoto = superata). Minuscole, mesi e giorni dei segnaposto nella lingua della domanda:
+    /// un banco in inglese si aspetta «November» e «Friday», non «novembre» e «venerdì».
     public static func check(_ answer: String, test: EvalCase, outcome: String, usedWeb: Bool, now: Date = .now) -> [String] {
+        Language.$scoped.withValue(Language.detect(test.turns.joined(separator: "\n"), fallback: .it)) {
+            failures(answer, test: test, outcome: outcome, usedWeb: usedWeb, now: now)
+        }
+    }
+
+    private static func failures(_ answer: String, test: EvalCase, outcome: String, usedWeb: Bool, now: Date) -> [String] {
         let text = normalize(answer)
         var failures: [String] = []
         for pattern in test.expected where !matches(text, expand(pattern, now: now)) { failures.append("manca /\(pattern)/") }
@@ -455,6 +462,7 @@ public enum Evaluation {
     }
 
     /// Segnaposto per le date relative: `{{data:+45:d MMMM}}` (oggi + 45 giorni), `{{giorni:12-25}}` (giorni che mancano).
+    /// Mesi e giorni nella lingua in uso; in inglese "d MMMM" vale in tutti e due gli ordini ("7 November", "November 7").
     static func expand(_ pattern: String, now: Date) -> String {
         guard let regex = try? NSRegularExpression(pattern: #"\{\{(data|giorni):([^}]*)\}\}"#) else { return pattern }
         var result = pattern
@@ -464,7 +472,7 @@ public enum Evaluation {
             guard let whole = Range(match.range, in: pattern), let kindRange = Range(match.range(at: 1), in: pattern),
                   let argRange = Range(match.range(at: 2), in: pattern) else { continue }
             let arg = String(pattern[argRange])
-            var value = ""
+            var values: [String] = []
             if pattern[kindRange] == "data" {
                 let parts = arg.split(separator: ":", maxSplits: 1).map(String.init)
                 let offset = Int(parts.first ?? "0") ?? 0
@@ -472,17 +480,19 @@ public enum Evaluation {
                 if let date = calendar.date(byAdding: .day, value: offset, to: today) {
                     let formatter = DateFormatter()
                     formatter.locale = Dates.locale
-                    formatter.dateFormat = format
-                    value = formatter.string(from: date)
+                    var formats = [format]
+                    if Language.isEnglish, format.hasPrefix("d MMMM") { formats.append("MMMM d" + format.dropFirst("d MMMM".count)) }
+                    values = formats.map { formatter.dateFormat = $0; return formatter.string(from: date) }
                 }
             } else {
                 let parts = arg.split(separator: "-").compactMap { Int($0) }
                 if parts.count == 2, let next = calendar.nextDate(after: today.addingTimeInterval(-1), matching: DateComponents(month: parts[0], day: parts[1]),
                                                                   matchingPolicy: .nextTime) {
-                    value = String(calendar.dateComponents([.day], from: today, to: calendar.startOfDay(for: next)).day ?? 0)
+                    values = [String(calendar.dateComponents([.day], from: today, to: calendar.startOfDay(for: next)).day ?? 0)]
                 }
             }
-            result.replaceSubrange(Range(match.range, in: result) ?? whole, with: NSRegularExpression.escapedPattern(for: value))
+            let escaped = values.map(NSRegularExpression.escapedPattern(for:))
+            result.replaceSubrange(Range(match.range, in: result) ?? whole, with: escaped.count > 1 ? "(?:" + escaped.joined(separator: "|") + ")" : escaped.first ?? "")
         }
         return result
     }
