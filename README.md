@@ -53,6 +53,12 @@ It runs on **Apple Intelligence**, right on your Mac: no account, no subscriptio
 > [!IMPORTANT]
 > The interface speaks **Italian** for now 🇮🇹. Translations are very welcome!
 
+### 🇮🇹 Why I made it
+
+Some Italians are showing that AI can run on everyone's computer. Salvatore Sanfilippo ([@antirez](https://github.com/antirez)) does it with [ds4](https://github.com/antirez/ds4), which runs huge models on your own machine. Simone Rizzo ([@simone-rizzo](https://github.com/simone-rizzo)) does it with [rizzo-pii](https://github.com/Rizzo-AI-Academy/rizzo-pii), which anonymizes your data before it reaches the big AI models. I want to be part of that (unofficial) team of Italians too: people doing something to bring AI to everyone's computer, for free wherever possible.
+
+I'm convinced that 70% of people can already do most of their everyday tasks with Apple Intelligence, or with Gemma with reasoning turned on. Once Private Cloud Compute arrives, even more. With Gemma I even managed to build a Snake game 🐍
+
 ### What it can do
 
 - 💬 **Chat like the big ones.**
@@ -248,6 +254,12 @@ Funziona con **Apple Intelligence**, direttamente sul tuo Mac: niente account, n
 
 > [!IMPORTANT]
 > Per ora l'interfaccia è in **italiano** 🇮🇹. Le traduzioni sono benvenute!
+
+### 🇮🇹 Perché l'ho fatto
+
+Ci sono italiani che stanno dimostrando che l'AI può girare sul computer di tutti. Salvatore Sanfilippo ([@antirez](https://github.com/antirez)) lo fa con [ds4](https://github.com/antirez/ds4), che fa girare modelli enormi sul tuo computer. Simone Rizzo ([@simone-rizzo](https://github.com/simone-rizzo)) lo fa con [rizzo-pii](https://github.com/Rizzo-AI-Academy/rizzo-pii), che anonimizza i tuoi dati prima che arrivino ai grandi modelli di AI. Anch'io voglio far parte di questo team (non ufficiale) di italiani che fa qualcosa per portare l'AI sul computer di tutti, e gratis dove possibile.
+
+Sono convinto che il 70% delle persone possa già fare la maggior parte delle attività di tutti i giorni con Apple Intelligence, o con Gemma con il ragionamento attivo. Quando arriverà Private Cloud Compute, ancora di più. Con Gemma sono riuscito a programmarci persino Snake 🐍
 
 ### Cosa sa fare
 
