@@ -60,6 +60,8 @@ import Testing
     }
 
     @Test func schedules() {
+        let freeDay = Calculations.timeFacts(in: "Tra le 9 e le 18 ho riunioni 9:00-10:00, 11:00-12:30 e 16:00-17:00. Quante ore libere restano in quell'intervallo?")
+        #expect(freeDay.contains { $0.hasPrefix("Tempo libero tra le 9:00 e le 18:00: 5 ore e 30 minuti in tutto") })
         let facts = Calculations.timeFacts(in: "Ho tre riunioni domani: 9:00-10:30, 10:00-11:00 e 14:00-15:00. Quali si sovrappongono e quante ore libere ho in tutto tra le 9 e le 17?")
         #expect(facts.contains { $0.contains("9:00–10:30 e 10:00–11:00 si sovrappongono dalle 10:00 alle 10:30") })
         #expect(facts.contains { $0.hasPrefix("Tempo libero tra le 9:00 e le 17:00: 5 ore in tutto") })

@@ -4,6 +4,10 @@ import PackageDescription
 let package = Package(
     name: "SiriAI",
     platforms: [.macOS("27.0")],
+    products: [
+        .library(name: "SiriCore", targets: ["SiriCore"]),
+        .executable(name: "SiriAI", targets: ["SiriAI"]),
+    ],
     targets: [
         // Logica condivisa: strumenti EventKit, sessione del modello, dati del pannello "Oggi".
         .target(

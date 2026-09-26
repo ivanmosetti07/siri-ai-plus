@@ -401,8 +401,8 @@ struct MailCard: View {
     @Bindable var model: MailCardModel
 
     var body: some View {
-        Card(title: model.status == .done ? model.subject : model.reply != nil ? "Risposta \(Self.to(MailReader.senderName(model.recipients)))" : "Bozza email",
-             subtitle: model.status == .done ? "Aperta in Mail: invia da lì" : model.reply != nil ? "Mail · nella stessa conversazione" : "Mail",
+        Card(title: model.status == .opened || model.status == .done ? model.subject : model.reply != nil ? "Risposta \(Self.to(MailReader.senderName(model.recipients)))" : "Bozza email",
+             subtitle: model.status == .opened || model.status == .done ? "Bozza aperta in Mail: invia da lì" : model.reply != nil ? "Mail · nella stessa conversazione" : "Mail",
              status: model.status) {
             Tile(.mail)
         } content: {
@@ -465,7 +465,7 @@ struct MailCard: View {
                         Button("Indietro") { withAnimation { model.status = .draft } }.controlSize(.small)
                         Button("Apri in Mail") { model.reply != nil ? state.openReply(model) : state.openInMail(model) }.buttonStyle(.borderedProminent).controlSize(.small)
                     }
-                } else if model.status == .done {
+                } else if model.status == .opened || model.status == .done {
                     Text(model.body).font(DS.Fonts.body).foregroundStyle(.secondary).lineLimit(3)
                 }
             }

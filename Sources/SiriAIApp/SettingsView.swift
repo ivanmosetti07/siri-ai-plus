@@ -1,4 +1,5 @@
 import AVFoundation
+import ServiceManagement
 import SiriCore
 import SwiftUI
 
@@ -82,6 +83,7 @@ private struct SettingsGroup<Content: View>: View {
 private struct GeneralSettings: View {
     @Environment(AppState.self) private var state
     @State private var city = ""
+    @State private var loginMessage: String?
 
     var body: some View {
         @Bindable var state = state
@@ -116,9 +118,24 @@ private struct GeneralSettings: View {
                 .frame(maxWidth: 360)
         }
         SettingsGroup(title: "Scorciatoie") {
+            LabeledContent("Chat rapida, in ogni app", value: "⌥⌘K")
             LabeledContent("Modalità vocale", value: "⌥⌘V")
             LabeledContent("Mostra o nascondi Siri AI+ a destra", value: "⌥⌘S")
             LabeledContent("Impostazioni", value: "⌘,")
+        }
+        SettingsGroup(title: "Companion sul Mac", footnote: "Chiudere la finestra lascia disponibili la chat rapida e gli agenti. Il comando Esci li ferma fino alla prossima apertura.") {
+            Toggle("Avvia Siri AI+ all'accesso", isOn: Binding(
+                get: { SMAppService.mainApp.status == .enabled },
+                set: { enabled in
+                    do {
+                        if enabled { try SMAppService.mainApp.register() }
+                        else { try SMAppService.mainApp.unregister() }
+                        loginMessage = SMAppService.mainApp.status == .requiresApproval
+                            ? "Completa l'autorizzazione in Impostazioni di Sistema › Generali › Elementi login." : nil
+                    } catch { loginMessage = error.localizedDescription }
+                }))
+                .toggleStyle(.switch)
+            if let loginMessage { Text(loginMessage).font(DS.Fonts.caption).foregroundStyle(.secondary) }
         }
     }
 }
@@ -199,6 +216,10 @@ private struct ModelsSettings: View {
         }
 
         SettingsGroup(title: "Apple Intelligence") {
+            if AppleResponseModel.hasPrivateCloudEntitlement {
+                Toggle("Usa Private Cloud Compute quando disponibile", isOn: $state.wantsPrivateCloud)
+                    .toggleStyle(.switch)
+            }
             HStack {
                 Image(systemName: "apple.logo")
                 Text(state.availabilityProblem ?? state.appleResponseModel.label).font(DS.Fonts.body)
@@ -209,6 +230,8 @@ private struct ModelsSettings: View {
             if state.availabilityProblem == nil {
                 Text(state.appleResponseModel == .privateCloud
                      ? "Le risposte usano Private Cloud Compute di Apple. Se il servizio o la quota non è disponibile, l'app continua con il modello sul Mac."
+                     : AppleResponseModel.hasPrivateCloudEntitlement && !state.wantsPrivateCloud
+                        ? "Private Cloud Compute è disattivato: le risposte restano sul Mac."
                      : AppleResponseModel.hasPrivateCloudEntitlement
                         ? "Private Cloud Compute non è disponibile ora o la quota è esaurita. Le risposte restano sul Mac."
                         : "Private Cloud Compute richiede l'autorizzazione Apple per questa app. Le risposte restano sul Mac.")

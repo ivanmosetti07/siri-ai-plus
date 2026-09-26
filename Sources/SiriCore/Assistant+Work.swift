@@ -32,9 +32,14 @@ extension Assistant {
             // Per le domande su ciò che è aperto serve il testo intero (entro il budget); altrimenti basta l'inizio.
             let about = Self.isArtifactQuestion(prompt) || ["documento", "testo", "presentazione", "slide", "foglio", "tabella", "sezione",
                                                             "paragrafo", "riga", "colonna", "totale", "questo", "questa"].contains(where: prompt.lowercased().contains)
-            let content = about ? String((work.artifactText ?? work.artifactSummary ?? "").prefix(budget.scaled(2400)))
-                                : String((work.artifactSummary ?? "").prefix(600))
-            lines.append("Aperto al centro: \(kind) «\(title)».\n" + (content.isEmpty ? "" : Self.untrusted(content, label: kind)))
+            let full = work.artifactText ?? work.artifactSummary ?? ""
+            if about, work.fullArtifactContextOnApple, full.count > budget.scaled(2400) {
+                // fitPrompt legge ogni parte con i sub-agent; il testo non viene tagliato alla prima pagina.
+                lines.append("Aperto al centro: \(kind) «\(title)».\n" + Self.untrusted(full, label: "\(kind) aperto"))
+            } else {
+                let content = about ? String(full.prefix(budget.scaled(2400))) : String((work.artifactSummary ?? "").prefix(600))
+                lines.append("Aperto al centro: \(kind) «\(title)».\n" + (content.isEmpty ? "" : Self.untrusted(content, label: kind)))
+            }
         }
         lines += screenPreamble()
         if let guide = skillGuide(for: prompt) { lines.append(guide) }
@@ -628,9 +633,20 @@ extension Assistant {
         Tieni argomenti, decisioni, nomi, numeri, date e cose in sospeso; togli saluti e dettagli inutili. Le cose più recenti contano di più.
         """)
         let content = try? await session.respond(to: request, schema: Self.summarySchema, options: GenerationOptions(temperature: 0.2)).content
-        // Anche se il riassunto non riesce gli scambi escono dalla cronologia (restano per i richiami): niente tentativi a ogni risposta.
+        // Numeri, date e decisioni dichiarati dall'utente non dipendono dal modello che riassume: un'omissione
+        // qui renderebbe irrecuperabile il contesto attivo (per esempio un importo nel primo pezzo).
+        let anchors = pending.map(\.user).filter { line in
+            line.range(of: #"\d|\b(?:preferisco|ho deciso|d'ora in poi|ricorda)\b"#,
+                       options: [.regularExpression, .caseInsensitive]) != nil
+        }.suffix(6).map { Self.shortened($0.replacingOccurrences(of: "\n", with: " "), to: 180) }
+        let anchorText = anchors.isEmpty ? "" : "\nDati e decisioni espliciti: " + anchors.joined(separator: " · ")
+        let updated = content?.string("riepilogo")?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallback = pending.map(\.user).suffix(4).joined(separator: " · ")
+        let summaryLimit = budget.scaled(1100)
+        let base = updated.flatMap { $0.isEmpty ? nil : $0 } ?? fallback
+        let main = String(base.prefix(max(0, summaryLimit - anchorText.count)))
+        summary = String((main + anchorText).suffix(summaryLimit))
         summarizedCount = end
-        if let updated = content?.string("riepilogo") { summary = String(updated.suffix(budget.scaled(1100))) }
         facts += content?.strings("fatti") ?? []
         var seen = Set<String>()
         facts = facts.filter { seen.insert($0.lowercased()).inserted }

@@ -268,6 +268,7 @@ public enum Evaluation {
                 work.artifactTitle = open["titolo"] ?? "Senza titolo"
                 work.artifactSummary = String(content.prefix(900))
                 work.artifactText = content
+                work.fullArtifactContextOnApple = provider == .apple
                 switch work.artifactKind {
                 case "presentazione": work.openDeck = testDeck(content, title: work.artifactTitle ?? "")
                 case "foglio": work.openSheet = testSheet(content)

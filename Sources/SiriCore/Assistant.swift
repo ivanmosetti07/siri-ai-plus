@@ -124,6 +124,8 @@ public struct WorkContext: Sendable {
     public var artifactSummary: String?
     /// Testo completo di ciò che è aperto (per le domande: "riassumi questo documento").
     public var artifactText: String?
+    /// Solo Apple Intelligence può ricevere l'intero documento senza un'anteprima di invio esterno.
+    public var fullArtifactContextOnApple = false
     /// Documento aperto a paragrafi, con la selezione dell'editor (per le modifiche precise).
     public var openDocument: DocumentOutline?
     /// Presentazione aperta e slide selezionata.
@@ -385,6 +387,11 @@ public final class Assistant {
             return await runLoop(first: resumed.plan, prompt: resumed.prompt, rawPrompt: resumed.prompt, candidates: [resumed.plan.action],
                                  parts: [resumed.prompt], enabled: enabled, picked: picked, status: status)
         }
+        if let exact = Self.literalAnswer(rawPrompt) {
+            lastAction = .rispondi
+            lastRequest = rawPrompt
+            return .message(exact)
+        }
         // Chat di un progetto: la cartella è pronta prima di scegliere (la prima volta l'albero si legge da disco).
         await prepareProject(status: status)
         // Ciò che l'utente ha davanti nelle app («questa email», «riassumila» dopo averla selezionata).
@@ -578,6 +585,15 @@ public final class Assistant {
         do {
             switch plan.action {
             case .rispondi:
+                // Gli orari espliciti sono già stati calcolati in `turnFacts`. Per una domanda sul
+                // tempo libero mostra il risultato dell'app: il modello piccolo può alterare il
+                // totale anche quando riceve il conto esatto nel contesto.
+                let lower = prompt.lowercased()
+                if Calculations.hasExplicitSchedule(prompt),
+                   (lower.contains("ore libere") || lower.contains("tempo libero")),
+                   turnFacts.contains(where: { $0.hasPrefix("Tempo libero tra ") }) {
+                    return .message(turnFacts.joined(separator: "\n"))
+                }
                 // Problemi, logica e scelte con vincoli: prima la catena di pensieri (sessione a parte), poi la risposta che la segue.
                 // Se i conti li hanno già fatti le regole dell'app (orari, date, giorni) il risultato è quello: un ragionamento
                 // in più rischia solo di ricalcolarlo male.
@@ -787,6 +803,11 @@ public final class Assistant {
         // Testo da riassumere, tradurre o correggere: le parole citate non sono comandi (mai messaggi o email da lì).
         if Self.isTextTask(prompt) {
             plan.action = .rispondi
+            return
+        }
+        if Self.isAnswerOnlyInstruction(prompt) {
+            plan.action = .rispondi
+            plan.fields = [:]
             return
         }
         // «Dove devo salvare un appunto?», «come chiamo il report?»: domande, non richieste di creare qualcosa.

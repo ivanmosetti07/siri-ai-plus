@@ -10,4 +10,9 @@ mkdir -p "$STAGE/Sources" "$STAGE/Tests"
 rsync -a --delete Sources/ "$STAGE/Sources/"
 rsync -a --delete Tests/ "$STAGE/Tests/"
 cd "$STAGE"
-swift test --scratch-path "$SCRATCH/build" "$@"
+export SIRIAI_TEST_DATA_ROOT="$SCRATCH/data"
+export CLANG_MODULE_CACHE_PATH="$SCRATCH/clang-cache"
+mkdir -p "$SIRIAI_TEST_DATA_ROOT" "$CLANG_MODULE_CACHE_PATH"
+SWIFT_TEST_ARGS=()
+[[ "${SIRIAI_DISABLE_SWIFTPM_SANDBOX:-0}" == "1" ]] && SWIFT_TEST_ARGS+=(--disable-sandbox)
+swift test --scratch-path "$SCRATCH/build" "${SWIFT_TEST_ARGS[@]}" "$@"

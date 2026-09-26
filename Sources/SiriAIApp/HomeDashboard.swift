@@ -268,6 +268,7 @@ struct HomeDashboard: View {
                     .glassEffect(.regular.tint(.orange.opacity(0.35)), in: .rect(cornerRadius: 18))
             }
             pills
+            companionActions
             hero
             cards
             ideas
@@ -277,6 +278,31 @@ struct HomeDashboard: View {
         .padding(.top, 14)
         .padding(.bottom, 36)
         .frame(maxWidth: .infinity)
+    }
+
+    private var companionActions: some View {
+        HStack(spacing: 10) {
+            Button {
+                CompanionController.shared.showQuick()
+            } label: {
+                Label("Chat rapida", systemImage: "bubble.left.and.text.bubble.right")
+            }
+            Button { state.section = .activity } label: {
+                Label("Attività", systemImage: "clock.arrow.circlepath")
+            }
+            Button {
+                if let waiting = state.spaceAgents.first(where: { state.pendingApprovals(for: $0) > 0 }) {
+                    state.openAgent(waiting.id)
+                } else {
+                    state.section = .agents
+                }
+            } label: {
+                let pending = state.spaceAgents.reduce(0) { $0 + state.pendingApprovals(for: $1) }
+                Label(pending > 0 ? "\(pending) da approvare" : "Approvazioni", systemImage: "checkmark.shield")
+            }
+        }
+        .buttonStyle(.glass)
+        .font(.system(size: 13, weight: .medium))
     }
 
     private var greeting: String {

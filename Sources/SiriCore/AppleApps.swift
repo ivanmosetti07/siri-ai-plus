@@ -397,14 +397,15 @@ public enum NotesService {
         return Snapshot(text: "", html: saved, hasAttachments: false)
     }
 
-    public static func create(_ draft: NoteDraft) async throws {
+    @discardableResult
+    public static func create(_ draft: NoteDraft) async throws -> String {
         let paragraphs = draft.body.components(separatedBy: "\n").map { line -> String in
             let escaped = line.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;")
             return line.isEmpty ? "<br>" : "<div>\(escaped)</div>"
         }.joined()
         let title = draft.title.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;")
         let html = "<h1>\(title)</h1>\(paragraphs)"
-        _ = try await AppleScript.run("tell application \"Notes\" to make new note with properties {body:\(AppleScript.quote(html))}", app: "Note")
+        return try await AppleScript.run("tell application \"Notes\"\nset createdNote to make new note with properties {body:\(AppleScript.quote(html))}\nreturn id of createdNote\nend tell", app: "Note")
     }
 
     public static func open(id: String) async {
@@ -586,6 +587,34 @@ public enum MailReader {
 
 /// Apre in Mail una risposta o un inoltro già pronti: l'invio resta all'utente, dalla finestra di Mail.
 public enum MailComposer {
+    /// Apre una bozza e rilegge oggetto, corpo e destinatari nella stessa finestra di Mail.
+    /// L'invio non viene mai eseguito qui.
+    public static func compose(to addresses: [String], subject: String, body: String) async throws -> Bool {
+        guard !addresses.isEmpty else { throw AppleAppError.noRecipient }
+        let recipients = addresses.map { address in
+            "make new to recipient at end of to recipients of draftMessage with properties {address:\(AppleScript.quote(address))}"
+        }.joined(separator: "\n")
+        let checks = addresses.map { address in
+            "if observedAddresses does not contain \(AppleScript.quote(address)) then return \"UNCERTAIN\""
+        }.joined(separator: "\n")
+        let script = """
+        tell application "Mail"
+            set draftMessage to make new outgoing message with properties {subject:\(AppleScript.quote(subject)), content:\(AppleScript.quote(body)), visible:true}
+            tell draftMessage
+                \(recipients)
+            end tell
+            activate
+            set observedAddresses to address of every to recipient of draftMessage
+            if (subject of draftMessage) is not \(AppleScript.quote(subject)) then return "UNCERTAIN"
+            if (content of draftMessage) does not contain \(AppleScript.quote(body)) then return "UNCERTAIN"
+            if (count of observedAddresses) is not \(addresses.count) then return "UNCERTAIN"
+            \(checks)
+            return "OPENED"
+        end tell
+        """
+        return try await AppleScript.run(script, app: "Mail") == "OPENED"
+    }
+
     /// Risposta nella stessa conversazione. Mail non permette di aggiungere testo alla citazione, quindi il testo è completo.
     public static func reply(to id: String, body: String, replyAll: Bool) async throws {
         _ = try await AppleScript.run("""
@@ -594,6 +623,7 @@ public enum MailComposer {
             set r to reply m with opening window\(replyAll ? " and reply to all" : "")
             delay 0.3
             set content of r to \(AppleScript.quote(body))
+            if (content of r) does not contain \(AppleScript.quote(body)) then error "La bozza di risposta non corrisponde al testo previsto." number 4002
             activate
         end tell
         """, app: "Mail")
@@ -611,6 +641,7 @@ public enum MailComposer {
             set m to first message of inbox whose id is \(Int(id) ?? 0)
             set f to forward m with opening window
             \(recipient)
+            if \(AppleScript.quote(address)) is not "" and (address of every to recipient of f) does not contain \(AppleScript.quote(address)) then error "Il destinatario dell'inoltro non corrisponde." number 4002
             activate
         end tell
         """, app: "Mail")

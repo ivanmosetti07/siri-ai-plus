@@ -42,6 +42,9 @@ public enum NoteHTML {
 
     /// Testo formattato con i caratteri di sistema: i titoli di Note diventano i livelli qui sopra.
     @MainActor public static func attributed(from html: String) -> NSAttributedString {
+        // Le note semplici prodotte dall'app devono conservare esattamente righe e spazi. L'importatore
+        // HTML di WebKit aggiunge paragrafi differenti a seconda della versione di macOS.
+        if let exact = NoteHTMLReader.read(html) { return exact }
         let data = Data(("<meta charset=\"utf-8\">" + html).utf8)
         guard let imported = try? NSAttributedString(data: data, options: [.documentType: NSAttributedString.DocumentType.html,
                                                                            .characterEncoding: String.Encoding.utf8.rawValue],
@@ -160,5 +163,81 @@ public enum NoteHTML {
     static func escape(_ value: String) -> String {
         value.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;").replacingOccurrences(of: "\"", with: "&quot;")
+    }
+}
+
+/// Lettore deterministico per il sottoinsieme di HTML che Siri AI+ sa riscrivere senza perdere struttura.
+private final class NoteHTMLReader: NSObject, XMLParserDelegate {
+    private struct Style {
+        var level = NoteHTML.Level.body
+        var bold = false
+        var italic = false
+        var underline = false
+        var strike = false
+        var link: String?
+    }
+
+    private var style = Style()
+    private var stack: [Style] = []
+    private var current: NSMutableAttributedString?
+    private var paragraphs: [NSAttributedString] = []
+    private var unsupported = false
+
+    static func read(_ html: String) -> NSAttributedString? {
+        guard html.range(of: #"(?i)<div(?:\s|>)"#, options: .regularExpression) != nil else { return nil }
+        let normalized = html.replacingOccurrences(of: #"(?i)<br\s*/?>"#, with: "<br/>", options: .regularExpression)
+            .replacingOccurrences(of: "&nbsp;", with: "&#160;")
+        let reader = NoteHTMLReader()
+        let parser = XMLParser(data: Data(("<root>" + normalized + "</root>").utf8))
+        parser.delegate = reader
+        guard parser.parse(), !reader.unsupported, !reader.paragraphs.isEmpty else { return nil }
+        let result = NSMutableAttributedString()
+        for (index, paragraph) in reader.paragraphs.enumerated() {
+            if index > 0 { result.append(NSAttributedString(string: "\n", attributes: NoteHTML.attributes(level: .body))) }
+            result.append(paragraph)
+        }
+        return result
+    }
+
+    func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?,
+                qualifiedName qName: String?, attributes attributeDict: [String: String] = [:]) {
+        let tag = elementName.lowercased()
+        guard ["root", "div", "h1", "h2", "h3", "b", "strong", "i", "em", "u", "strike", "s", "a", "br"].contains(tag) else {
+            unsupported = true; parser.abortParsing(); return
+        }
+        stack.append(style)
+        switch tag {
+        case "div": current = NSMutableAttributedString()
+        case "h1": style.level = .title
+        case "h2": style.level = .heading
+        case "h3": style.level = .subheading
+        case "b", "strong": style.bold = true
+        case "i", "em": style.italic = true
+        case "u": style.underline = true
+        case "strike", "s": style.strike = true
+        case "a": style.link = attributeDict["href"]
+        default: break
+        }
+    }
+
+    func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
+        if elementName.lowercased() == "div", let current {
+            paragraphs.append(current)
+            self.current = nil
+        }
+        if let previous = stack.popLast() { style = previous }
+    }
+
+    func parser(_ parser: XMLParser, foundCharacters string: String) {
+        guard let current, !string.isEmpty else { return }
+        var attributes = NoteHTML.attributes(level: style.level)
+        var font = NSFont.systemFont(ofSize: style.level.size,
+                                     weight: style.level == .body && !style.bold ? .regular : .bold)
+        if style.italic { font = NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask) }
+        attributes[.font] = font
+        if style.underline { attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue }
+        if style.strike { attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
+        if let link = style.link { attributes[.link] = link }
+        current.append(NSAttributedString(string: string, attributes: attributes))
     }
 }

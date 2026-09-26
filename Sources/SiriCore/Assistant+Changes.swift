@@ -161,7 +161,8 @@ extension Assistant {
             recentEvent = event
             if plan.action == .elimina_evento {
                 return .confirm(PendingAction(kind: .deleteEvent(identifier: event.identifier, start: event.start),
-                                              title: "Eliminare «\(event.title)»?", detail: Dates.friendly(event.start, time: !event.isAllDay)))
+                                              title: "Eliminare «\(event.title)»?", detail: Dates.friendly(event.start, time: !event.isAllDay),
+                                              expectedTitle: event.title, expectedContainer: event.calendar))
             }
             guard !change.isEmpty else {
                 return .message("Cosa vuoi cambiare di «\(event.title)» (\(Dates.friendly(event.start, time: !event.isAllDay)))? Per esempio «spostala alle 16», «anticipala di un'ora» o «rinominala in …».")
@@ -267,9 +268,11 @@ extension Assistant {
             let due = item.due.map { " · scade \(Dates.friendly($0, time: item.dueHasTime))" } ?? ""
             switch plan.action {
             case .elimina_promemoria:
-                return .confirm(PendingAction(kind: .deleteReminder(identifier: item.id), title: "Eliminare il promemoria «\(item.title)»?", detail: "Lista \(item.list)\(due)"))
+                return .confirm(PendingAction(kind: .deleteReminder(identifier: item.id), title: "Eliminare il promemoria «\(item.title)»?", detail: "Lista \(item.list)\(due)",
+                                              expectedTitle: item.title, expectedContainer: item.list))
             case .completa_promemoria:
-                return .confirm(PendingAction(kind: .completeReminder(identifier: item.id), title: "Segnare come completato «\(item.title)»?", detail: "Lista \(item.list)\(due)"))
+                return .confirm(PendingAction(kind: .completeReminder(identifier: item.id), title: "Segnare come completato «\(item.title)»?", detail: "Lista \(item.list)\(due)",
+                                              expectedTitle: item.title, expectedContainer: item.list))
             default:
                 guard !change.isEmpty else {
                     return .message("Cosa vuoi cambiare del promemoria «\(item.title)»? Per esempio «spostalo a venerdì», «rinominalo in …» o «segnalo come importante».")

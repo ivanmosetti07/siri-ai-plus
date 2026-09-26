@@ -47,7 +47,7 @@ struct Composer: View {
             } else if let error = state.dictation.error {
                 Text(error).font(DS.Fonts.caption).foregroundStyle(.orange)
             }
-            if state.isResponding {
+            if state.currentIsResponding {
                 HStack(spacing: 7) {
                     ProgressView().controlSize(.mini)
                     Text(state.orbLabel).font(DS.Fonts.caption).foregroundStyle(.secondary).lineLimit(1)
@@ -95,7 +95,7 @@ struct Composer: View {
                         state.input = state.input.isEmpty ? text : state.input + " " + text
                     }
                 }
-                if state.isResponding {
+                if state.currentIsResponding {
                     Button { state.stop() } label: {
                         Image(systemName: "stop.fill").font(.system(size: 10, weight: .bold)).foregroundStyle(.white)
                             .frame(width: 28, height: 28).background(Color.primary.opacity(0.75), in: Circle())
@@ -118,7 +118,7 @@ struct Composer: View {
         .padding(.horizontal, 14)
         .padding(.top, 12)
         .padding(.bottom, 10)
-        .modifier(IntelligenceSurface(active: state.isResponding, radius: DS.Radius.composer))
+        .modifier(IntelligenceSurface(active: state.currentIsResponding, radius: DS.Radius.composer))
         .frame(maxWidth: DS.readingWidth)
         .padding(.horizontal, compact ? 12 : 28)
         .padding(.bottom, compact ? 12 : 16)
@@ -324,6 +324,12 @@ struct ModelMenu: View {
     @Environment(\.compactLayout) private var compact
 
     var body: some View {
-        ModelPicker(current: state.selection, compact: compact, showsTools: true) { state.choose($0) }
+        if state.current?.kind == .quick {
+            Label("Apple Intelligence sul Mac", systemImage: "apple.logo")
+                .font(DS.Fonts.caption).foregroundStyle(.secondary)
+                .help("Per una prova con ChatGPT o Claude usa l'anteprima nella Chat rapida.")
+        } else {
+            ModelPicker(current: state.selection, compact: compact, showsTools: true) { state.choose($0) }
+        }
     }
 }

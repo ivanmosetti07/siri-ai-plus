@@ -6,6 +6,10 @@ import SwiftUI
 
 // MARK: - Conversazioni e messaggi
 
+enum ConversationKind: String, Codable {
+    case standard, quick
+}
+
 @Observable
 final class Conversation: Identifiable {
     let id: UUID
@@ -22,6 +26,8 @@ final class Conversation: Identifiable {
     var agentID: UUID?
     /// Spazio della conversazione (personale, lavoro, programmazioni; nil = lavoro).
     var space: String?
+    /// La chat rapida dello Spazio è unica e non compare tra le chat di progetto.
+    var kind: ConversationKind = .standard
     /// Modello scelto per questa chat (versione e ragionamento compresi); nil = quello dello spazio.
     var model: ModelSelection?
     /// Chat figlia: ciò che si diceva nella chat madre quando è stata aperta.
@@ -334,6 +340,7 @@ struct ChatLink: Codable, Equatable {
     var draft: NoteDraft
     var status: ItemStatus = .awaiting
     var error: String?
+    var createdID: String?
 
     init(_ draft: NoteDraft) { self.draft = draft }
 }
@@ -598,13 +605,14 @@ struct StoredConversation: Codable {
     var returned: Bool?
     var agentID: UUID?
     var space: String?
+    var kind: ConversationKind?
     var model: ModelSelection?
     var inherited: String?
     var privacyVault: PIIVault?
 }
 
 extension StoredConversation {
-    private enum Keys: String, CodingKey { case id, title, created, messages, projectID, pinned, parentID, returned, agentID, space, model, inherited, privacyVault }
+    private enum Keys: String, CodingKey { case id, title, created, messages, projectID, pinned, parentID, returned, agentID, space, kind, model, inherited, privacyVault }
 
     /// Un messaggio illeggibile (formato cambiato, file troncato) si scarta da solo: la conversazione resta.
     init(from decoder: Decoder) throws {
@@ -619,6 +627,7 @@ extension StoredConversation {
         returned = try? c.decodeIfPresent(Bool.self, forKey: .returned)
         agentID = try? c.decodeIfPresent(UUID.self, forKey: .agentID)
         space = try? c.decodeIfPresent(String.self, forKey: .space)
+        kind = try? c.decodeIfPresent(ConversationKind.self, forKey: .kind)
         // Un modello non più disponibile (come Gemini) si scarta: la chat usa quello dello spazio.
         model = (try? c.decodeIfPresent(ModelSelection.self, forKey: .model)) ?? nil
         inherited = try? c.decodeIfPresent(String.self, forKey: .inherited)
@@ -679,7 +688,7 @@ enum StoredMessage: Codable {
 
 extension ItemStatus {
     /// Un'azione interrotta dalla chiusura dell'app non è più in corso.
-    var restored: ItemStatus { self == .running ? .failed : self }
+    var restored: ItemStatus { self == .running ? .uncertain : self }
 }
 
 extension ArtifactModel {
@@ -789,7 +798,7 @@ extension Message {
         case .mail(let recipients, let subject, let body, let status):
             let m = MailCardModel(MailDraft(recipients: [], subject: subject, body: body))
             m.recipients = recipients
-            m.status = status.restored
+            m.status = status == .done ? .opened : status.restored
             self.init(content: .mail(m))
         case .plan(let plan, let status, let stepStatus, let stepResult):
             let m = PlanCardModel(plan)
@@ -848,7 +857,7 @@ extension Message {
         case .noteAppend(let draft, let text, let status, let error):
             let m = NoteAppendCardModel(draft)
             m.text = text
-            m.status = status.restored
+            m.status = draft.manual && status == .done ? .copied : status.restored
             m.error = error
             self.init(content: .noteAppend(m))
         case .mailReply(let reply, let recipients, let subject, let body, let status):
@@ -856,17 +865,17 @@ extension Message {
             m.recipients = recipients
             m.subject = subject
             m.body = body
-            m.status = status.restored
+            m.status = status == .done ? .opened : status.restored
             self.init(content: .mail(m))
         case .mailForward(let draft, let status, let error):
             let m = MailForwardCardModel(draft)
-            m.status = status.restored
+            m.status = status == .done ? .opened : status.restored
             m.error = error
             self.init(content: .forward(m))
         case .imessage(let draft, let status, let error):
             let m = MessageCardModel(draft)
-            m.status = status.restored
-            m.error = error
+            m.status = status == .done ? .uncertain : status.restored
+            m.error = status == .done ? "L'invio storico non ha una conferma riletta da Messaggi. Controlla la conversazione prima di riprovare." : error
             self.init(content: .imessage(m))
         case .fileWrite(let draft, let projectID, let status, let error):
             let m = FileWriteCardModel(draft, projectID: projectID)

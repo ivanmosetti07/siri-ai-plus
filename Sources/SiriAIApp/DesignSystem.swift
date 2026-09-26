@@ -322,14 +322,17 @@ private struct IWorkGlyph: View {
 // MARK: - Stato delle azioni
 
 enum ItemStatus: String, Codable {
-    case draft, awaiting, running, done, failed, cancelled
+    case draft, awaiting, running, opened, copied, done, uncertain, failed, cancelled
 
     var label: String {
         switch self {
         case .draft: "Bozza"
         case .awaiting: "Da confermare"
         case .running: "In esecuzione"
+        case .opened: "Bozza aperta"
+        case .copied: "Testo copiato"
         case .done: "Completato"
+        case .uncertain: "Da verificare"
         case .failed: "Errore"
         case .cancelled: "Annullato"
         }
@@ -340,7 +343,10 @@ enum ItemStatus: String, Codable {
         case .draft: .secondary
         case .awaiting: .orange
         case .running: .blue
+        case .opened: .blue
+        case .copied: .blue
         case .done: .green
+        case .uncertain: .orange
         case .failed: .red
         case .cancelled: .secondary
         }
@@ -351,7 +357,10 @@ enum ItemStatus: String, Codable {
         case .draft: "pencil"
         case .awaiting: "hand.raised.fill"
         case .running: "circle.dotted"
+        case .opened: "envelope.open"
+        case .copied: "doc.on.clipboard"
         case .done: "checkmark"
+        case .uncertain: "questionmark.circle.fill"
         case .failed: "exclamationmark.triangle.fill"
         case .cancelled: "xmark"
         }

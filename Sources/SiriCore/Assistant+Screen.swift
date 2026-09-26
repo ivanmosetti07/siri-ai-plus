@@ -46,6 +46,7 @@ extension Assistant {
 
     /// Comandi sull'elemento sullo schermo che le regole sanno eseguire senza pianificatore.
     func screenAction(_ prompt: String) -> Plan? {
+        guard !Self.isAnswerOnlyInstruction(prompt) else { return nil }
         guard let item = work.screen, item.kind != .overview else { return nil }
         let text = CommandText.clean(prompt).lowercased().replacingOccurrences(of: "’", with: "'")
         func starts(_ pattern: String) -> Bool { text.range(of: "^(?:" + pattern + #")\b"#, options: .regularExpression) != nil }

@@ -38,7 +38,7 @@ public enum AppleResponseModel: Sendable, Equatable {
     }
 
     public static var preferred: Self {
-        guard hasPrivateCloudEntitlement else { return .onDevice }
+        guard UserDefaults.standard.bool(forKey: "preferPrivateCloudCompute"), hasPrivateCloudEntitlement else { return .onDevice }
         let cloud = PrivateCloudComputeLanguageModel()
         return preferred(entitled: true, available: cloud.isAvailable, quotaReached: cloud.quotaUsage.isLimitReached)
     }

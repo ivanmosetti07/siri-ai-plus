@@ -38,6 +38,24 @@ import Testing
         #expect(assistant.candidateActions(for: "scrivi un'email a Marco sul preventivo").contains(.scrivi_email))
     }
 
+    @Test func answerFormatDoesNotCreateMailDraft() async {
+        let assistant = assistant()
+        let prompt = "Rispondi solo: prova riuscita."
+        #expect(Assistant.isAnswerOnlyInstruction(prompt))
+        #expect(!assistant.shouldRoute(prompt, editingOpen: false))
+        #expect(!assistant.candidateActions(for: prompt).contains(.rispondi_email))
+        #expect(assistant.rescueAction(areas: ["email"], prompt: prompt) == nil)
+        var plan = Assistant.Plan(action: .scrivi_email, fields: ["destinatari": "Marco"])
+        assistant.applyRules(to: &plan, prompt: prompt)
+        #expect(plan.action == .rispondi && plan.fields.isEmpty)
+        #expect(!Assistant.isAnswerOnlyInstruction("Rispondi solo a Marco per email"))
+        #expect(Assistant.literalAnswer(prompt) == "prova riuscita.")
+        #expect(Assistant.literalAnswer("Rispondi solo a Marco per email") == nil)
+        let outcome = await assistant.handle(prompt, enabled: [], picked: []) { _ in }
+        if case .message(let text) = outcome { #expect(text == "prova riuscita.") }
+        else { Issue.record("La richiesta deve dare una risposta testuale, senza schede.") }
+    }
+
     @Test func moveGoesToExactFolder() throws {
         let root = try project()
         let assistant = assistant(in: root)

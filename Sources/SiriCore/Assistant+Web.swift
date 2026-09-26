@@ -68,7 +68,6 @@ extension Assistant {
             changes.insert(.modifica_evento)
         }
         if [" alla nota", " nella nota", " sulla nota", " nelle note"].contains(where: lower.contains) { changes.insert(.modifica_nota) }
-        if [" rispondi ", " rispondigli", " rispondile"].contains(where: lower.contains) { changes.insert(.rispondi_email) }
         if [" inoltra", " inoltrala", " inoltralo"].contains(where: lower.contains) { changes.insert(.inoltra_email) }
         found.formUnion(changes.intersection(available))
         if !work.mcpTools.isEmpty, mentionsExternalTool(lower) { found.insert(.strumento_esterno) }

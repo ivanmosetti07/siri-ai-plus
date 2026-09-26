@@ -38,6 +38,22 @@ public struct ToolCatalogEntry: Sendable, Equatable {
 }
 
 extension Assistant {
+    /// Un'istruzione sul formato della risposta non è un comando per rispondere a una persona o a un'email.
+    nonisolated public static func isAnswerOnlyInstruction(_ prompt: String) -> Bool {
+        let text = prompt.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return text.range(of: #"^(?:(?:per favore|puoi)\s+)?(?:rispondi|dimmi)\s+(?:solo|soltanto|semplicemente|brevemente)(?:\s*[:.,]|\s*$|\s+(?:con|in)\b)"#,
+                          options: .regularExpression) != nil
+    }
+
+    /// «Rispondi solo: …» chiede una stringa precisa: non serve un modello che possa parafrasarla.
+    nonisolated public static func literalAnswer(_ prompt: String) -> String? {
+        let text = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.contains("\n"),
+              let prefix = text.range(of: #"(?i)^rispondi\s+(?:solo|soltanto)\s*:\s*"#, options: .regularExpression) else { return nil }
+        let answer = text[prefix.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+        return answer.isEmpty ? nil : answer
+    }
+
     /// Saluti, ringraziamenti, conferme: niente strumenti né piani, si risponde e basta.
     nonisolated public static func isSmallTalk(_ prompt: String) -> Bool {
         let text = prompt.lowercased().replacingOccurrences(of: #"[,.!?;:…]+"#, with: " ", options: .regularExpression)
@@ -52,7 +68,8 @@ extension Assistant {
     /// Serve lo smistatore? No per i saluti, i testi da elaborare e i comandi che l'app decide da sola (sull'elemento sullo
     /// schermo o su ciò che esiste già: «sposta la riunione alle 16», «rispondi che va bene»).
     func shouldRoute(_ prompt: String, editingOpen: Bool) -> Bool {
-        guard routesTools, !editingOpen, !Self.isTextTask(prompt), !Self.isSmallTalk(prompt) else { return false }
+        guard routesTools, !editingOpen, !Self.isTextTask(prompt), !Self.isSmallTalk(prompt),
+              !Self.isAnswerOnlyInstruction(prompt) else { return false }
         if screenAction(prompt) != nil || Self.changeAction(prompt) != nil { return false }
         // Il passo di un piano ha un'istruzione esplicita («Cerca sul web…», «Leggi il file…»): lo smistatore serve solo se
         // le parole chiave non trovano niente (il piano resta veloce).
@@ -111,13 +128,14 @@ extension Assistant {
     func rescueAction(areas: [String], prompt: String, withCalculations: Bool = false) -> Action? {
         let lower = Self.withoutQuotes(prompt).lowercased()
         // Nemmeno per i problemi di logica e le scelte con i dati nella domanda («quale giorno mi conviene?»): si ragiona, non si legge.
-        guard !areas.isEmpty, work.artifactKind == nil, screenFocus == nil, ResponseStyle.detect(prompt) != .creative, !conversationCovers(prompt),
+        guard !areas.isEmpty, work.artifactKind == nil, screenFocus == nil, ResponseStyle.detect(prompt) != .creative,
+              !Self.isAnswerOnlyInstruction(prompt), !conversationCovers(prompt),
               !Self.needsReasoning(prompt),
               lower.range(of: #"^(?:come (?:posso|potrei|faccio|si |mai)|cosa mi consigli|mi consigli|consigli|perch[eé] |spiegami|che cos)"#,
                           options: .regularExpression) == nil else { return nil }
         // Chiedere di mandare, non raccontare cosa è arrivato («chi mi ha mandato il preventivo?» si legge).
         let received = lower.range(of: #"\b(?:mi|ci|ti) (?:ha|hanno|aveva|avevano) (?:mandat|scritt|inviat|rispost)\w*"#, options: .regularExpression) != nil
-        let writes = !received && lower.range(of: #"\b(?:scrivi|scrivere|scrivigli|scrivile|scrivimi|prepara|preparami|bozza|manda|mandagli|mandale|mandare|mandagliel\w*|invia|inviagli|inviale|inviare|butta gi[uù]|dillo|digli|dille|avvisa\w*|comunica\w*|rispondi|rispondigli|rispondile|risposta)\b"#,
+        let writes = !received && lower.range(of: #"\b(?:scrivi|scrivere|scrivigli|scrivile|scrivimi|prepara|preparami|bozza|manda|mandagli|mandale|mandare|mandagliel\w*|invia|inviagli|inviale|inviare|butta gi[uù]|dillo|digli|dille|avvisa\w*|comunica\w*)\b"#,
                                                      options: .regularExpression) != nil
         let remind = lower.range(of: #"non (?:farmi|fammi|lasciarmi|farmelo|farmela) (?:scordare|dimenticare)|non devo (?:scordar|dimenticar)|ricordamelo|segnamelo|segnatelo|tienimelo presente|tienilo presente|non scordarmelo"#,
                                  options: .regularExpression) != nil
@@ -211,6 +229,19 @@ extension Assistant {
         let started = Date.now
         guard !catalog.isEmpty, Agent.availabilityProblem == nil else { return ToolRoute() }
         let names = catalog.map(\.name)
+        // Domande personali con una sorgente inequivocabile: il modello piccolo può dimenticare la famiglia
+        // anche quando gli indizi la indicano. Queste forme si instradano prima di chiamarlo.
+        let lower = prompt.lowercased().folding(options: .diacriticInsensitive, locale: .current)
+        let appointments = ["impegni", "appuntamenti", "riunioni", "meeting"].contains { lower.contains($0) }
+        let incoming = lower.contains("mi e arrivato") || lower.contains("ho ricevuto") || lower.contains("nella posta")
+        let direct: String? = appointments && names.contains("calendario") ? "calendario"
+            : incoming && names.contains("email") ? "email" : nil
+        if let direct {
+            var route = ToolRoute(tools: [direct], note: "Sorgente esplicita nella richiesta", decided: true,
+                                  milliseconds: Int(Date.now.timeIntervalSince(started) * 1000))
+            route.areas = [direct]
+            return route
+        }
         // Righe corte: la finestra dello smistatore è quella piccola di Apple Intelligence, e meno testo da leggere è più veloce.
         let width = catalog.count > 40 ? 60 : 90
         let list = catalog.map { "- \($0.name): \(Self.shortened($0.summary, to: width))" }.joined(separator: "\n")

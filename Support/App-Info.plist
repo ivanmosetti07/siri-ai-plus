@@ -42,6 +42,8 @@
     <string>Siri AI+ usa la posizione del Mac (circa 1 km) per il meteo della Home, solo se lo attivi nelle Impostazioni.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Siri AI+ usa il microfono per la dettatura delle richieste.</string>
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>Siri AI+ cattura soltanto la finestra o lo schermo che scegli esplicitamente per una richiesta.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
     <string>Siri AI+ trascrive la tua voce sul dispositivo per scrivere le richieste.</string>
     <key>NSContactsUsageDescription</key>

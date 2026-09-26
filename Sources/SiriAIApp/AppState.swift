@@ -13,6 +13,20 @@ import UserNotifications
 
 @MainActor @Observable
 final class AppState {
+    @MainActor final class IndependentResponse {
+        let conversation: Conversation
+        let assistant: Assistant
+        var selection: ModelSelection
+        var appleOnly = false
+
+        init(conversation: Conversation, assistant: Assistant, selection: ModelSelection) {
+            self.conversation = conversation
+            self.assistant = assistant
+            self.selection = selection
+        }
+    }
+    @TaskLocal private static var independentResponse: IndependentResponse?
+
     enum Phase { case onboarding, permissions, app }
     enum Section: Hashable { case home, app(SourceKind), browser, appLauncher, documents(ArtifactKind), project(UUID), artifact(UUID), activity, automations, connectors, settings, agents, agent(UUID), schedule
         /// Un file aperto in una scheda (Markdown da leggere, testo o codice da modificare).
@@ -228,7 +242,14 @@ final class AppState {
     /// Modello della risposta in corso: resta quello della chat da cui è partita, anche se nel frattempo se ne apre un'altra.
     var activeSelection: ModelSelection { responseSelection ?? selection }
     var provider: ResponseProvider { activeSelection.provider }
-    private var responseSelection: ModelSelection?
+    private var foregroundResponseSelection: ModelSelection?
+    private var responseSelection: ModelSelection? {
+        get { Self.independentResponse?.selection ?? foregroundResponseSelection }
+        set {
+            if let response = Self.independentResponse, let newValue { response.selection = newValue }
+            else { foregroundResponseSelection = newValue }
+        }
+    }
     /// Diagnostica (`--provider gemma`, `--model`, `--effort`): modello usato solo in questa sessione.
     private var selectionOverride: ModelSelection?
     /// Diagnostica (`--ephemeral`): niente salvataggi su disco.
@@ -287,7 +308,6 @@ final class AppState {
     /// Passa a un altro spazio: vista, conversazione, filtri e modello cambiano con lui.
     func switchSpace(_ newSpace: Space) {
         guard newSpace != space else { return }
-        stop()
         saveConversations()
         withAnimation(.smooth(duration: 0.3)) {
             space = newSpace
@@ -296,15 +316,15 @@ final class AppState {
         }
         SpaceScope.global = scope(for: newSpace)
         // Ultima conversazione generale dello spazio, oppure una nuova.
-        if let last = conversations.first(where: { ($0.space ?? Space.lavoro.rawValue) == newSpace.rawValue && $0.projectID == nil && $0.agentID == nil }) {
+        if let last = conversations.first(where: { ($0.space ?? Space.lavoro.rawValue) == newSpace.rawValue && $0.projectID == nil && $0.agentID == nil && $0.kind == .standard }) {
             currentID = last.id
-            prepareAssistant(for: last)
+            if !isResponding { prepareAssistant(for: last) }
         } else {
             let conversation = Conversation()
             conversation.space = newSpace.rawValue
             conversations.insert(conversation, at: 0)
             currentID = conversation.id
-            prepareAssistant(for: conversation)
+            if !isResponding { prepareAssistant(for: conversation) }
         }
         contextUsage = 0
         storeRevision += 1
@@ -332,9 +352,16 @@ final class AppState {
         didSet { UserDefaults.standard.set(subAgentSetting, forKey: "subAgents") }
     }
     var subAgentLimit: Int { subAgentSetting > 0 ? subAgentSetting : DeviceProfile.recommendedSubAgents }
+    var wantsPrivateCloud = UserDefaults.standard.bool(forKey: "preferPrivateCloudCompute") {
+        didSet {
+            UserDefaults.standard.set(wantsPrivateCloud, forKey: "preferPrivateCloudCompute")
+            appleResponseModel = .preferred
+            if provider == .apple { assistant.selectAppleResponseModel(appleResponseModel) }
+        }
+    }
     /// Finestra di contesto del modello che risponde.
     var contextBudget: ContextBudget {
-        provider == .apple ? .apple(appleResponseModel) : .of(provider)
+        provider == .apple ? .apple(Self.independentResponse == nil ? appleResponseModel : AppleResponseModel.preferred) : .of(provider)
     }
 
     /// Modello cloud in attesa di conferma (ChatGPT o Claude: i dati escono dal Mac).
@@ -479,7 +506,14 @@ final class AppState {
     /// Le categorie che diventano segnaposto.
     var privacyLabels: Set<String> { Set(PIICategory.sensitive).union(cloudPrivacyExtra) }
     /// La richiesta in corso non può andare al modello esterno (anonimizzazione non disponibile): risponde Apple Intelligence.
-    @ObservationIgnored private var appleOnly = false
+    @ObservationIgnored private var foregroundAppleOnly = false
+    private var appleOnly: Bool {
+        get { Self.independentResponse?.appleOnly ?? foregroundAppleOnly }
+        set {
+            if let response = Self.independentResponse { response.appleOnly = newValue }
+            else { foregroundAppleOnly = newValue }
+        }
+    }
     @ObservationIgnored private var privacyIdle: Task<Void, Never>?
     /// Gemma, ds4, ChatGPT e Claude usano gli strumenti dell'app (altrimenti scrivono solo la risposta).
     var externalTools: Bool = UserDefaults.standard.object(forKey: "externalTools") as? Bool ?? true {
@@ -496,12 +530,16 @@ final class AppState {
         set { UserDefaults.standard.set(newValue, forKey: "compactionThreshold") }
     }
 
-    private var assistant = Assistant()
+    private var foregroundAssistant = Assistant()
+    private var assistant: Assistant { Self.independentResponse?.assistant ?? foregroundAssistant }
     private var responseTask: Task<Void, Never>?
+    @ObservationIgnored private var independentTasks: [UUID: Task<Void, Never>] = [:]
+    private(set) var respondingConversationIDs: Set<UUID> = []
+    @ObservationIgnored private var queuedIndependentRequests: [UUID: [(String, ModelSelection?, [Attachment])]] = [:]
     /// Conversazione a cui appartiene la risposta in corso: resta quella anche se nel frattempo se ne apre un'altra.
     private var responding: Conversation?
     /// Dove scrive la risposta in corso (o la conversazione aperta).
-    private var out: Conversation? { responding ?? current }
+    private var out: Conversation? { Self.independentResponse?.conversation ?? responding ?? current }
     private var pendingSave: Task<Void, Never>?
     /// Numero di messaggi già indicizzati per conversazione (ricerca nelle conversazioni passate).
     @ObservationIgnored private var indexed: [UUID: Int] = [:]
@@ -510,14 +548,16 @@ final class AppState {
     init() {
         // Prima di leggere qualunque dato: passaggio dalla versione «SiriAI» (una volta sola).
         // Le prove automatiche (`--ephemeral`, `--selftest`) non toccano i dati.
-        if !CommandLine.arguments.contains("--selftest"), !CommandLine.arguments.contains("--ephemeral") { Migration.runIfNeeded() }
-        phase = UserDefaults.standard.bool(forKey: "onboarded") ? .app : .onboarding
+        if !AppPaths.isTestEnvironment, !CommandLine.arguments.contains("--selftest"), !CommandLine.arguments.contains("--ephemeral") { Migration.runIfNeeded() }
+        phase = AppPaths.isTestEnvironment || UserDefaults.standard.bool(forKey: "onboarded") ? .app : .onboarding
         let args = CommandLine.arguments
         if let index = args.firstIndex(of: "--phase"), index + 1 < args.count {
             phase = args[index + 1] == "onboarding" ? .onboarding : args[index + 1] == "permissions" ? .permissions : .app
         }
         if persists { DataBackup.runDaily() }
-        prefs = Self.loadPrefs()
+        prefs = AppPaths.isTestEnvironment
+            ? Dictionary(uniqueKeysWithValues: SourceKind.allCases.map { ($0, SourcePref(enabled: false, allowWrite: false)) })
+            : Self.loadPrefs()
         activity = Self.loadActivity()
         projects = Self.loadProjects()
         agents = Self.loadAgents()
@@ -544,6 +584,10 @@ final class AppState {
         restoreTabs(freshChat: first.id)
         SpaceScope.global = scope(for: space)
         Self.shared = self
+        if persists {
+            _ = quickConversation(for: .personale)
+            _ = quickConversation(for: .lavoro)
+        }
     }
 
     // MARK: - Avvio
@@ -670,10 +714,10 @@ final class AppState {
             openPreview(project)
         }
         // A visual diagnostic must not run scheduled agents or connect external services.
-        if !args.contains("--snapshot"), !args.contains("--ui-review") { mcp.startAll() }
+        if !AppPaths.isTestEnvironment, !args.contains("--snapshot"), !args.contains("--ui-review") { mcp.startAll() }
         Task { await models.refresh() }
         preparePrivacyEngine()
-        if persists { startAgentScheduler() }
+        if persists, !AppPaths.isTestEnvironment { startAgentScheduler() }
         // Diagnostica: `--agent-test` fa lavorare un agente temporaneo, scrive il registro nel log ed esce.
         if args.contains("--agent-test") {
             var spec = AgentTemplate.all[0].spec
@@ -786,11 +830,24 @@ final class AppState {
                 guard let self, self.phase == .app else { return }
                 await self.refreshAccess()
                 self.mcp.reconnectFailed()
+                if self.persists { self.schedulerTick() }
+            }
+        })
+        observers.append(NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.persists else { return }
+                self.schedulerTick()
+                self.storeRevision += 1
             }
         })
     }
 
     func refreshAccess() async {
+        if AppPaths.isTestEnvironment {
+            access = Access(calendar: false, reminders: false)
+            today = (0, 0)
+            return
+        }
         let calendarStatus = EKEventStore.authorizationStatus(for: .event)
         let reminderStatus = EKEventStore.authorizationStatus(for: .reminder)
         if persists && (calendarStatus == .notDetermined && prefs[.calendar]?.enabled == true
@@ -847,6 +904,7 @@ final class AppState {
     }
 
     func setEnabled(_ source: SourceKind, _ enabled: Bool) {
+        guard !AppPaths.isTestEnvironment else { return }
         guard source.support != .comingSoon else { return }
         prefs[source, default: SourcePref(enabled: false, allowWrite: true)].enabled = enabled
         savePrefs()
@@ -867,6 +925,7 @@ final class AppState {
     }
 
     func setAllowWrite(_ source: SourceKind, _ allow: Bool) {
+        guard !AppPaths.isTestEnvironment else { return }
         prefs[source, default: SourcePref(enabled: true, allowWrite: allow)].allowWrite = allow
         savePrefs()
     }
@@ -930,6 +989,7 @@ final class AppState {
     }
 
     private func savePrefs() {
+        guard !AppPaths.isTestEnvironment else { return }
         let encoded = Dictionary(uniqueKeysWithValues: prefs.map { ($0.key.rawValue, $0.value) })
         if let data = try? JSONEncoder().encode(encoded) { UserDefaults.standard.set(data, forKey: "sourcePrefs") }
     }
@@ -938,13 +998,16 @@ final class AppState {
 
     var orb: OrbState {
         if dictation.isListening { return .listening }
-        if isResponding { return .thinking }
+        if currentIsResponding { return .thinking }
         if let flash { return flash }
         if current?.messages.contains(where: \.isPending) == true { return .waiting }
         return .idle
     }
 
-    var orbLabel: String { isResponding && !statusText.isEmpty ? statusText : orb.label }
+    var orbLabel: String {
+        if let current, respondingConversationIDs.contains(current.id) { return "Risposta in corso…" }
+        return currentIsResponding && !statusText.isEmpty ? statusText : orb.label
+    }
 
     private func flash(_ state: OrbState) {
         flash = state
@@ -960,9 +1023,25 @@ final class AppState {
 
     /// Cronologia generale: conversazioni fuori dai progetti, le fissate in cima.
     var history: [Conversation] {
-        let items = conversations.filter { !$0.messages.isEmpty && $0.projectID == nil && $0.agentID == nil
+        let items = conversations.filter { !$0.messages.isEmpty && $0.projectID == nil && $0.agentID == nil && $0.kind == .standard
             && ($0.space ?? Space.lavoro.rawValue) == space.rawValue }
         return items.filter(\.pinned) + items.filter { !$0.pinned }
+    }
+
+    /// Una chat rapida stabile per ciascuno degli Spazi personali. Anche vuota viene salvata.
+    func quickConversation(for selectedSpace: Space) -> Conversation {
+        let quickSpace = selectedSpace == .codice ? Space.lavoro : selectedSpace
+        if let existing = conversations.first(where: { $0.kind == .quick && $0.space == quickSpace.rawValue }) {
+            if existing.model?.provider != .apple { existing.model = ModelSelection(.apple); saveConversations() }
+            return existing
+        }
+        let conversation = Conversation(title: "Chat rapida")
+        conversation.kind = .quick
+        conversation.space = quickSpace.rawValue
+        conversation.model = ModelSelection(.apple)
+        conversations.append(conversation)
+        saveConversations()
+        return conversation
     }
 
     func tasks(for project: ProjectModel) -> [Conversation] {
@@ -972,7 +1051,6 @@ final class AppState {
 
     /// Nuova conversazione: dentro `project` è una sua task, altrimenti è generale (fuori dai progetti) e torna alla Home.
     func newConversation(in project: ProjectModel?) {
-        stop()
         saveConversations()
         let projectID = project?.id
         if let project {
@@ -1011,7 +1089,10 @@ final class AppState {
         let removedID = conversation.id.uuidString
         Task.detached(priority: .utility) { ConversationIndex.shared.remove(id: removedID) }
         forgetTabs(of: conversation.id)
-        if conversation.id == currentID { stop(); currentID = nil }
+        if responding?.id == conversation.id { responseTask?.cancel() }
+        independentTasks[conversation.id]?.cancel()
+        queuedIndependentRequests[conversation.id] = nil
+        if conversation.id == currentID { currentID = nil }
         conversations.removeAll { $0.id == conversation.id }
         if currentID == nil {
             let fresh = Conversation(projectID: conversation.projectID)
@@ -1036,7 +1117,6 @@ final class AppState {
         // Una conversazione generale scelta mentre si è in un progetto si apre alla Home.
         if conversation.projectID == nil, case .project = section { section = .home }
         guard conversation.id != currentID else { return }
-        stop()
         saveConversations()
         currentID = conversation.id
         if !isResponding { prepareAssistant(for: conversation) }
@@ -1056,15 +1136,125 @@ final class AppState {
     }
 
     /// Scrive in una chat che non è quella del pannello (una chat affiancata in una scheda): stessa strada, stessi modelli.
-    func send(_ text: String, in conversation: Conversation) {
-        if conversation.id == currentID { send(text); return }
+    func send(_ text: String, in conversation: Conversation, using oneTimeSelection: ModelSelection? = nil,
+              files: [Attachment] = []) {
         let prompt = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !prompt.isEmpty, !isResponding, availabilityProblem == nil else { return }
+        guard !prompt.isEmpty, availabilityProblem == nil else { return }
+        if conversation.kind == .quick || conversation.id != currentID || isResponding {
+            if isResponding(in: conversation), independentTasks[conversation.id] == nil { return }
+            if independentTasks[conversation.id] != nil {
+                queuedIndependentRequests[conversation.id, default: []].append((prompt, oneTimeSelection, files))
+                conversation.messages.append(Message(content: .notice("Richiesta in coda: verrà eseguita dopo la risposta attuale.")))
+                saveConversations()
+                return
+            }
+            let session = Assistant()
+            let cloudRetry = conversation.kind == .quick && oneTimeSelection?.provider.isLocal == false
+            // Il tentativo cloud della chat rapida invia solo la richiesta mostrata nell'anteprima.
+            if !cloudRetry { session.restore(Self.turns(of: conversation)) }
+            session.inherited = conversation.inherited
+            if conversation.messages.isEmpty, conversation.title == "Nuova conversazione" { conversation.title = Self.title(from: prompt) }
+            conversation.messages.append(Message(content: .user(text: prompt, sources: [], attachments: files.map(\.name))))
+            saveConversations()
+            let chosen = resolved(oneTimeSelection ?? (conversation.kind == .quick
+                ? ModelSelection(.apple) : conversation.model ?? defaultSelection(for: space(of: conversation))))
+            if conversation.model == nil, oneTimeSelection == nil { conversation.model = chosen }
+            runIndependent(prompt, in: conversation, assistant: session, selection: chosen, files: files, cloudRetry: cloudRetry)
+            return
+        }
         if assistantConversationID != conversation.id { prepareAssistant(for: conversation) }
         // Il titolo viene dalla prima richiesta, ma non sostituisce quello scelto (chat figlie, chat create con un nome).
         if conversation.messages.isEmpty, conversation.title == "Nuova conversazione" { conversation.title = Self.title(from: prompt) }
-        conversation.messages.append(Message(content: .user(text: prompt, sources: [], attachments: [])))
-        run(prompt, sources: [], files: [], in: conversation)
+        conversation.messages.append(Message(content: .user(text: prompt, sources: [], attachments: files.map(\.name))))
+        saveConversations()
+        run(prompt, sources: [], files: files, in: conversation, oneTimeSelection: oneTimeSelection)
+    }
+
+    func isResponding(in conversation: Conversation) -> Bool {
+        respondingConversationIDs.contains(conversation.id) || (isResponding && responding?.id == conversation.id)
+    }
+
+    var currentIsResponding: Bool { current.map { isResponding(in: $0) } ?? false }
+    func isQuickResponding(_ conversation: Conversation) -> Bool { isResponding(in: conversation) }
+
+    private func runIndependent(_ prompt: String, in conversation: Conversation, assistant session: Assistant,
+                                selection: ModelSelection, files: [Attachment], sources: Set<SourceKind> = [],
+                                plan: Bool = false, cloudRetry: Bool = false) {
+        let context = IndependentResponse(conversation: conversation, assistant: session, selection: selection)
+        let scope = scope(for: space(of: conversation))
+        respondingConversationIDs.insert(conversation.id)
+        independentTasks[conversation.id] = Task {
+            await Self.$independentResponse.withValue(context) {
+                let shield = privacyShield(for: conversation, provider: selection.provider)
+                await PrivacyShield.$current.withValue(shield) {
+                    if !cloudRetry {
+                        await syncWorkContext(files: files, prompt: prompt)
+                        assistant.updateScreen()
+                        guard !Task.isCancelled else { return }
+                        await SpaceScope.$task.withValue(scope) {
+                            await respond(to: prompt, sources: sources, files: files, plan: plan)
+                        }
+                    } else {
+                        await respondQuickCloud(prompt, selection: selection)
+                    }
+                }
+                conversation.messages.removeAll { if case .thinking = $0.content { true } else { false } }
+                if let report = shield?.takeReport() { conversation.messages.append(Message(content: .privacy(report))) }
+                if !Task.isCancelled {
+                    recordLastTurn(prompt)
+                    if MemoryStore.shared.enabled, Assistant.mayContainMemory(prompt) {
+                        for fact in await assistant.memoryWorthy(prompt) where MemoryStore.shared.add(fact, source: "chat") {
+                            conversation.messages.append(Message(content: .notice("Ricordato: «\(fact)».")))
+                            memoryRevision += 1
+                        }
+                    }
+                    if !cloudRetry {
+                        await PrivacyShield.$current.withValue(shield) { await compactIfNeeded() }
+                    }
+                }
+                saveConversations()
+            }
+            independentTasks[conversation.id] = nil
+            respondingConversationIDs.remove(conversation.id)
+            if !Task.isCancelled, conversations.contains(where: { $0.id == conversation.id }),
+               var queued = queuedIndependentRequests[conversation.id], !queued.isEmpty {
+                let next = queued.removeFirst()
+                queuedIndependentRequests[conversation.id] = queued.isEmpty ? nil : queued
+                send(next.0, in: conversation, using: next.1, files: next.2)
+            } else if Task.isCancelled {
+                queuedIndependentRequests[conversation.id] = nil
+            }
+        }
+    }
+
+    /// I due testi mostrati nell'anteprima cloud. Non vengono allegati cronologia o strumenti.
+    /// Nessuna cronologia, memoria, app, connettore, file o strumento viene passato alla CLI esterna.
+    static let quickCloudSystemPrompt = "Sei Siri AI+. Rispondi in italiano alla richiesta dell'utente. Non puoi accedere alle app o ai file del Mac."
+
+    private func respondQuickCloud(_ prompt: String, selection: ModelSelection) async {
+        let system = Self.quickCloudSystemPrompt
+        let stream: AsyncThrowingStream<String, Error> = selection.provider == .chatgpt
+            ? ExternalEngine.streamChatGPT(system: system, history: [], prompt: prompt, model: selection.model, effort: selection.effort)
+            : ExternalEngine.streamClaude(system: system, history: [], prompt: prompt, model: selection.model, effort: selection.effort)
+        setThinking("\(selection.provider.name) sta rispondendo…")
+        var answerID: UUID?
+        do {
+            for try await text in stream {
+                guard !Task.isCancelled else { break }
+                if let answerID, let index = out?.messages.firstIndex(where: { $0.id == answerID }) {
+                    out?.messages[index].content = .text(text)
+                } else {
+                    out?.messages.removeAll { if case .thinking = $0.content { true } else { false } }
+                    let message = Message(content: .text(text))
+                    out?.messages.append(message)
+                    answerID = message.id
+                }
+            }
+            if Task.isCancelled { append(.notice("Risposta interrotta.")) }
+            else if answerID == nil { append(.notice("Il modello non ha restituito una risposta.")) }
+        } catch {
+            append(.notice(answerID == nil ? "Risposta non riuscita: \(error.localizedDescription)" : "Risposta parziale: \(error.localizedDescription)"))
+        }
     }
 
     /// La conversazione che sta ricevendo una risposta (per mostrare «sta scrivendo» nella colonna giusta).
@@ -1105,6 +1295,9 @@ final class AppState {
 
     /// Progetto della conversazione corrente, oppure quello aperto al centro.
     var currentProject: ProjectModel? {
+        if let conversation = Self.independentResponse?.conversation {
+            return conversation.projectID.flatMap { id in projects.first { $0.id == id } }
+        }
         // Durante una risposta vale la chat che risponde (anche una chat affiancata in una scheda).
         if let responding, responding.id != currentID { return responding.projectID.flatMap { id in projects.first { $0.id == id } } }
         if let id = current?.projectID { return projects.first { $0.id == id } }
@@ -1249,6 +1442,8 @@ final class AppState {
 
     private func syncWorkContext(files: [Attachment] = [], prompt: String = "") async {
         configureWriter()
+        let responseSpace = Self.independentResponse.map { space(of: $0.conversation) } ?? space
+        let quickResponse = Self.independentResponse?.conversation.kind == .quick
         var work = WorkContext()
         if let project = currentProject, project.exists {
             // L'albero della cartella si legge in secondo piano mentre si prepara il resto (la prima volta 1–2 secondi).
@@ -1278,7 +1473,8 @@ final class AppState {
             }
             work.memoryDigest = project.memoryDigest
         }
-        if case .artifact = section, let artifact = openArtifact {
+        if !quickResponse, case .artifact = section, let artifact = openArtifact {
+            work.fullArtifactContextOnApple = provider == .apple
             work.artifactKind = artifact.kind.noun.lowercased()
             work.artifactTitle = artifact.title
             work.artifactSummary = artifact.contextSummary
@@ -1303,11 +1499,11 @@ final class AppState {
         }
         // Nei progetti solo i connettori scelti per quel progetto.
         let project = currentProject
-        work.mcpTools = mcp.allTools.filter { (project?.uses($0.serverID) ?? true) && spaceUses($0.serverID, in: space) }
+        work.mcpTools = mcp.allTools.filter { (project?.uses($0.serverID) ?? true) && spaceUses($0.serverID, in: responseSpace) }
         work.projectNames = projects.map(\.name)
-        work.spaceName = space.label
-        work.spaceInstructions = settings(for: space).instructions
-        if section == .schedule || section == .agents {
+        work.spaceName = responseSpace.label
+        work.spaceInstructions = settings(for: responseSpace).instructions
+        if !quickResponse, section == .schedule || section == .agents {
             // Nella panoramica delle programmazioni la chat conosce agenti, orari e approvazioni.
             let lines = agents.map { agent -> String in
                 let routines = agent.routines.filter(\.enabled).map { $0.schedule.label + ($0.task.isEmpty ? "" : " (\($0.task))") }.joined(separator: ", ")
@@ -1319,14 +1515,14 @@ final class AppState {
         }
         let selectedAppleModel: AppleResponseModel = provider == .apple ? .preferred : .onDevice
         assistant.selectAppleResponseModel(selectedAppleModel)
-        appleResponseModel = selectedAppleModel
+        if Self.independentResponse == nil { appleResponseModel = selectedAppleModel }
         assistant.budget = contextBudget
         if let agent = currentAgent { rememberInstruction(for: agent) }
         work.hasConversation = (out?.messages.filter { if case .user = $0.content { true } else { false } }.count ?? 0) > 1
         let allowedServers = Set(work.mcpTools.map(\.serverName))
         work.mcpInstructions = mcp.instructions.filter { allowedServers.contains($0.key) }
         work.webEnabled = webEnabled
-        work.conversationID = (responding ?? current)?.id.uuidString
+        work.conversationID = out?.id.uuidString
         if !files.isEmpty {
             var texts = files.filter { $0.imageURL == nil }.map { "Allegato «\($0.name)»:\n\($0.text.prefix(contextBudget.scaled(1200)))" }
             let images = files.compactMap { file in file.imageURL.map { (name: file.name, url: $0) } }.prefix(4)
@@ -1344,28 +1540,34 @@ final class AppState {
             work.attachments = texts.isEmpty ? nil : texts.joined(separator: "\n\n")
             work.images = provider == .apple ? images.map(\.url) : []
         }
-        if case .browser = section, let page = await browser.snapshot() {
+        if !quickResponse, case .browser = section, let page = await browser.snapshot() {
             work.browserURL = page.url
             work.browserTitle = page.title
             work.browserText = page.text.isEmpty ? nil : page.text
             work.browserLinks = page.links
         }
         // Ciò che l'utente ha davanti nelle app e le altre schede aperte.
-        work.screen = screenItem
-        work.openTabs = appTabs.filter { $0 != section.appTab && $0 != .launcher }.compactMap(tabSummary)
+        work.screen = quickResponse ? nil : screenItem
+        work.openTabs = quickResponse ? [] : appTabs.filter { $0 != section.appTab && $0 != .launcher }.compactMap(tabSummary)
         assistant.work = work
     }
 
     // MARK: - Invio
 
     var canSend: Bool {
-        availabilityProblem == nil && !isResponding
+        availabilityProblem == nil && current != nil && !currentIsResponding
             && !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     func send(_ text: String? = nil) {
         let prompt = (text ?? input).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !prompt.isEmpty, !isResponding, availabilityProblem == nil, let conversation = current else { return }
+        if let conversation = current, conversation.kind == .quick, !prompt.isEmpty {
+            input = ""
+            send(prompt, in: conversation)
+            return
+        }
+        guard !prompt.isEmpty, availabilityProblem == nil, let conversation = current,
+              !isResponding(in: conversation) else { return }
         // In una chat figlia «concludi» o «torna alla chat madre» la chiudono e portano il riepilogo nella madre.
         if conversation.parentID != nil, !conversation.returned, parent(of: conversation) != nil, ChildChat.asksToReturn(prompt) {
             input = ""
@@ -1379,22 +1581,34 @@ final class AppState {
         let files = attachments
         // Il titolo viene dalla prima richiesta, ma non sostituisce quello scelto (chat figlie, chat create con un nome).
         if conversation.messages.isEmpty, conversation.title == "Nuova conversazione" { conversation.title = Self.title(from: prompt) }
-        append(.user(text: prompt, sources: sources, attachments: files.map(\.name)))
+        conversation.messages.append(Message(content: .user(text: prompt, sources: sources, attachments: files.map(\.name))))
+        saveConversations()
         picked = []
         attachments = []
         let plan = planNext
         planNext = false
-        run(prompt, sources: Set(sources), files: files, plan: plan)
+        if isResponding {
+            let session = Assistant()
+            session.restore(Array(Self.turns(of: conversation).dropLast()))
+            session.inherited = conversation.inherited
+            let chosen = resolved(selectionOverride ?? conversation.model ?? defaultSelection(for: space(of: conversation)))
+            if conversation.model == nil, selectionOverride == nil { conversation.model = chosen }
+            runIndependent(prompt, in: conversation, assistant: session, selection: chosen,
+                           files: files, sources: Set(sources), plan: plan)
+        } else {
+            run(prompt, sources: Set(sources), files: files, plan: plan)
+        }
     }
 
-    private func run(_ prompt: String, sources: Set<SourceKind>, files: [Attachment], in target: Conversation? = nil, plan: Bool = false) {
+    private func run(_ prompt: String, sources: Set<SourceKind>, files: [Attachment], in target: Conversation? = nil,
+                     plan: Bool = false, oneTimeSelection: ModelSelection? = nil) {
         guard let conversation = target ?? current else { return }
         isResponding = true
         statusText = "Capisco la richiesta…"
         responding = conversation
         // La chat tiene il modello con cui è cominciata (versione e ragionamento compresi); una chat affiancata ha il suo.
-        let chosen = selectionOverride ?? conversation.model ?? defaultSelection(for: space(of: conversation))
-        if conversation.model == nil, selectionOverride == nil { conversation.model = resolved(chosen) }
+        let chosen = oneTimeSelection ?? selectionOverride ?? conversation.model ?? defaultSelection(for: space(of: conversation))
+        if conversation.model == nil, selectionOverride == nil, oneTimeSelection == nil { conversation.model = resolved(chosen) }
         responseSelection = resolved(chosen)
         let scope = scope(for: space(of: conversation))
         responseTask = Task {
@@ -1490,8 +1704,13 @@ final class AppState {
     }
 
     func stop() {
-        responseTask?.cancel()
+        if let current { stop(current) }
         if dictation.isListening { dictation.stop() }
+    }
+
+    func stop(_ conversation: Conversation) {
+        if let task = independentTasks[conversation.id] { task.cancel() }
+        else if responding?.id == conversation.id { responseTask?.cancel() }
     }
 
     /// Spazio a cui appartiene una conversazione (quella di un agente o di un progetto segue il loro).
@@ -1522,7 +1741,7 @@ final class AppState {
     }
 
     private func setThinking(_ text: String) {
-        statusText = text
+        if Self.independentResponse == nil || Self.independentResponse?.conversation.id == currentID { statusText = text }
         if let index = out?.messages.lastIndex(where: { if case .thinking = $0.content { true } else { false } }) {
             out?.messages[index].content = .thinking(text)
         } else {
@@ -2593,7 +2812,7 @@ final class AppState {
     nonisolated(unsafe) static var keepsRunning = false
 
     var currentAgent: AgentSpec? {
-        guard let id = current?.agentID else { return nil }
+        guard let id = out?.agentID else { return nil }
         return agents.first { $0.id == id }
     }
 
@@ -2689,10 +2908,11 @@ final class AppState {
         saveAgents()
     }
 
-    func updateAgent(_ id: UUID, _ change: (inout AgentSpec) -> Void) {
-        guard let index = agents.firstIndex(where: { $0.id == id }) else { return }
+    @discardableResult
+    func updateAgent(_ id: UUID, _ change: (inout AgentSpec) -> Void) -> Bool {
+        guard let index = agents.firstIndex(where: { $0.id == id }) else { return false }
         change(&agents[index])
-        saveAgents()
+        return saveAgents()
     }
 
     /// Le indicazioni date chattando con un agente ("d'ora in poi includi anche…") entrano nella sua memoria.
@@ -2711,19 +2931,34 @@ final class AppState {
     /// - Parameters:
     ///   - scheduled: avviato dallo scheduler (piccola attesa casuale, così più agenti non partono nello stesso istante).
     ///   - heartbeat: prima controlla se c'è davvero qualcosa da fare.
-    func runAgent(_ id: UUID, routine: UUID? = nil, scheduled: Bool = false, heartbeat: Bool = false, trigger: AgentRun.Trigger? = nil) {
+    func runAgent(_ id: UUID, routine: UUID? = nil, scheduled: Bool = false, heartbeat: Bool = false,
+                  trigger: AgentRun.Trigger? = nil, claimedRunID: UUID? = nil) {
         guard let agent = agent(id), !runningAgents.contains(id) else { return }
         runningAgents.insert(id)
         // L'agente lavora con calendari, posta e connettori del suo spazio, qualunque sia quello aperto.
         let scope = scope(for: Space(rawValue: agent.space) ?? .lavoro)
         agentTasks[id] = Task {
-            if scheduled { try? await Task.sleep(for: .seconds(Double.random(in: 0...12))) }
-            await SpaceScope.$task.withValue(scope) {
-                if heartbeat, !(await heartbeatSaysGo(id, routine: routine)) { return }
-                await performAgentRun(id, routine: routine, trigger: trigger ?? (scheduled ? .programmata : .manuale))
+            defer {
+                runningAgents.remove(id)
+                agentTasks[id] = nil
             }
-            runningAgents.remove(id)
-            agentTasks[id] = nil
+            if scheduled {
+                do { try await Task.sleep(for: .seconds(Double.random(in: 0...12))) }
+                catch { return }
+            }
+            guard !Task.isCancelled else { return }
+            await SpaceScope.$task.withValue(scope) {
+                if heartbeat, !(await heartbeatSaysGo(id, routine: routine)) {
+                    if let claimedRunID {
+                        updateAgent(id) { $0.updateRun(claimedRunID) { run in
+                            run.outcome = .completata; run.end = .now; run.summary = "Nessuna azione necessaria"
+                        } }
+                    }
+                    return
+                }
+                await performAgentRun(id, routine: routine, trigger: trigger ?? (scheduled ? .programmata : .manuale),
+                                      claimedRunID: claimedRunID)
+            }
         }
     }
 
@@ -2731,10 +2966,27 @@ final class AppState {
     func cancelAgent(_ id: UUID) {
         guard let task = agentTasks[id] else { return }
         task.cancel()
-        agentTasks[id] = nil
-        runningAgents.remove(id)
-        updateAgent(id) { $0.record(.nota, "Esecuzione interrotta dall'utente") }
+        updateAgent(id) { spec in
+            for index in spec.history.indices where spec.history[index].outcome == .inCorso {
+                spec.history[index].outcome = .interrotta
+                spec.history[index].end = .now
+            }
+            spec.record(.nota, "Esecuzione interrotta dall'utente")
+        }
         log(icon: "stop.circle", title: "Agente fermato", detail: agent(id)?.displayName ?? "", status: .cancelled)
+    }
+
+    /// «Esci» chiude l'esecuzione corrente senza lasciare una scadenza reclamata come ancora attiva.
+    func stopForExit() {
+        schedulerTask?.cancel()
+        for task in agentTasks.values { task.cancel() }
+        for index in agents.indices {
+            for run in agents[index].history.indices where agents[index].history[run].outcome == .inCorso {
+                agents[index].history[run].outcome = .interrotta
+                agents[index].history[run].end = .now
+            }
+        }
+        saveAgents()
     }
 
     /// Heartbeat: fotografia della situazione e decisione del modello. Se non serve lavorare si sposta solo la prossima esecuzione.
@@ -2817,7 +3069,8 @@ final class AppState {
     }
 
     /// Un'esecuzione: piano sull'obiettivo, passi eseguiti dai sub-agent, schede da approvare, riepilogo e notifica.
-    private func performAgentRun(_ id: UUID, routine routineID: UUID? = nil, trigger: AgentRun.Trigger = .manuale) async {
+    private func performAgentRun(_ id: UUID, routine routineID: UUID? = nil, trigger: AgentRun.Trigger = .manuale,
+                                 claimedRunID: UUID? = nil) async {
         guard let agent = agent(id) else { return }
         let routine = routineID.flatMap { rid in agent.routines.first { $0.id == rid } }
         let conversation = conversation(for: agent)
@@ -2854,8 +3107,8 @@ final class AppState {
         let worker = Assistant()
         worker.isSubAgent = true
         worker.work = work
-        var runID = UUID()
-        updateAgent(id) { runID = $0.beginRun(trigger, routine: routine) }
+        var runID = claimedRunID ?? UUID()
+        if claimedRunID == nil { updateAgent(id) { runID = $0.beginRun(trigger, routine: routine) } }
         /// Aggiorna la voce dello storico di questa esecuzione.
         func track(_ change: (inout AgentRun) -> Void) { updateAgent(id) { $0.updateRun(runID, change) } }
         updateAgent(id) { $0.record(.avvio, "Inizio dell'esecuzione n. \($0.runs + 1)" + (routine.map { " · \($0.schedule.label)" + ($0.task.isEmpty ? "" : ": \($0.task)") } ?? "")) }
@@ -2916,6 +3169,7 @@ final class AppState {
             try Task.checkCancellation()
             if let finalIndex { card.plan.steps[finalIndex].status = "corso" }
             let summary = try await worker.chat.respond(to: worker.taskSynthesisPrompt(card.plan), options: worker.responseOptions).content
+            try Task.checkCancellation()
             if let finalIndex {
                 card.plan.steps[finalIndex].status = "fatto"
                 card.plan.steps[finalIndex].result = "Scritto nel riepilogo."
@@ -3069,12 +3323,39 @@ final class AppState {
                         if let index = spec.routines.firstIndex(where: { $0.id == routine.id }) { spec.routines[index].nextRun = routine.schedule.next(after: now) }
                     }
                 } else if let next = routine.nextRun, next <= now, !runningAgents.contains(agent.id) {
+                    let occurrenceID = "\(agent.id.uuidString)|\(routine.id.uuidString)|\(Int(next.timeIntervalSince1970))"
+                    // La pretesa viene salvata prima del lavoro: dopo un crash non si ripetono invii o modifiche incerti.
+                    if agent.history.contains(where: { $0.occurrenceID == occurrenceID }) {
+                        updateAgent(agent.id) { spec in
+                            if let index = spec.routines.firstIndex(where: { $0.id == routine.id }) {
+                                spec.routines[index].nextRun = routine.schedule.next(after: now)
+                            }
+                        }
+                        continue
+                    }
                     let late = now.timeIntervalSince(next) > 5 * 60
-                    if late {
-                        updateAgent(agent.id) { $0.record(.nota, "Recupero l'esecuzione delle \(Dates.friendly(next)): l'app era chiusa") }
+                    var runID = UUID()
+                    let beforeClaim = agents.first { $0.id == agent.id }
+                    let claimed = updateAgent(agent.id) { spec in
+                        if late { spec.record(.nota, "Recupero una esecuzione dalle \(Dates.friendly(next)); le altre scadenze passate vengono saltate") }
+                        let current = spec.routines.first { $0.id == routine.id }
+                        runID = spec.beginRun(late ? .recupero : .programmata, routine: current, occurrenceID: occurrenceID)
+                        if let index = spec.routines.firstIndex(where: { $0.id == routine.id }) {
+                            spec.routines[index].nextRun = routine.schedule.next(after: now)
+                        }
+                    }
+                    guard claimed else {
+                        // Una scrittura fallita non deve lasciare una falsa pretesa solo in memoria:
+                        // al prossimo tick la stessa scadenza potrà essere registrata e riprovata.
+                        if let beforeClaim, let index = agents.firstIndex(where: { $0.id == agent.id }) {
+                            agents[index] = beforeClaim
+                        }
+                        log(icon: "externaldrive.badge.exclamationmark", title: "Agente non avviato",
+                            detail: "Impossibile registrare la scadenza di \(agent.displayName). Controlla lo spazio disponibile e riapri l’app.", status: .failed)
+                        return
                     }
                     runAgent(agent.id, routine: routine.id, scheduled: true, heartbeat: agent.heartbeat && routine.schedule.kind == .continuo,
-                             trigger: late ? .recupero : .programmata)
+                             trigger: late ? .recupero : .programmata, claimedRunID: runID)
                     break
                 }
             }
@@ -3132,11 +3413,12 @@ final class AppState {
         return await assistant.englishImagePrompt(text)
     }
 
-    func saveAgents() {
-        guard persists else { return }
+    @discardableResult
+    func saveAgents() -> Bool {
+        guard persists else { return false }
         Self.keepsRunning = agents.contains(where: \.isScheduled)
-        guard let data = try? JSONEncoder().encode(agents) else { return }
-        SafeJSON.write(data, to: Self.supportURL("agents.json"), keepBackup: true)
+        guard let data = try? JSONEncoder().encode(agents) else { return false }
+        return SafeJSON.write(data, to: Self.supportURL("agents.json"), keepBackup: true)
     }
 
     // MARK: - Chat figlie
@@ -3144,7 +3426,6 @@ final class AppState {
     /// Apre una chat figlia (anche dentro un progetto): quando termina, il riepilogo torna alla chat madre.
     func newChildChat(title: String, project: ProjectModel?, firstMessage: String?) {
         guard let parent = current else { return }
-        stop()
         saveConversations()
         let child = Conversation(title: title.isEmpty ? "Chat figlia" : title, projectID: project?.id, parentID: parent.id)
         child.space = parent.space ?? space.rawValue
@@ -3228,13 +3509,22 @@ final class AppState {
         card.status = .running
         Task {
             do {
-                try await NotesService.create(card.draft)
-                card.status = .done
-                log(icon: "source:notes", title: "Nota creata", detail: card.draft.title, status: .done)
-                flash(.done)
+                let id = try await NotesService.create(card.draft)
+                card.createdID = id
+                let observed = try? await NotesService.snapshot(id: id)
+                let expectedLines = [card.draft.title] + card.draft.body.components(separatedBy: "\n").filter { !$0.isEmpty }
+                if let observed, expectedLines.allSatisfy({ observed.text.contains($0) }) {
+                    card.status = .done
+                    log(icon: "source:notes", title: "Nota verificata", detail: card.draft.title, status: .done)
+                    flash(.done)
+                } else {
+                    card.status = .uncertain
+                    card.error = "La nota è stata richiesta a Note, ma non sono riuscita a rileggere il contenuto. Controlla Note prima di riprovare."
+                    log(icon: "source:notes", title: "Nota da verificare", detail: card.draft.title, status: .failed)
+                }
             } catch {
-                card.status = .failed
-                card.error = error.localizedDescription
+                card.status = .uncertain
+                card.error = "Non posso stabilire se Note abbia creato la nota: \(error.localizedDescription). Controlla Note prima di riprovare."
                 flash(.error)
             }
             saveConversations()
@@ -3247,12 +3537,24 @@ final class AppState {
         Task {
             do {
                 try await MessagesService.send(card.draft)
-                card.status = .done
-                log(icon: "source:messages", title: "Messaggio inviato", detail: card.draft.recipient, status: .done)
-                flash(.done)
+                var verified = false
+                for _ in 0..<3 {
+                    if let rows = try? MessagesService.recent(matching: card.draft.text, limit: 30).rows,
+                       rows.contains(where: { $0.title.hasPrefix("Tu →") && $0.detail == card.draft.text && $0.reference == card.draft.handle }) {
+                        verified = true; break
+                    }
+                    try? await Task.sleep(for: .seconds(1))
+                }
+                card.status = verified ? .done : .uncertain
+                if verified {
+                    log(icon: "source:messages", title: "Messaggio verificato", detail: card.draft.recipient, status: .done)
+                    flash(.done)
+                } else {
+                    card.error = "Messaggi ha accettato l'invio, ma non posso confermarlo. Controlla la conversazione prima di riprovare."
+                }
             } catch {
-                card.status = .failed
-                card.error = error.localizedDescription
+                card.status = .uncertain
+                card.error = "Non posso stabilire se il messaggio sia partito: \(error.localizedDescription). Controlla Messaggi prima di riprovare."
                 flash(.error)
             }
             saveConversations()
@@ -3277,13 +3579,18 @@ final class AppState {
             try project.files.write(card.draft.path, content: card.draft.content)
             ProjectGuide.invalidate(project.folder)
             card.doneAt = .now
-            card.status = .done
-            log(icon: "doc.badge.plus", title: card.draft.exists ? "File modificato" : "File creato", detail: "\(project.name)/\(card.draft.path)", status: .done)
+            if (try? project.files.read(card.draft.path, maxChars: max(card.draft.content.count + 1, 3000))) == card.draft.content {
+                card.status = .done
+                log(icon: "doc.badge.plus", title: card.draft.exists ? "File modificato e verificato" : "File creato e verificato", detail: "\(project.name)/\(card.draft.path)", status: .done)
+            } else {
+                card.status = .uncertain
+                card.error = "Il file è stato scritto, ma la rilettura non coincide. Controlla il contenuto prima di riprovare."
+            }
             projectRevision += 1
-            flash(.done)
+            flash(card.status == .done ? .done : .error)
         } catch {
-            card.status = .failed
-            card.error = error.localizedDescription
+            card.status = .uncertain
+            card.error = "Non posso stabilire se il file sia stato modificato: \(error.localizedDescription). Controlla prima di riprovare."
             flash(.error)
         }
     }
@@ -3302,14 +3609,23 @@ final class AppState {
             }
             ProjectGuide.invalidate(project.folder)
             card.doneAt = .now
-            card.status = .done
-            log(icon: "folder", title: card.draft.title, detail: "\(project.name)/\(card.draft.from)", status: .done)
-            assistant.remember("Operazione eseguita: \(card.draft.title) \(card.draft.from) \(card.draft.to)")
+            let verified = switch card.draft.kind {
+            case .move: !project.files.exists(card.draft.from) && project.files.exists(card.draft.to)
+            case .folder: project.files.exists(card.draft.from)
+            case .trash: !project.files.exists(card.draft.from) && card.trashedURL.map { FileManager.default.fileExists(atPath: $0.path) } == true
+            }
+            card.status = verified ? .done : .uncertain
+            if verified {
+                log(icon: "folder", title: card.draft.title, detail: "\(project.name)/\(card.draft.from)", status: .done)
+                assistant.remember("Operazione eseguita: \(card.draft.title) \(card.draft.from) \(card.draft.to)")
+            } else {
+                card.error = "L'operazione non è stata confermata dalla rilettura dei file. Controlla prima di riprovare."
+            }
             projectRevision += 1
-            flash(.done)
+            flash(verified ? .done : .error)
         } catch {
-            card.status = .failed
-            card.error = error.localizedDescription
+            card.status = .uncertain
+            card.error = "Non posso stabilire se l'operazione sui file sia riuscita: \(error.localizedDescription). Controlla prima di riprovare."
             flash(.error)
         }
         saveConversations()
@@ -3505,15 +3821,21 @@ final class AppState {
             do {
                 card.status = .running
                 card.savedStart = try SpaceScope.$task.withValue(scope(forCard: card)) {
-                    try EventKitService.update(identifier: edit.identifier, start: edit.originalStart, to: card.draft)
+                    try EventKitService.update(identifier: edit.identifier, start: edit.originalStart, to: card.draft, expected: edit.before)
                 }
                 card.doneAt = .now
-                card.status = .done
-                log(icon: "source:calendar", title: "Evento modificato", detail: "\(card.draft.title) · \(Dates.friendly(card.draft.start))", status: .done)
-                flash(.done)
+                let actual = card.savedStart.flatMap { CalendarStore.detail(identifier: edit.identifier, start: $0) }
+                if actual?.title == card.draft.title, actual?.start == card.draft.start {
+                    card.status = .done
+                    log(icon: "source:calendar", title: "Evento modificato e verificato", detail: "\(card.draft.title) · \(Dates.friendly(card.draft.start))", status: .done)
+                    flash(.done)
+                } else {
+                    card.status = .uncertain
+                    card.error = "Calendario ha accettato la modifica, ma la rilettura non l'ha confermata. Controlla l'evento prima di riprovare."
+                }
             } catch {
-                card.status = .failed
-                card.error = error.localizedDescription
+                card.status = .uncertain
+                card.error = "Non posso stabilire se Calendario abbia modificato l'evento: \(error.localizedDescription). Controlla prima di riprovare."
                 log(icon: "source:calendar", title: "Evento non modificato", detail: error.localizedDescription, status: .failed)
                 flash(.error)
             }
@@ -3523,12 +3845,18 @@ final class AppState {
             card.status = .running
             card.createdID = try SpaceScope.$task.withValue(scope(forCard: card)) { try EventKitService.save(card.draft) }
             card.doneAt = .now
-            card.status = .done
-            log(icon: "source:calendar", title: "Evento creato", detail: "\(card.draft.title) · \(Dates.friendly(card.draft.start))", status: .done)
-            flash(.done)
+            let actual = card.createdID.flatMap { CalendarStore.detail(identifier: $0, start: card.draft.start) }
+            if actual?.title == card.draft.title, actual?.start == card.draft.start {
+                card.status = .done
+                log(icon: "source:calendar", title: "Evento creato e verificato", detail: "\(card.draft.title) · \(Dates.friendly(card.draft.start))", status: .done)
+                flash(.done)
+            } else {
+                card.status = .uncertain
+                card.error = "Calendario ha accettato l'evento, ma la rilettura non l'ha confermato. Controlla prima di riprovare."
+            }
         } catch {
-            card.status = .failed
-            card.error = error.localizedDescription
+            card.status = .uncertain
+            card.error = "Non posso stabilire se Calendario abbia creato l'evento: \(error.localizedDescription). Controlla prima di riprovare."
             log(icon: "source:calendar", title: "Evento non creato", detail: error.localizedDescription, status: .failed)
             flash(.error)
         }
@@ -3538,14 +3866,23 @@ final class AppState {
         if let edit = card.edit, let draft = card.drafts.first {
             do {
                 card.status = .running
-                try SpaceScope.$task.withValue(scope(forCard: card)) { try EventKitService.update(reminder: edit.identifier, to: draft, list: card.list) }
+                try SpaceScope.$task.withValue(scope(forCard: card)) {
+                    try EventKitService.update(reminder: edit.identifier, to: draft, list: card.list,
+                                               expected: edit.before, expectedList: edit.beforeList)
+                }
                 card.doneAt = .now
-                card.status = .done
-                log(icon: "source:reminders", title: "Promemoria modificato", detail: draft.title, status: .done)
-                flash(.done)
+                let actual = EventKitService.reminder(identifier: edit.identifier)
+                if actual?.draft.title == draft.title, actual?.list == card.list {
+                    card.status = .done
+                    log(icon: "source:reminders", title: "Promemoria modificato e verificato", detail: draft.title, status: .done)
+                    flash(.done)
+                } else {
+                    card.status = .uncertain
+                    card.error = "Promemoria ha accettato la modifica, ma la rilettura non l'ha confermata. Controlla prima di riprovare."
+                }
             } catch {
-                card.status = .failed
-                card.error = error.localizedDescription
+                card.status = .uncertain
+                card.error = "Non posso stabilire se Promemoria abbia modificato l'elemento: \(error.localizedDescription). Controlla prima di riprovare."
                 flash(.error)
             }
             return
@@ -3555,12 +3892,22 @@ final class AppState {
             let count = card.includedCount
             card.createdIDs = try SpaceScope.$task.withValue(scope(forCard: card)) { try EventKitService.save(card.drafts, list: card.list) }
             card.doneAt = .now
-            card.status = .done
-            log(icon: "source:reminders", title: count == 1 ? "Promemoria aggiunto" : "\(count) promemoria aggiunti", detail: "Lista \(card.list)", status: .done)
-            flash(.done)
+            let expected = card.drafts.filter { $0.included && !$0.title.isEmpty }
+            let verified = card.createdIDs.count == expected.count && zip(card.createdIDs, expected).allSatisfy { id, draft in
+                let actual = EventKitService.reminder(identifier: id)
+                return actual?.draft.title == draft.title && actual?.list == card.list
+            }
+            if verified {
+                card.status = .done
+                log(icon: "source:reminders", title: count == 1 ? "Promemoria verificato" : "\(count) promemoria verificati", detail: "Lista \(card.list)", status: .done)
+                flash(.done)
+            } else {
+                card.status = .uncertain
+                card.error = "Promemoria ha accettato la richiesta, ma la rilettura non l'ha confermata. Controlla prima di riprovare."
+            }
         } catch {
-            card.status = .failed
-            card.error = error.localizedDescription
+            card.status = .uncertain
+            card.error = "Non posso stabilire se Promemoria abbia creato gli elementi: \(error.localizedDescription). Controlla prima di riprovare."
             flash(.error)
         }
     }
@@ -3568,18 +3915,23 @@ final class AppState {
     func perform(_ card: ConfirmCardModel) {
         do {
             card.status = .running
-            try SpaceScope.$task.withValue(scope(forCard: card)) { try EventKitService.perform(card.action) }
-            card.status = .done
+            let verified = try SpaceScope.$task.withValue(scope(forCard: card)) { try EventKitService.perform(card.action) }
+            card.status = verified ? .done : .uncertain
             let title = switch card.action.kind {
             case .deleteEvent: "Evento eliminato"
             case .deleteReminder: "Promemoria eliminato"
             case .completeReminder: "Promemoria completato"
             }
-            log(icon: "source:\(card.source.rawValue)", title: title, detail: card.action.title, status: .done)
-            flash(.done)
+            if verified {
+                log(icon: "source:\(card.source.rawValue)", title: title, detail: card.action.title, status: .done)
+                flash(.done)
+            } else {
+                card.error = "L'app ha accettato l'azione, ma la rilettura non l'ha confermata. Controlla prima di riprovare."
+                log(icon: "source:\(card.source.rawValue)", title: "Azione da verificare", detail: card.action.title, status: .failed)
+            }
         } catch {
-            card.status = .failed
-            card.error = error.localizedDescription
+            card.status = .uncertain
+            card.error = "Non posso stabilire se l'azione sia stata applicata: \(error.localizedDescription). Controlla l'elemento prima di riprovare."
             flash(.error)
         }
     }
@@ -3666,13 +4018,23 @@ final class AppState {
 
     /// Apre la finestra di composizione di Mail: l'invio resta nelle mani dell'utente.
     func openInMail(_ card: MailCardModel) {
-        guard let service = NSSharingService(named: .composeEmail) else { return }
-        service.recipients = card.recipientList
-        service.subject = card.subject
-        service.perform(withItems: [card.body])
-        card.status = .done
-        log(icon: "source:mail", title: "Email aperta in Mail", detail: "\(card.subject) · \(card.recipientList.count) destinatari", status: .done)
-        flash(.done)
+        card.status = .running
+        Task {
+            do {
+                let verified = try await MailComposer.compose(to: card.recipientList, subject: card.subject, body: card.body)
+                card.status = verified ? .opened : .uncertain
+                if verified {
+                    log(icon: "source:mail", title: "Bozza aperta in Mail", detail: "\(card.subject) · \(card.recipientList.count) destinatari", status: .done)
+                    flash(.done)
+                } else {
+                    card.error = "Mail ha creato la bozza, ma la rilettura non l'ha confermata. Controlla Mail prima di riprovare."
+                }
+            } catch {
+                card.status = .uncertain
+                card.error = "Non posso stabilire se Mail abbia aperto la bozza: \(error.localizedDescription). Controlla Mail prima di riprovare."
+            }
+            saveConversations()
+        }
     }
 
     /// Risposta in Mail nella stessa conversazione, con l'email originale citata. Se Mail non collabora, una bozza nuova con gli stessi testi.
@@ -3683,24 +4045,13 @@ final class AppState {
         Task {
             do {
                 try await MailComposer.reply(to: reply.messageID, body: body, replyAll: reply.replyAll)
-                card.status = .done
+                card.status = .opened
                 log(icon: "source:mail", title: "Risposta aperta in Mail", detail: card.subject, status: .done)
                 flash(.done)
             } catch {
-                // Ripiego: finestra di composizione con destinatario, oggetto e citazione (fuori dalla conversazione originale).
-                if let service = NSSharingService(named: .composeEmail) {
-                    let address = MailMessage(id: reply.messageID, subject: reply.subject, sender: reply.to, date: "").senderAddress
-                    service.recipients = address.isEmpty ? [] : [address]
-                    service.subject = card.subject
-                    service.perform(withItems: [body])
-                    card.status = .done
-                    card.error = "Mail non ha aperto la risposta nella conversazione: ho preparato un messaggio nuovo con lo stesso testo."
-                    log(icon: "source:mail", title: "Risposta aperta in Mail", detail: card.subject, status: .done)
-                } else {
-                    card.status = .failed
-                    card.error = error.localizedDescription
-                    flash(.error)
-                }
+                card.status = .uncertain
+                card.error = "Non posso stabilire se Mail abbia aperto la risposta: \(error.localizedDescription). Controlla Mail prima di riprovare."
+                flash(.error)
             }
             saveConversations()
         }
@@ -3713,12 +4064,12 @@ final class AppState {
             do {
                 try await MailComposer.forward(card.draft.messageID, to: card.draft.recipientAddress.trimmingCharacters(in: .whitespaces),
                                                name: card.draft.recipientName)
-                card.status = .done
+                card.status = .opened
                 log(icon: "source:mail", title: "Inoltro aperto in Mail", detail: card.draft.subject, status: .done)
                 flash(.done)
             } catch {
-                card.status = .failed
-                card.error = error.localizedDescription
+                card.status = .uncertain
+                card.error = "Non posso stabilire se Mail abbia aperto l'inoltro: \(error.localizedDescription). Controlla Mail prima di riprovare."
                 flash(.error)
             }
             saveConversations()
@@ -3733,7 +4084,7 @@ final class AppState {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(lines.joined(separator: "\n"), forType: .string)
             Task { await NotesService.open(id: card.draft.noteID) }
-            card.status = .done
+            card.status = .copied
             log(icon: "source:notes", title: "Testo copiato per la nota", detail: card.draft.title, status: .done)
             saveConversations()
             return
@@ -3952,6 +4303,7 @@ final class AppState {
             conversation.returned = item.returned ?? false
             conversation.agentID = item.agentID
             conversation.space = item.space
+            conversation.kind = item.kind ?? .standard
             conversation.model = item.model
             conversation.inherited = item.inherited
             conversation.privacyVault = item.privacyVault
@@ -3992,6 +4344,7 @@ final class AppState {
             conversation.pinned = item.pinned ?? false
             conversation.agentID = item.agentID
             conversation.space = item.space
+            conversation.kind = item.kind ?? .standard
             conversation.model = item.model
             conversation.inherited = item.inherited
             conversation.privacyVault = item.privacyVault
@@ -4009,12 +4362,12 @@ final class AppState {
     /// Salva tutte le conversazioni con almeno un messaggio (anche quelle dei progetti).
     func saveConversations() {
         guard persists else { return }
-        let stored = conversations.filter { !$0.messages.isEmpty }.map { conversation in
+        let stored = conversations.filter { !$0.messages.isEmpty || $0.kind == .quick }.map { conversation in
             StoredConversation(id: conversation.id, title: conversation.title, created: conversation.created,
                                messages: conversation.messages.compactMap(\.stored),
                                projectID: conversation.projectID, pinned: conversation.pinned,
                                parentID: conversation.parentID, returned: conversation.returned, agentID: conversation.agentID,
-                               space: conversation.space, model: conversation.model, inherited: conversation.inherited,
+                               space: conversation.space, kind: conversation.kind, model: conversation.model, inherited: conversation.inherited,
                                privacyVault: conversation.privacyVault)
         }
         guard let data = try? JSONEncoder().encode(stored) else { return }

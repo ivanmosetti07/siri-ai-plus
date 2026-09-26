@@ -52,7 +52,7 @@ Picture the Siri we've all been waiting for. It actually reads your calendar, an
 
 The goal: publish the Siri AI that Apple should have launched. It's fully integrated with the Apple apps, Xcode included, and has the basic features you expect from the best AI apps like Claude or ChatGPT Desktop. Above all, it **brings AI to everyone** with local AI, on the Mac you already own.
 
-It runs on **Apple Intelligence**, right on your Mac: no account, no subscription, and nothing leaves your computer. When Apple's small on-device model isn't enough, you can plug in bigger brains. Local ones like Gemma 4 and ds4 stay on your Mac. With your own Claude or ChatGPT subscription, a privacy shield anonymizes your personal data before anything leaves the Mac.
+It runs on **Apple Intelligence**, right on your Mac by default: no account or subscription, and requests stay on the Mac. When Apple's small on-device model isn't enough, you can plug in bigger brains. Local ones like Gemma 4 and ds4 stay on your Mac. A one-time ChatGPT or Claude request from Quick Chat shows the source text proposed for sending and asks for confirmation.
 
 > [!IMPORTANT]
 > The interface speaks **Italian** for now 🇮🇹. Translations are very welcome!
@@ -70,6 +70,9 @@ I'm convinced that 70% of people can already do most of their everyday tasks wit
   - ⌘K search, voice mode and dictation.
   - File and image attachments, and web search with numbered sources.
   - Memory, skills, and a "How I worked" trace under every answer.
+- ⚡ **Use it from any screen.** The menu bar and global ⌥⌘K open Quick Chat, with one persistent conversation for Personal and one for Work. Global ⌥⌘V starts voice mode.
+  - Quick Chat reads selected text only from apps you explicitly allow. It shows the source and text, lets you remove it, and captures a screen or window only when you choose to.
+  - Replacing selected text requires a preview and confirmation. If the app cannot safely accept the edit, Siri AI+ gives you text to copy.
 - 🍎 **Your Apple apps, inside the chat.**
   - Calendar, Reminders, Mail, Notes, Messages, Contacts, Voice Memos, Files and a built-in Safari.
   - They open as tabs next to the chat, and every chat keeps its own open apps.
@@ -168,7 +171,7 @@ In June 2026 Apple announced that [the new Siri AI won't ship in the EU on iPhon
 - **Apple's proposal:** a middle layer called a "Trusted System Agent". The European Commission said no, and [replied](https://www.euronews.com/next/2026/06/11/the-eus-dma-fines-delayed-features-and-unclear-benefits) that "absolutely nothing in the DMA prohibits Apple from introducing new products in the EU".
 - **The result:** there is no date for iPhone and iPad. On the Mac, Siri AI is available in the EU.
 
-Apps like this one get Apple's small on-device model. Apple's bigger model on Private Cloud Compute needs a special permission from Apple. Siri AI+ is already usable as it is. We're just waiting for the more powerful models to be unlocked here in Europe too, and then it will be even more complete.
+Apps like this one get Apple's small on-device model. Apple's bigger model on Private Cloud Compute needs a managed entitlement from Apple. The on-device model remains the default; when Apple grants access, you can opt in from Settings, subject to availability and quota.
 
 My two cents: Siri AI+ is open to other models, both local and cloud. Personal data is anonymized on the Mac before it leaves, and nothing happens without your confirmation. Maybe this is how openness and privacy can live together, and how Apple could land in Europe without any drama. Apple, call me 😄
 
@@ -198,7 +201,7 @@ cd siri-ai-plus
 cp -R "Siri AI+.app" /Applications/
 ```
 
-`build.sh` signs the app with the first code signing certificate on your Mac. Without one it uses an ad hoc signature, and then macOS asks for the permissions again after every build.
+`build.sh` prefers an Apple code signing certificate with a Team ID, which macOS needs to run the actions in Shortcuts. If none is available it uses another signing certificate, or an ad hoc signature as a last resort. Without a stable signature macOS may ask for permissions again after a rebuild; without a Team ID the actions can appear in Shortcuts but fail when run.
 
 ### 🚀 How to use it
 
@@ -216,6 +219,7 @@ cp -R "Siri AI+.app" /Applications/
    |---|---|
    | ⌘N | New chat |
    | ⌘K | Search |
+   | ⌥⌘K | Quick Chat from any app |
    | ⌥⌘A | Apps in tabs |
    | ⌥⌘N | Side-by-side chats |
    | ⇧⌘N | Child chat |
@@ -224,6 +228,8 @@ cp -R "Siri AI+.app" /Applications/
 
 5. **Spaces.** Switch between Personal, Work and Coding next to the name in the sidebar. Each space has its own chats, projects, agents, calendars and model.
 6. **Change model** from the model panel in the text field. Every chat keeps its own model, version and reasoning level.
+
+The native Xcode app exposes **Open Siri AI+** and **Ask Siri AI+** as actions in Shortcuts. On macOS, add these actions to your own shortcut; the app does not install a preconfigured App Shortcut. In Settings you can opt in to launching Siri AI+ at login. Closing its window leaves the menu bar companion and scheduled agents running; **Quit** stops them.
 
 **Optional extras**, in Settings › Models:
 
@@ -285,7 +291,7 @@ Immagina il Siri che tutti aspettavamo. Legge davvero il tuo calendario, rispond
 
 Lo scopo: pubblicare il Siri AI che Apple avrebbe dovuto lanciare. È completamente integrato con le app Apple, Xcode incluso, e ha le funzioni di base delle migliori app come Claude o ChatGPT Desktop. Soprattutto, **porta l'AI a tutti** con l'AI locale, sul Mac che hai già.
 
-Funziona con **Apple Intelligence**, direttamente sul tuo Mac: niente account, niente abbonamenti, e niente esce dal computer. Quando il modello piccolo di Apple non basta, puoi collegare cervelli più grandi. Quelli locali, come Gemma 4 e ds4, restano sul Mac. Con il tuo abbonamento a Claude o ChatGPT, uno scudo per la privacy anonimizza i tuoi dati personali prima che escano dal Mac.
+Funziona con **Apple Intelligence**, direttamente sul tuo Mac come scelta iniziale: niente account o abbonamenti, e le richieste restano sul Mac. Quando il modello piccolo di Apple non basta, puoi collegare modelli più grandi. Quelli locali, come Gemma 4 e ds4, restano sul Mac. Per riprovare una richiesta della Chat rapida con Claude o ChatGPT, l'app mostra il testo che uscirebbe dal Mac e chiede conferma.
 
 > [!IMPORTANT]
 > Per ora l'interfaccia è in **italiano** 🇮🇹. Le traduzioni sono benvenute!
@@ -303,6 +309,9 @@ Sono convinto che il 70% delle persone possa già fare la maggior parte delle at
   - Ricerca con ⌘K, modalità vocale e dettatura.
   - Allegati di file e immagini, e ricerca sul web con le fonti numerate.
   - Memoria, skill e, sotto ogni risposta, il riquadro «Come ho lavorato».
+- ⚡ **Da qualunque schermata.** La barra dei menu e la scorciatoia globale ⌥⌘K aprono la Chat rapida, con una conversazione persistente per Personale e una per Lavoro. ⌥⌘V avvia la voce.
+  - La Chat rapida legge il testo selezionato solo dalle app che autorizzi. Mostra origine e testo, permette di escluderlo e cattura schermo o finestra solo quando lo scegli.
+  - La sostituzione del testo selezionato richiede anteprima e conferma. Se l'app non consente una modifica sicura, Siri AI+ offre il testo da copiare.
 - 🍎 **Le tue app Apple, dentro la chat.**
   - Calendario, Promemoria, Mail, Note, Messaggi, Contatti, Memo Vocali, File e un Safari integrato.
   - Si aprono in schede accanto alla chat, e ogni chat ha le sue app aperte.
@@ -401,7 +410,7 @@ A giugno 2026 Apple ha annunciato che [la nuova Siri AI non arriverà nell'UE su
 - **La proposta di Apple:** uno strato intermedio, un «Trusted System Agent». La Commissione europea ha detto no e [ha risposto](https://www.euronews.com/next/2026/06/11/the-eus-dma-fines-delayed-features-and-unclear-benefits) che nel DMA non c'è assolutamente nulla che impedisca ad Apple di lanciare nuovi prodotti nell'UE.
 - **Il risultato:** nessuna data per iPhone e iPad. Sul Mac, invece, Siri AI è disponibile anche nell'UE.
 
-Le app come questa ricevono il modello piccolo di Apple che gira sul Mac. Il modello più grande di Apple, su Private Cloud Compute, richiede un permesso speciale di Apple. Siri AI+ è già usabile così. Aspettiamo solamente che sblocchino i modelli più potenti anche qui in Europa, e allora sarà ancora più completa.
+Le app come questa ricevono il modello piccolo di Apple che gira sul Mac. Il modello più grande, su Private Cloud Compute, richiede un'autorizzazione gestita da Apple. Il modello sul Mac resta la scelta iniziale; se Apple concede l'accesso, puoi attivare PCC dalle Impostazioni, secondo disponibilità e quota.
 
 Il mio parere: Siri AI+ è aperta agli altri modelli, locali e cloud. I dati personali però vengono anonimizzati sul Mac prima di partire, e niente succede senza la tua conferma. Forse è proprio così che apertura e privacy possono convivere, e che Apple potrebbe entrare in Europa senza alcun problema. Apple, chiamami 😄
 
@@ -431,7 +440,7 @@ cd siri-ai-plus
 cp -R "Siri AI+.app" /Applications/
 ```
 
-`build.sh` firma l'app con il primo certificato di firma che trova sul Mac. Se non ne hai, usa una firma ad hoc, e allora macOS richiede i permessi dopo ogni compilazione.
+`build.sh` preferisce un certificato Apple con Team ID, necessario perché macOS esegua le azioni in Comandi Rapidi. Se non è disponibile usa un altro certificato di firma, oppure una firma ad hoc come ultima scelta. Senza una firma stabile macOS può richiedere di nuovo i permessi dopo una compilazione; senza Team ID le azioni possono comparire in Comandi Rapidi ma fallire quando vengono eseguite.
 
 ### 🚀 Come si usa
 
@@ -449,6 +458,7 @@ cp -R "Siri AI+.app" /Applications/
    |---|---|
    | ⌘N | Nuova chat |
    | ⌘K | Cerca |
+   | ⌥⌘K | Chat rapida da qualunque app |
    | ⌥⌘A | App in schede |
    | ⌥⌘N | Chat affiancate |
    | ⇧⌘N | Chat figlia |
@@ -457,6 +467,8 @@ cp -R "Siri AI+.app" /Applications/
 
 5. **Spazi.** Passa tra Personale, Lavoro e Programmazione accanto al nome, nella barra laterale. Ogni spazio ha le sue chat, i suoi progetti, agenti e calendari, e il suo modello.
 6. **Cambia modello** dal pannello dei modelli nel campo di scrittura. Ogni chat tiene il suo modello, la versione e il livello di ragionamento.
+
+L'app nativa Xcode rende disponibili in **Comandi Rapidi** le azioni «Apri Siri AI+» e «Chiedi a Siri AI+». Su macOS puoi aggiungerle a un tuo comando, ma l'app non installa un App Shortcut preconfigurato. In Impostazioni puoi scegliere l'avvio all'accesso. Chiudere la finestra lascia attivi il companion e gli agenti programmati; **Esci** li ferma.
 
 **Extra facoltativi**, in Impostazioni › Modelli:
 

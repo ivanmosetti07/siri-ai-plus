@@ -110,6 +110,8 @@ public struct AgentRun: Codable, Sendable, Equatable, Identifiable {
     public var end: Date?
     public var trigger: Trigger
     public var routineID: UUID?
+    /// Identità stabile della scadenza. Presente solo per le esecuzioni programmate.
+    public var occurrenceID: String?
     /// Programmazione al momento dell'esecuzione («Ogni giorno alle 18:00»), o nil per l'obiettivo principale.
     public var routineLabel: String?
     public var task = ""
@@ -119,9 +121,10 @@ public struct AgentRun: Codable, Sendable, Equatable, Identifiable {
     public var errors = 0
     public var summary = ""
 
-    public init(trigger: Trigger, routine: AgentRoutine? = nil) {
+    public init(trigger: Trigger, routine: AgentRoutine? = nil, occurrenceID: String? = nil) {
         self.trigger = trigger
         routineID = routine?.id
+        self.occurrenceID = occurrenceID
         routineLabel = routine?.schedule.label
         task = routine?.task ?? ""
     }
@@ -278,8 +281,8 @@ public struct AgentSpec: Codable, Sendable, Equatable, Identifiable {
 
     /// Apre una voce nello storico e ne restituisce l'id.
     @discardableResult
-    public mutating func beginRun(_ trigger: AgentRun.Trigger, routine: AgentRoutine?) -> UUID {
-        let run = AgentRun(trigger: trigger, routine: routine)
+    public mutating func beginRun(_ trigger: AgentRun.Trigger, routine: AgentRoutine?, occurrenceID: String? = nil) -> UUID {
+        let run = AgentRun(trigger: trigger, routine: routine, occurrenceID: occurrenceID)
         history.append(run)
         if history.count > 200 { history.removeFirst(history.count - 200) }
         return run.id

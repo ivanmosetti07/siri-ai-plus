@@ -182,8 +182,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
     }
 
-    /// Con agenti programmati Siri AI+ continua a lavorare anche a finestra chiusa (si riapre dal Dock).
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { !AppState.keepsRunning }
+    /// Il companion e gli agenti restano disponibili a finestra chiusa. «Esci» termina il processo.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        MainActor.assumeIsolated { AppState.shared?.stopForExit() }
+    }
 }
 
 @main
@@ -201,6 +205,10 @@ struct SiriAIApp: App {
                     let args = CommandLine.arguments
                     guard !args.contains("--selftest"), !args.contains("--apps-probe"), !args.contains("--mail-probe"), !args.contains("--index-probe") else { return }
                     await state.start()
+                    if !args.contains("--ephemeral"), !args.contains("--snapshot"), !args.contains("--dump-and-quit"),
+                       !args.contains("--agent-test"), !args.contains("--code-test") {
+                        CompanionController.shared.install(state: state)
+                    }
                 }
         }
         .defaultSize(width: 1320, height: 820)
@@ -245,7 +253,7 @@ struct SiriAIApp: App {
             CommandGroup(after: .textEditing) {
                 Button("Interrompi la risposta") { state.stop() }
                     .keyboardShortcut(".")
-                    .disabled(!state.isResponding)
+                    .disabled(!state.currentIsResponding)
             }
             CommandMenu("Siri AI+") {
                 Button("Nuovo progetto…") { ProjectPicker.choose { state.addProject(folder: $0) } }

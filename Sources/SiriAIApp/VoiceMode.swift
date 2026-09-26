@@ -165,18 +165,19 @@ final class VoiceMode {
         guard !text.isEmpty, let state else { listen(); return }
         phase = .thinking
         reply = ""
+        let conversation = state.current
         state.send(text)
-        Task { await waitForReply(after: text) }
+        Task { await waitForReply(after: text, in: conversation) }
     }
 
     // MARK: Risposta e voce
 
-    private func waitForReply(after text: String) async {
-        guard let state else { return }
+    private func waitForReply(after text: String, in conversation: Conversation?) async {
+        guard let state, let conversation else { return }
         try? await Task.sleep(for: .milliseconds(300))
-        while state.isResponding { try? await Task.sleep(for: .milliseconds(250)) }
+        while state.isResponding(in: conversation) { try? await Task.sleep(for: .milliseconds(250)) }
         guard active else { return }
-        let messages = state.current?.messages ?? []
+        let messages = conversation.messages
         let start = messages.lastIndex { if case .user = $0.content { true } else { false } } ?? 0
         let answer = messages[start...].compactMap { message -> String? in
             if case .text(let text) = message.content { return text }

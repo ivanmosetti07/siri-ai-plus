@@ -181,7 +181,8 @@ struct NoteAppendCard: View {
     private var statusLabel: String? {
         switch model.status {
         case .awaiting: "Da confermare"
-        case .done: model.draft.manual ? "Copiato" : "Aggiunto"
+        case .copied: "Copiato"
+        case .done: "Aggiunto"
         default: nil
         }
     }
@@ -194,7 +195,7 @@ struct MailForwardCard: View {
 
     var body: some View {
         Card(title: "Inoltra «\(model.draft.subject.isEmpty ? "(senza oggetto)" : model.draft.subject)»",
-             subtitle: model.status == .done ? "Aperta in Mail: invia da lì" : "Da \(model.draft.from) · \(model.draft.date)", status: model.status) {
+             subtitle: model.status == .opened || model.status == .done ? "Bozza aperta in Mail: invia da lì" : "Da \(model.draft.from) · \(model.draft.date)", status: model.status) {
             Tile(.mail)
         } content: {
             VStack(alignment: .leading, spacing: 10) {
@@ -226,7 +227,7 @@ struct MailForwardCard: View {
                         Button("Indietro") { withAnimation { model.status = .draft } }.controlSize(.small)
                         Button("Apri in Mail") { state.openForward(model) }.buttonStyle(.borderedProminent).controlSize(.small)
                     }
-                } else if model.status == .done {
+                } else if model.status == .opened || model.status == .done {
                     Text("A \(model.draft.recipientName.isEmpty ? model.draft.recipientAddress : model.draft.recipientName)").font(DS.Fonts.body).foregroundStyle(.secondary)
                 }
             }

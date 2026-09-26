@@ -280,7 +280,7 @@ struct ChatColumn: View {
     @State private var input = ""
     @FocusState private var focused: Bool
 
-    private var busy: Bool { state.respondingID == conversation.id }
+    private var busy: Bool { state.isResponding(in: conversation) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -361,7 +361,7 @@ struct ChatColumn: View {
                 }
                 Spacer()
                 if busy {
-                    Button { state.stop() } label: {
+                    Button { state.stop(conversation) } label: {
                         Image(systemName: "stop.fill").font(.system(size: 10, weight: .bold)).foregroundStyle(.white)
                             .frame(width: 26, height: 26).background(Color.primary.opacity(0.75), in: Circle())
                     }
@@ -375,7 +375,7 @@ struct ChatColumn: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(!canSend)
-                    .iconHelp(state.isResponding ? "Aspetta la risposta in corso" : "Invia (↩)")
+                    .iconHelp(busy ? "Aspetta la risposta in corso" : "Invia (↩)")
                 }
             }
         }
@@ -385,7 +385,7 @@ struct ChatColumn: View {
     }
 
     private var canSend: Bool {
-        !state.isResponding && !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && state.availabilityProblem == nil
+        !busy && !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && state.availabilityProblem == nil
     }
 
     private func send() {

@@ -11,6 +11,13 @@ public enum AppInfo {
 }
 
 public enum AppPaths {
+    /// I test possono usare una radice isolata senza toccare i dati personali dell'app.
+    private static var testRoot: URL? {
+        guard let path = ProcessInfo.processInfo.environment["SIRIAI_TEST_DATA_ROOT"], !path.isEmpty else { return nil }
+        return URL(fileURLWithPath: path, isDirectory: true)
+    }
+    public static var isTestEnvironment: Bool { testRoot != nil }
+
     private static func ensure(_ url: URL) -> URL {
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
@@ -18,18 +25,21 @@ public enum AppPaths {
 
     /// `~/Library/Application Support/<app>/`
     public static var support: URL {
-        ensure(FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appending(path: AppInfo.folderName))
+        if let testRoot { return ensure(testRoot.appending(path: "Application Support/\(AppInfo.folderName)")) }
+        return ensure(FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appending(path: AppInfo.folderName))
     }
 
     public static func support(_ name: String) -> URL { support.appending(path: name) }
 
     /// `~/Documents/<app>/`
     public static var documents: URL {
-        ensure(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appending(path: AppInfo.folderName))
+        if let testRoot { return ensure(testRoot.appending(path: "Documents/\(AppInfo.folderName)")) }
+        return ensure(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appending(path: AppInfo.folderName))
     }
 
     public static var logFile: URL {
-        ensure(FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Logs")).appending(path: "\(AppInfo.folderName).log")
+        if let testRoot { return ensure(testRoot.appending(path: "Logs")).appending(path: "\(AppInfo.folderName).log") }
+        return ensure(FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Logs")).appending(path: "\(AppInfo.folderName).log")
     }
 
     public static var models: URL { ensure(support("Models")) }
@@ -72,13 +82,20 @@ public enum SafeJSON {
     }
 
     /// Scrittura atomica; se il file esiste già lo copia prima in `.bak`.
-    public static func write(_ data: Data, to url: URL, keepBackup: Bool = false) {
+    @discardableResult
+    public static func write(_ data: Data, to url: URL, keepBackup: Bool = false) -> Bool {
         if keepBackup, FileManager.default.fileExists(atPath: url.path) {
             let bak = url.appendingPathExtension("bak")
             try? FileManager.default.removeItem(at: bak)
             try? FileManager.default.copyItem(at: url, to: bak)
         }
-        try? data.write(to: url, options: .atomic)
+        do {
+            try data.write(to: url, options: .atomic)
+            return true
+        } catch {
+            LogFile.append("SALVATAGGIO FALLITO: \(url.lastPathComponent) — \(error.localizedDescription)")
+            return false
+        }
     }
 }
 
