@@ -56,8 +56,8 @@ public enum CellValue: Equatable, Sendable {
         case .empty: ""
         case .number(let n): FormulaEngine.format(n)
         case .text(let t): t
-        case .bool(let b): b ? "VERO" : "FALSO"
-        case .error(let e): e
+        case .bool(let b): b ? Language.t("VERO", "TRUE") : Language.t("FALSO", "FALSE")
+        case .error(let e): Language.isEnglish ? FormulaEngine.englishErrors[e] ?? e : e
         }
     }
 }
@@ -65,6 +65,10 @@ public enum CellValue: Equatable, Sendable {
 /// Valutatore di formule stile Numbers/Excel in italiano e inglese:
 /// SOMMA/SUM, MEDIA/AVERAGE, MIN, MAX, CONTA/COUNT, SE/IF, ARROTONDA/ROUND, ABS, operatori + - * / ^ & e confronti.
 public enum FormulaEngine {
+    /// Codici d'errore come li mostra Excel in inglese (dentro il motore restano quelli italiani).
+    static let englishErrors = ["#VALORE": "#VALUE!", "#NOME?": "#NAME?", "#ERRORE": "#ERROR!", "#CICLO": "#CYCLE!", "#LIMITE": "#LIMIT!",
+                                "#DIV/0": "#DIV/0!", "#NUM": "#NUM!"]
+
     /// Valore di una cella, date le formule/valori grezzi di tutte le celle (chiave "A1").
     public static func value(of ref: CellRef, in cells: [String: String]) -> CellValue {
         var visiting: Set<CellRef> = []
@@ -95,13 +99,17 @@ public enum FormulaEngine {
         return result
     }
 
-    /// Numeri scritti a mano: "1.234,5", "1234.5", "12%", "€ 30".
+    /// Numeri scritti a mano: "1.234,5", "1234.5", "12%", "€ 30"; in inglese anche "1,234.5", "1,500" (migliaia) e "$30".
     public static func literal(_ text: String) -> CellValue {
         if text.isEmpty { return .empty }
         var s = text.replacingOccurrences(of: "€", with: "").replacingOccurrences(of: " ", with: "")
+        let english = Language.isEnglish
+        if english { s = s.replacingOccurrences(of: "$", with: "").replacingOccurrences(of: "£", with: "") }
         var percent = false
         if s.hasSuffix("%") { percent = true; s.removeLast() }
-        if s.contains(",") { s = s.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: ".") }
+        if english, s.range(of: #"^[+-]?\d{1,3}(?:,\d{3})+(?:\.\d+)?$"#, options: .regularExpression) != nil {
+            s = s.replacingOccurrences(of: ",", with: "")
+        } else if s.contains(",") { s = s.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: ".") }
         if let n = Double(s) { return .number(percent ? n / 100 : n) }
         switch text.uppercased() {
         case "VERO", "TRUE": return .bool(true)
@@ -110,9 +118,10 @@ public enum FormulaEngine {
         }
     }
 
+    /// Numero nel formato della lingua in uso: "1234,5" in italiano, "1,234.5" in inglese.
     public static func format(_ n: Double) -> String {
-        if n.isNaN || n.isInfinite { return "#NUM" }
-        let style = FloatingPointFormatStyle<Double>.number.precision(.fractionLength(0...2)).locale(Locale(identifier: "it_IT"))
+        if n.isNaN || n.isInfinite { return Language.isEnglish ? "#NUM!" : "#NUM" }
+        let style = FloatingPointFormatStyle<Double>.number.precision(.fractionLength(0...2)).locale(Language.current.locale)
         return n.formatted(style)
     }
 
