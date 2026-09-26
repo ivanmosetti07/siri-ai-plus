@@ -51,13 +51,20 @@ public struct ScreenItem: Sendable, Equatable {
 
     /// Una riga per il modello e per le altre schede: «Mail: email «Fattura di marzo» (da Mario Rossi, 23 set)».
     public var headline: String {
-        let main = kind == .overview ? title : "\(kind.noun) «\(title)»"
+        let main = kind == .overview ? title : "\(kind.noun) " + (Language.isEnglish ? "“\(title)”" : "«\(title)»")
         return "\(app): \(main)" + (details.isEmpty ? "" : " (\(details))")
     }
 
     /// Quanto la richiesta parla di ciò che è sullo schermo: «questa email», «qui», «che vedo» (forte);
     /// «riassumilo», «il suo numero», «riassumi» da solo (debole: vale se l'utente l'ha appena selezionato).
+    /// In inglese valgono anche «this email», «here», «summarize it», «who sent it?».
     public func reference(in prompt: String) -> Reference {
+        let italian = italianReference(in: prompt)
+        guard Language.isEnglish, italian != .strong else { return italian }
+        return max(italian, englishReference(in: prompt))
+    }
+
+    private func italianReference(in prompt: String) -> Reference {
         let lower = " " + prompt.lowercased().replacingOccurrences(of: "’", with: "'") + " "
         func has(_ pattern: String) -> Bool { lower.range(of: pattern, options: .regularExpression) != nil }
         let words = (kind == .overview ? nouns : kind.words).map { NSRegularExpression.escapedPattern(for: $0) }
@@ -87,16 +94,64 @@ public struct ScreenItem: Sendable, Equatable {
         return .none
     }
 
+    private func englishReference(in prompt: String) -> Reference {
+        let lower = " " + prompt.lowercased().replacingOccurrences(of: "’", with: "'") + " "
+        func has(_ pattern: String) -> Bool { lower.range(of: pattern, options: .regularExpression) != nil }
+        let words = (kind == .overview ? Self.englishNouns(nouns) : kind.englishWords).map { NSRegularExpression.escapedPattern(for: $0) }
+        if !words.isEmpty {
+            let noun = "(?:" + words.joined(separator: "|") + ")(?:s|es)?"
+            // «this email», «these notes», «the open email», «the selected note», «the email I'm looking at».
+            if has(#"\b(?:this|these)\s+"# + noun + #"\b"#) { return .strong }
+            if has(#"\b(?:open|opened|selected|current|highlighted)\s+"# + noun + #"\b"#) { return .strong }
+            if has(#"\b"# + noun + #"\s+(?:(?:that\s+)?i(?:'m|\s+am)\s+(?:looking\s+at|reading|viewing|seeing)|(?:that\s+)?i\s+(?:see|have\s+open)|on\s+(?:the\s+|my\s+)?screen|in\s+front\s+of\s+me)\b"#) { return .strong }
+        }
+        if has(#"\b(?:here|on\s+(?:the\s+|my\s+)?screen|in\s+front\s+of\s+me|what\s+i(?:'m|\s+am)\s+(?:looking\s+at|seeing|reading)|what\s+i\s+see)\b"#) { return .strong }
+        guard kind != .overview else { return .none }
+        // Dimostrativo senza nome, non di tempo («this week», «this morning» parlano di date).
+        let times = #"(?:week|month|year|evening|morning|afternoon|night|weekend|time|moment|period|day|monday|tuesday|wednesday|thursday|friday|saturday|sunday|summer|winter|autumn|fall|spring|quarter|semester|season)"#
+        if has(#"\b(?:this|these)\b(?!\s+"# + times + #"\b)"#) { return .weak }
+        // Verbi con il pronome: «summarize it», «reply to him», «move it», «send him».
+        if has(#"\b(?:summari[sz]e|translate|read|explain|correct|fix|proofread|analy[sz]e|reply\s+to|respond\s+to|answer|forward|move|postpone|reschedule|push|delay|rename|delete|cancel|remove|complete|finish|call|text|message|email|write(?:\s+to)?|tell|send|open|mark|check|tick)\s+(?:it|him|her|them)\b"#) {
+            return .weak
+        }
+        if kind == .contact, has(#"\b(?:his|her|their)\b"#) { return .weak }
+        // «Summarize», «translate into Italian», «what is it about?» da soli.
+        let trimmed = lower.trimmingCharacters(in: .whitespacesAndNewlines)
+        let short = trimmed.split(separator: " ").count <= 4
+        if short, trimmed.range(of: #"^(?:summari[sz]e|summary|sum\s+up|translate|explain|correct|proofread|fix|analy[sz]e|what(?:'s|\s+is)\s+it\s+about|what\s+does\s+it\s+say|what's\s+written|what\s+is\s+written|who\s+sent\s+it|who\s+wrote\s+it|who(?:'s|\s+is)\s+it\s+from|tl;?dr)"#,
+                                options: .regularExpression) != nil {
+            return .weak
+        }
+        return .none
+    }
+
+    /// Parole inglesi per ciò che l'app mostra quando non c'è una selezione: quelle date dall'app e la loro traduzione.
+    static func englishNouns(_ nouns: [String]) -> [String] {
+        let translations = ["posta": "mail", "messaggi": "messages", "messaggio": "message", "nota": "note", "note": "notes",
+                            "evento": "event", "eventi": "events", "promemoria": "reminders", "contatto": "contact", "contatti": "contacts",
+                            "conversazione": "conversation", "conversazioni": "conversations", "documento": "document",
+                            "documenti": "documents", "registrazione": "recording", "registrazioni": "recordings",
+                            "appuntamenti": "appointments", "riunioni": "meetings", "attività": "tasks", "immagini": "images",
+                            "cartella": "folder", "cartelle": "folders"]
+        return nouns + nouns.compactMap { translations[$0.lowercased()] }
+    }
+
     /// Una domanda o un'elaborazione di ciò che si vede («riassumi», «chi l'ha mandata?», «traduci»),
     /// non un'azione (creare, spostare, mandare, rispondere…): si risponde leggendo l'elemento.
     public static func isQuestion(_ prompt: String) -> Bool {
         let lower = prompt.lowercased().replacingOccurrences(of: "’", with: "'").trimmingCharacters(in: .whitespacesAndNewlines)
         let actions = #"\b(?:crea|creare|aggiungi|aggiungere|aggiungici|metti|mettici|inserisci|sposta|spostal[aoie]|anticipa|posticipa|rimanda|rimandal[aoie]|elimina|eliminal[aoie]|cancella|cancellal[aoie]|manda|mandagli|mandale|invia|inviagli|scrivi|scrivigli|scrivile|rispondi|rispondigli|rispondile|inoltra|inoltral[aoie]|segna|completa|completal[aoie]|apri|cerca|trova|fissa|prenota|ricordami|programma|genera|chiama|chiamal[aoie]|salva|condividi|registra|trascrivi)\b"#
         if lower.range(of: actions, options: .regularExpression) != nil { return false }
+        // In inglese il comando è all'inizio o dopo «and», «then» («summarize it and send it to Julia»).
+        if Language.isEnglish, lower.range(of: englishActions, options: .regularExpression) != nil { return false }
         if lower.hasSuffix("?") { return true }
         return lower.range(of: #"^(?:riassumi|riassumil[aoie]|riassunto|traduci|traducil[aoie]|spiega|spiegal[aoie]|correggi|analizza|sintetizza|leggi|leggil[aoie]|elenca|dimmi|di cosa|cosa|chi|quando|dove|quanto|quanti|quante|qual|quali|perch|come|c'è|ci sono|ha |hanno )"#,
                            options: .regularExpression) != nil
+            || (Language.isEnglish && lower.range(of: englishQuestion, options: .regularExpression) != nil)
     }
+
+    static let englishActions = #"(?:^|\b(?:and|then|also)\s+)(?:(?:please|can\s+you|could\s+you|would\s+you|will\s+you)\s+)*(?:create|make|add|put|insert|move|postpone|reschedule|delay|push|delete|cancel|remove|send|text|email|write|reply|respond|answer|forward|mark|complete|check\s+off|tick\s+off|open|search|find|look\s+up|book|schedule|set\s+up|remind|generate|call|save|share|record|transcribe|rename|change|edit|update|draft|prepare|turn|convert|archive|print)\b"#
+    static let englishQuestion = #"^(?:summari[sz]e|summary|sum\s+up|translate|explain|correct|proofread|fix|analy[sz]e|read|list|tell\s+me|give\s+me|what|who|whom|whose|when|where|which|why|how|is\s|are\s|was\s|were\s|does\s|do\s|did\s|has\s|have\s|any\s)"#
 
     /// Testo da aggiungere alla nota aperta: «aggiungi il latte qui», «scrivi in questa nota che domani c'è sciopero».
     public static func noteLines(from prompt: String) -> [String] {
@@ -107,8 +162,18 @@ public struct ScreenItem: Sendable, Equatable {
             #"(?i)^che\s+"#,
         ]
         for pattern in patterns { text = text.replacingOccurrences(of: pattern, with: " ", options: .regularExpression) }
+        // In inglese: «add milk here», «add to this note: milk», «write here that there's a strike tomorrow».
+        if Language.isEnglish {
+            let english = [
+                #"(?i)^\s*(?:add|append|put|insert|write|type|jot(?:\s+down)?|note(?:\s+down)?)\s+"#,
+                #"(?i)\s*\b(?:here|at\s+the\s+(?:end|bottom)|(?:to|in|into|on|onto)\s+(?:this|the|the\s+open|the\s+current|the\s+selected)\s+note(?:\s+(?:that's|that\s+is)\s+open)?)\b\s*[:,]?\s*"#,
+                #"(?i)^\s*that\s+"#,
+            ]
+            for pattern in english { text = text.replacingOccurrences(of: pattern, with: " ", options: .regularExpression) }
+        }
         text = text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ":,.")))
         text = text.replacingOccurrences(of: #"(?i)^che\s+"#, with: "", options: .regularExpression)
+        if Language.isEnglish { text = text.replacingOccurrences(of: #"(?i)^that\s+"#, with: "", options: .regularExpression) }
         return text.isEmpty ? [] : NoteAddition.items(text)
     }
 }
@@ -118,14 +183,14 @@ extension ScreenItem.Kind {
     public var noun: String {
         switch self {
         case .email: "email"
-        case .note: "nota"
-        case .event: "evento"
-        case .reminder: "promemoria"
-        case .contact: "contatto"
-        case .chat: "conversazione"
+        case .note: Language.t("nota", "note")
+        case .event: Language.t("evento", "event")
+        case .reminder: Language.t("promemoria", "reminder")
+        case .contact: Language.t("contatto", "contact")
+        case .chat: Language.t("conversazione", "conversation")
         case .file: "file"
-        case .memo: "registrazione"
-        case .overview: "vista"
+        case .memo: Language.t("registrazione", "recording")
+        case .overview: Language.t("vista", "view")
         }
     }
 
@@ -140,6 +205,21 @@ extension ScreenItem.Kind {
         case .chat: ["conversazione", "chat", "messaggi", "messaggio"]
         case .file: ["file", "documento", "pdf", "foglio", "immagine", "foto", "testo"]
         case .memo: ["registrazione", "memo", "audio", "vocale", "trascrizione"]
+        case .overview: []
+        }
+    }
+
+    /// Parole inglesi con cui l'utente indica l'elemento («this email», «this meeting»…).
+    var englishWords: [String] {
+        switch self {
+        case .email: ["email", "e-mail", "mail", "message"]
+        case .note: ["note"]
+        case .event: ["event", "meeting", "appointment", "call", "dinner", "lunch", "commitment"]
+        case .reminder: ["reminder", "task", "to-do", "todo"]
+        case .contact: ["contact", "person", "card", "number"]
+        case .chat: ["conversation", "chat", "thread", "message"]
+        case .file: ["file", "document", "pdf", "sheet", "spreadsheet", "image", "photo", "picture", "text"]
+        case .memo: ["recording", "memo", "voice memo", "audio", "transcript", "transcription"]
         case .overview: []
         }
     }

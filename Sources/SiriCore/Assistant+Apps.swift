@@ -8,6 +8,8 @@ extension Assistant {
         let lower = prompt.lowercased()
         let query = plan["cerca"].flatMap { $0.isEmpty ? nil : $0 }
         let wantsContent = ["riassumi", "leggi", "cosa dice", "cosa c'è scritto", "contenuto", "di cosa parla", "spiega"].contains(where: lower.contains)
+            || (Language.isEnglish && lower.range(of: #"\b(?:summari[sz]e|summary|read|explain|content|contents)\b|what (?:does|did) it say|what it says|what(?:'s| is) it about|what(?:'s| is) written"#,
+                                                  options: .regularExpression) != nil)
 
         switch plan.action {
         case .note:
@@ -84,15 +86,21 @@ extension Assistant {
         return NoteDraft(title: content.string("titolo") ?? title ?? "Nota", body: content.string("testo") ?? "")
     }
 
-    private static let messageSchema = makeSchema("Messaggio", [
-        .required("destinatario", .string, "Nome, numero o email della persona a cui scrivere, come indicato dall'utente"),
-        .required("testo", .string, "Testo del messaggio, breve e naturale, in prima persona come se lo scrivesse Ivan"),
-    ])
+    private static var messageSchema: GenerationSchema {
+        makeSchema("Messaggio", [
+            .required("destinatario", .string, Language.t("Nome, numero o email della persona a cui scrivere, come indicato dall'utente",
+                                                          "Name, number or email of the person to write to, as the user gave it")),
+            .required("testo", .string, Language.t("Testo del messaggio, breve e naturale, in prima persona come se lo scrivesse \(accountFirstName ?? "l'utente")",
+                                                   "Text of the message, short and natural, in the first person as if \(accountFirstName ?? "the user") wrote it")),
+        ])
+    }
 
     func draftMessage(prompt: String, recipient: String?) async throws -> MessageDraft {
         let role = "Scrivi messaggi brevi e cordiali da mandare con iMessage. Non inventare orari, luoghi o impegni non indicati."
         let request = "Richiesta: \(prompt)" + (recipient.map { "\nDestinatario: \($0)" } ?? "")
-        if let json = await composeJSON(role, request, fields: "\"destinatario\": nome, numero o email della persona come indicato dall'utente; \"testo\": il messaggio, breve e naturale, in prima persona come se lo scrivesse Ivan"),
+        let fields = Language.t("\"destinatario\": nome, numero o email della persona come indicato dall'utente; \"testo\": il messaggio, breve e naturale, in prima persona come se lo scrivesse \(Self.accountFirstName ?? "l'utente")",
+                                "\"destinatario\": name, number or email of the person as the user gave it; \"testo\": the message, short and natural, in the first person as if \(Self.accountFirstName ?? "the user") wrote it")
+        if let json = await composeJSON(role, request, fields: fields),
            let text = json.text("testo") {
             let name = json.text("destinatario") ?? recipient ?? ""
             return MessageDraft(recipient: name, handle: Contacts.resolve(name) ?? "", text: text)
