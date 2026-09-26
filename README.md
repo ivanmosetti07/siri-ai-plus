@@ -32,6 +32,10 @@
   ⭐ <b>Se ti piace, lascia una stella!</b> È gratis e aiuta altre persone a trovarlo.
 </p>
 
+<p align="center">
+  <img src="docs/screenshots/home.jpg" alt="Siri AI+: the Home with your day, the weather and your chats" width="100%">
+</p>
+
 > [!NOTE]
 > Siri AI+ is an independent hobby project. It is not affiliated with, endorsed by, or sponsored by Apple Inc. Siri, Apple Intelligence, Xcode, Safari, Pages, Numbers and Keynote are trademarks of Apple Inc.
 >
@@ -88,6 +92,37 @@ I'm convinced that 70% of people can already do most of their everyday tasks wit
   - Complex tasks become plans that sub-agents run in parallel.
   - Sub-agents compact long conversations.
   - Code, not the model, does exact math (dates, times, totals).
+
+### 📸 A quick tour
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/web-search.jpg" alt="Web search with sources"><br><sub><b>Web search</b> with numbered sources and the "How I worked" trace</sub></td>
+    <td width="50%"><img src="docs/screenshots/plan.jpg" alt="Plan with sub-agents"><br><sub><b>Plans with sub-agents:</b> complex tasks split into steps that run in parallel</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/privacy.jpg" alt="Privacy shield"><br><sub><b>Privacy shield:</b> Claude only gets placeholders, you read the real data</sub></td>
+    <td><img src="docs/screenshots/models.jpg" alt="Model picker"><br><sub><b>Pick a model</b> for each chat, on your Mac or in the cloud</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/keynote.jpg" alt="Presentation"><br><sub><b>Presentations</b> written by Apple Intelligence, ready to edit</sub></td>
+    <td><img src="docs/screenshots/browser.jpg" alt="Safari next to the chat"><br><sub><b>Apps in tabs:</b> Safari next to the chat, which reads the page for you</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/files.jpg" alt="Files app"><br><sub><b>Files</b> with thumbnails, and the chat knows what you selected</sub></td>
+    <td><img src="docs/screenshots/graph.jpg" alt="Project graph"><br><sub><b>Projects:</b> your notes as a brain, Obsidian style</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/side-chats.jpg" alt="Side-by-side chats"><br><sub><b>Side-by-side chats</b>, each with its own model</sub></td>
+    <td><img src="docs/screenshots/agents.jpg" alt="Agents"><br><sub><b>Agents</b> that work on a schedule and ask before acting</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/home-dark.jpg" alt="Work space in dark mode"><br><sub><b>Spaces:</b> Personal, Work and Coding, each with its own look (here Work, in the rain)</sub></td>
+    <td><img src="docs/screenshots/coding.jpg" alt="Coding space"><br><sub><b>Coding space:</b> websites, web apps and SwiftUI apps with Xcode</sub></td>
+  </tr>
+</table>
+
+<sub>The screenshots use a demo profile: chats, notes, files and appointments are all made up.</sub>
 
 ### The models
 
@@ -290,6 +325,37 @@ Sono convinto che il 70% delle persone possa già fare la maggior parte delle at
   - I compiti complessi diventano piani eseguiti dai sub-agent in parallelo.
   - I sub-agent compattano le conversazioni lunghe.
   - I conti esatti (date, orari, totali) li fa il codice, non il modello.
+
+### 📸 Un giro nell'app
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/web-search.jpg" alt="Ricerca sul web con le fonti"><br><sub><b>Ricerca sul web</b> con le fonti numerate e il riquadro «Come ho lavorato»</sub></td>
+    <td width="50%"><img src="docs/screenshots/plan.jpg" alt="Piano con i sub-agent"><br><sub><b>Piani con i sub-agent:</b> i compiti complessi divisi in passi che lavorano in parallelo</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/privacy.jpg" alt="Scudo per la privacy"><br><sub><b>Scudo per la privacy:</b> a Claude arrivano solo i segnaposto, tu leggi i dati veri</sub></td>
+    <td><img src="docs/screenshots/models.jpg" alt="Scelta del modello"><br><sub><b>Scegli il modello</b> per ogni chat, sul Mac o nel cloud</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/keynote.jpg" alt="Presentazione"><br><sub><b>Presentazioni</b> scritte da Apple Intelligence, pronte da modificare</sub></td>
+    <td><img src="docs/screenshots/browser.jpg" alt="Safari accanto alla chat"><br><sub><b>App in schede:</b> Safari accanto alla chat, che legge la pagina per te</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/files.jpg" alt="App File"><br><sub><b>File</b> con le anteprime, e la chat sa cosa hai selezionato</sub></td>
+    <td><img src="docs/screenshots/graph.jpg" alt="Grafo del progetto"><br><sub><b>Progetti:</b> le tue note come un cervello, in stile Obsidian</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/side-chats.jpg" alt="Chat affiancate"><br><sub><b>Chat affiancate</b>, ognuna con il suo modello</sub></td>
+    <td><img src="docs/screenshots/agents.jpg" alt="Agenti"><br><sub><b>Agenti</b> che lavorano agli orari che scegli e chiedono prima di agire</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/home-dark.jpg" alt="Spazio Lavoro con l'aspetto scuro"><br><sub><b>Spazi:</b> Personale, Lavoro e Programmazione, ognuno con il suo stile (qui Lavoro, sotto la pioggia)</sub></td>
+    <td><img src="docs/screenshots/coding.jpg" alt="Spazio di programmazione"><br><sub><b>Programmazione:</b> siti, app web e app SwiftUI con Xcode</sub></td>
+  </tr>
+</table>
+
+<sub>Le schermate usano un profilo dimostrativo: chat, note, file e impegni sono tutti inventati.</sub>
 
 ### I modelli
 
