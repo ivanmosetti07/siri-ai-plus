@@ -1,0 +1,478 @@
+[
+ {
+  "id": "doc-fix",
+  "categoria": "documents",
+  "domanda": "fix the typos",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "documento",
+   "titolo": "Marketing plan 2027",
+   "contenuto": "Marketing plan 2027\nIntroduction\nThis plan describes how to increase brand awareness in 2027 with a limited budget.\nGoals\nIncrease qualified leads by 20% and launch two seasonal campaigns.\nBudget\nThe total budget is 45,000 euros, of which 30,000 for online advertising.\nRisks\nThe main risk is rising advertising costs.\nConclusions\nThe plan is sustainable if results are measured every month."
+  }
+ },
+ {
+  "id": "doc-add-section",
+  "categoria": "documents",
+  "domanda": "add a section about social channels after the goals",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "documento",
+   "titolo": "Marketing plan 2027",
+   "contenuto": "Marketing plan 2027\nIntroduction\nThis plan describes how to increase brand awareness in 2027 with a limited budget.\nGoals\nIncrease qualified leads by 20% and launch two seasonal campaigns.\nBudget\nThe total budget is 45,000 euros, of which 30,000 for online advertising.\nRisks\nThe main risk is rising advertising costs.\nConclusions\nThe plan is sustainable if results are measured every month."
+  }
+ },
+ {
+  "id": "doc-translate-part",
+  "categoria": "documents",
+  "domanda": "translate the budget paragraph into Italian",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "documento",
+   "titolo": "Marketing plan 2027",
+   "contenuto": "Marketing plan 2027\nIntroduction\nThis plan describes how to increase brand awareness in 2027 with a limited budget.\nGoals\nIncrease qualified leads by 20% and launch two seasonal campaigns.\nBudget\nThe total budget is 45,000 euros, of which 30,000 for online advertising.\nRisks\nThe main risk is rising advertising costs.\nConclusions\nThe plan is sustainable if results are measured every month."
+  }
+ },
+ {
+  "id": "doc-tone",
+  "categoria": "documents",
+  "domanda": "make the introduction more formal",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "documento",
+   "titolo": "Marketing plan 2027",
+   "contenuto": "Marketing plan 2027\nIntroduction\nThis plan describes how to increase brand awareness in 2027 with a limited budget.\nGoals\nIncrease qualified leads by 20% and launch two seasonal campaigns.\nBudget\nThe total budget is 45,000 euros, of which 30,000 for online advertising.\nRisks\nThe main risk is rising advertising costs.\nConclusions\nThe plan is sustainable if results are measured every month."
+  }
+ },
+ {
+  "id": "doc-delete-section",
+  "categoria": "documents",
+  "domanda": "delete the Risks section",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "documento",
+   "titolo": "Marketing plan 2027",
+   "contenuto": "Marketing plan 2027\nIntroduction\nThis plan describes how to increase brand awareness in 2027 with a limited budget.\nGoals\nIncrease qualified leads by 20% and launch two seasonal campaigns.\nBudget\nThe total budget is 45,000 euros, of which 30,000 for online advertising.\nRisks\nThe main risk is rising advertising costs.\nConclusions\nThe plan is sustainable if results are measured every month."
+  }
+ },
+ {
+  "id": "doc-title",
+  "categoria": "documents",
+  "domanda": "change the title to \"Communication plan 2027\"",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "documento",
+   "titolo": "Marketing plan 2027",
+   "contenuto": "Marketing plan 2027\nIntroduction\nThis plan describes how to increase brand awareness in 2027 with a limited budget.\nGoals\nIncrease qualified leads by 20% and launch two seasonal campaigns.\nBudget\nThe total budget is 45,000 euros, of which 30,000 for online advertising.\nRisks\nThe main risk is rising advertising costs.\nConclusions\nThe plan is sustainable if results are measured every month."
+  }
+ },
+ {
+  "id": "doc-bold",
+  "categoria": "documents",
+  "domanda": "make the section titles bold",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "documento",
+   "titolo": "Marketing plan 2027",
+   "contenuto": "Marketing plan 2027\nIntroduction\nThis plan describes how to increase brand awareness in 2027 with a limited budget.\nGoals\nIncrease qualified leads by 20% and launch two seasonal campaigns.\nBudget\nThe total budget is 45,000 euros, of which 30,000 for online advertising.\nRisks\nThe main risk is rising advertising costs.\nConclusions\nThe plan is sustainable if results are measured every month."
+  }
+ },
+ {
+  "id": "doc-question",
+  "categoria": "documents",
+  "domanda": "what does the budget section say?",
+  "deve": [
+   "^PIANO (rispondi)\\b"
+  ],
+  "artefatto": {
+   "tipo": "documento",
+   "titolo": "Marketing plan 2027",
+   "contenuto": "Marketing plan 2027\nIntroduction\nThis plan describes how to increase brand awareness in 2027 with a limited budget.\nGoals\nIncrease qualified leads by 20% and launch two seasonal campaigns.\nBudget\nThe total budget is 45,000 euros, of which 30,000 for online advertising.\nRisks\nThe main risk is rising advertising costs.\nConclusions\nThe plan is sustainable if results are measured every month."
+  }
+ },
+ {
+  "id": "doc-summary",
+  "categoria": "documents",
+  "domanda": "summarize this document in three points",
+  "deve": [
+   "^PIANO (rispondi)\\b"
+  ],
+  "artefatto": {
+   "tipo": "documento",
+   "titolo": "Marketing plan 2027",
+   "contenuto": "Marketing plan 2027\nIntroduction\nThis plan describes how to increase brand awareness in 2027 with a limited budget.\nGoals\nIncrease qualified leads by 20% and launch two seasonal campaigns.\nBudget\nThe total budget is 45,000 euros, of which 30,000 for online advertising.\nRisks\nThe main risk is rising advertising costs.\nConclusions\nThe plan is sustainable if results are measured every month."
+  }
+ },
+ {
+  "id": "doc-new",
+  "categoria": "documents",
+  "domanda": "create a new document about the product launch",
+  "deve": [
+   "^PIANO (crea_documento)\\b"
+  ],
+  "artefatto": {
+   "tipo": "documento",
+   "titolo": "Marketing plan 2027",
+   "contenuto": "Marketing plan 2027\nIntroduction\nThis plan describes how to increase brand awareness in 2027 with a limited budget.\nGoals\nIncrease qualified leads by 20% and launch two seasonal campaigns.\nBudget\nThe total budget is 45,000 euros, of which 30,000 for online advertising.\nRisks\nThe main risk is rising advertising costs.\nConclusions\nThe plan is sustainable if results are measured every month."
+  }
+ },
+ {
+  "id": "doc-email",
+  "categoria": "documents",
+  "domanda": "send this document to Mark by email",
+  "deve": [
+   "^PIANO (scrivi_email)\\b"
+  ],
+  "artefatto": {
+   "tipo": "documento",
+   "titolo": "Marketing plan 2027",
+   "contenuto": "Marketing plan 2027\nIntroduction\nThis plan describes how to increase brand awareness in 2027 with a limited budget.\nGoals\nIncrease qualified leads by 20% and launch two seasonal campaigns.\nBudget\nThe total budget is 45,000 euros, of which 30,000 for online advertising.\nRisks\nThe main risk is rising advertising costs.\nConclusions\nThe plan is sustainable if results are measured every month."
+  }
+ },
+ {
+  "id": "sheet-row",
+  "categoria": "documents",
+  "domanda": "add a row for insurance, 45 euros in October",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "foglio",
+   "titolo": "Lisbon trip budget",
+   "contenuto": "Foglio «Sheet 1»:\nItem | October | November | Total\nFlight | 180 | 0 | 180\nHotel | 420 | 0 | 420\nFood | 150 | 60 | 210\nTotal | 750 | 60 | 810"
+  }
+ },
+ {
+  "id": "sheet-question",
+  "categoria": "documents",
+  "domanda": "what's the November total?",
+  "deve": [
+   "^PIANO (rispondi)\\b"
+  ],
+  "artefatto": {
+   "tipo": "foglio",
+   "titolo": "Lisbon trip budget",
+   "contenuto": "Foglio «Sheet 1»:\nItem | October | November | Total\nFlight | 180 | 0 | 180\nHotel | 420 | 0 | 420\nFood | 150 | 60 | 210\nTotal | 750 | 60 | 810"
+  }
+ },
+ {
+  "id": "sheet-chart",
+  "categoria": "documents",
+  "domanda": "create a pie chart of the expenses",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "foglio",
+   "titolo": "Lisbon trip budget",
+   "contenuto": "Foglio «Sheet 1»:\nItem | October | November | Total\nFlight | 180 | 0 | 180\nHotel | 420 | 0 | 420\nFood | 150 | 60 | 210\nTotal | 750 | 60 | 810"
+  }
+ },
+ {
+  "id": "sheet-delete",
+  "categoria": "documents",
+  "domanda": "delete the food row",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "foglio",
+   "titolo": "Lisbon trip budget",
+   "contenuto": "Foglio «Sheet 1»:\nItem | October | November | Total\nFlight | 180 | 0 | 180\nHotel | 420 | 0 | 420\nFood | 150 | 60 | 210\nTotal | 750 | 60 | 810"
+  }
+ },
+ {
+  "id": "sheet-edit",
+  "categoria": "documents",
+  "domanda": "double the hotel cost",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "foglio",
+   "titolo": "Lisbon trip budget",
+   "contenuto": "Foglio «Sheet 1»:\nItem | October | November | Total\nFlight | 180 | 0 | 180\nHotel | 420 | 0 | 420\nFood | 150 | 60 | 210\nTotal | 750 | 60 | 810"
+  }
+ },
+ {
+  "id": "slide-delete",
+  "categoria": "documents",
+  "domanda": "delete slide 3",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "presentazione",
+   "titolo": "Product launch",
+   "contenuto": "1. Product launch\n2. The problem\n3. The solution\n4. Market\n5. Next steps"
+  }
+ },
+ {
+  "id": "slide-title",
+  "categoria": "documents",
+  "domanda": "change the title of slide 2 to \"Why now\"",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "presentazione",
+   "titolo": "Product launch",
+   "contenuto": "1. Product launch\n2. The problem\n3. The solution\n4. Market\n5. Next steps"
+  }
+ },
+ {
+  "id": "slide-add",
+  "categoria": "documents",
+  "domanda": "add a slide about costs after the market one",
+  "deve": [
+   "^PIANO (modifica_artefatto)\\b"
+  ],
+  "artefatto": {
+   "tipo": "presentazione",
+   "titolo": "Product launch",
+   "contenuto": "1. Product launch\n2. The problem\n3. The solution\n4. Market\n5. Next steps"
+  }
+ },
+ {
+  "id": "slide-question",
+  "categoria": "documents",
+  "domanda": "what is the presentation about?",
+  "deve": [
+   "^PIANO (rispondi)\\b"
+  ],
+  "artefatto": {
+   "tipo": "presentazione",
+   "titolo": "Product launch",
+   "contenuto": "1. Product launch\n2. The problem\n3. The solution\n4. Market\n5. Next steps"
+  }
+ },
+ {
+  "id": "cal-move",
+  "categoria": "apps",
+  "domanda": "move tomorrow's meeting with Mark to 4 pm",
+  "deve": [
+   "^PIANO (modifica_evento)\\b"
+  ]
+ },
+ {
+  "id": "cal-rename",
+  "categoria": "apps",
+  "domanda": "rename tomorrow's 10 am event to \"Client call\"",
+  "deve": [
+   "^PIANO (modifica_evento)\\b"
+  ]
+ },
+ {
+  "id": "rem-delete",
+  "categoria": "apps",
+  "domanda": "delete the dentist reminder",
+  "deve": [
+   "^PIANO (elimina_promemoria)\\b"
+  ]
+ },
+ {
+  "id": "rem-due",
+  "categoria": "apps",
+  "domanda": "move the due date of the bills reminder to Friday",
+  "deve": [
+   "^PIANO (modifica_promemoria)\\b"
+  ]
+ },
+ {
+  "id": "note-add",
+  "categoria": "apps",
+  "domanda": "add milk to the shopping note",
+  "deve": [
+   "^PIANO (modifica_nota)\\b"
+  ]
+ },
+ {
+  "id": "mail-reply",
+  "categoria": "apps",
+  "domanda": "reply to Mario that Thursday works for me",
+  "deve": [
+   "^PIANO (rispondi_email)\\b"
+  ]
+ },
+ {
+  "id": "mail-forward",
+  "categoria": "apps",
+  "domanda": "forward Mario's last email to Julia",
+  "deve": [
+   "^PIANO (inoltra_email)\\b"
+  ]
+ },
+ {
+  "id": "cal-earlier",
+  "categoria": "apps",
+  "domanda": "move the call with Luke half an hour earlier",
+  "deve": [
+   "^PIANO (modifica_evento)\\b"
+  ]
+ },
+ {
+  "id": "cal-postpone",
+  "categoria": "apps",
+  "domanda": "postpone the dinner with Sarah to Friday",
+  "deve": [
+   "^PIANO (modifica_evento)\\b"
+  ]
+ },
+ {
+  "id": "cal-place",
+  "categoria": "apps",
+  "domanda": "change the location of tomorrow's meeting to room B",
+  "deve": [
+   "^PIANO (modifica_evento)\\b"
+  ]
+ },
+ {
+  "id": "cal-extend",
+  "categoria": "apps",
+  "domanda": "extend the budget meeting by half an hour",
+  "deve": [
+   "^PIANO (modifica_evento)\\b"
+  ]
+ },
+ {
+  "id": "cal-delete",
+  "categoria": "apps",
+  "domanda": "cancel tomorrow's meeting with Mark",
+  "deve": [
+   "^PIANO (elimina_evento)\\b"
+  ]
+ },
+ {
+  "id": "rem-no-due",
+  "categoria": "apps",
+  "domanda": "remove the due date from the bills reminder",
+  "deve": [
+   "^PIANO (modifica_promemoria)\\b"
+  ]
+ },
+ {
+  "id": "rem-important",
+  "categoria": "apps",
+  "domanda": "mark the gym reminder as important",
+  "deve": [
+   "^PIANO (modifica_promemoria)\\b"
+  ]
+ },
+ {
+  "id": "rem-delete-2",
+  "categoria": "apps",
+  "domanda": "delete the pay the rent reminder",
+  "deve": [
+   "^PIANO (elimina_promemoria)\\b"
+  ]
+ },
+ {
+  "id": "rem-complete",
+  "categoria": "apps",
+  "domanda": "mark the bills reminder as done",
+  "deve": [
+   "^PIANO (completa_promemoria)\\b"
+  ]
+ },
+ {
+  "id": "note-write",
+  "categoria": "apps",
+  "domanda": "write in the work note that there's a strike tomorrow",
+  "deve": [
+   "^PIANO (modifica_nota)\\b"
+  ]
+ },
+ {
+  "id": "note-list",
+  "categoria": "apps",
+  "domanda": "add to the shopping note: eggs, bread and coffee",
+  "deve": [
+   "^PIANO (modifica_nota)\\b"
+  ]
+ },
+ {
+  "id": "mail-reply-subject",
+  "categoria": "apps",
+  "domanda": "reply to the email about the invoice saying I'll pay it tomorrow",
+  "deve": [
+   "^PIANO (rispondi_email)\\b"
+  ]
+ },
+ {
+  "id": "mail-forward-2",
+  "categoria": "apps",
+  "domanda": "forward the last email from Mario to Julia",
+  "deve": [
+   "^PIANO (inoltra_email)\\b"
+  ]
+ },
+ {
+  "id": "no-question",
+  "categoria": "apps",
+  "domanda": "answer this question: what's 12 times 7?",
+  "deve": [
+   "^PIANO (rispondi)\\b"
+  ]
+ },
+ {
+  "id": "no-create-reminder",
+  "categoria": "apps",
+  "domanda": "remind me to pay the bills on Friday",
+  "deve": [
+   "^PIANO (crea_promemoria)\\b"
+  ]
+ },
+ {
+  "id": "no-create-note",
+  "categoria": "apps",
+  "domanda": "create a note with the shopping list: milk and eggs",
+  "deve": [
+   "^PIANO (crea_nota)\\b"
+  ]
+ },
+ {
+  "id": "no-create-event",
+  "categoria": "apps",
+  "domanda": "set up a meeting with Mark tomorrow at 4 pm",
+  "deve": [
+   "^PIANO (crea_evento)\\b"
+  ]
+ },
+ {
+  "id": "no-agenda",
+  "categoria": "apps",
+  "domanda": "what do I have tomorrow?",
+  "deve": [
+   "^PIANO (agenda)\\b"
+  ]
+ },
+ {
+  "id": "no-imessage",
+  "categoria": "apps",
+  "domanda": "reply to Mark on iMessage that I'll be there in ten minutes",
+  "deve": [
+   "^PIANO (invia_messaggio)\\b"
+  ]
+ },
+ {
+  "id": "no-new-email",
+  "categoria": "apps",
+  "domanda": "write an email to Julia about the quote",
+  "deve": [
+   "^PIANO (scrivi_email)\\b"
+  ]
+ }
+]
