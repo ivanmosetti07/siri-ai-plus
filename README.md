@@ -33,6 +33,11 @@
 </p>
 
 <p align="center">
+  <a href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&amp;business=ivanmosetti%40gmail.com&amp;item_name=Support%20Siri%20AI%2B%20and%20future%20open-source%20apps&amp;currency_code=EUR"><img src="https://img.shields.io/badge/Support%20on-PayPal-00457C?logo=paypal&amp;logoColor=white&amp;style=for-the-badge" alt="Support with PayPal"></a><br>
+  <sub>Help me build more open-source apps · Aiutami a realizzare altre app open source</sub>
+</p>
+
+<p align="center">
   <img src="docs/screenshots/en/home.jpg" alt="Siri AI+: the Home with your day, the weather and your chats" width="100%">
 </p>
 
@@ -273,6 +278,7 @@ Found something? Open an [issue](https://github.com/ivanmosetti07/siri-ai-plus/i
 ### ⭐ Support the project
 
 - ⭐ **Star the repo** with the button at the top right. It's free, it motivates me, and it helps other people find Siri AI+.
+- 💙 **[Support me on PayPal](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=ivanmosetti%40gmail.com&item_name=Support%20Siri%20AI%2B%20and%20future%20open-source%20apps&currency_code=EUR)** to help me create more open-source apps.
 - 👀 **Watch › Custom › Releases** to get a notification when a new version comes out.
 - 🐛 **Found a bug?** [Open an issue](https://github.com/ivanmosetti07/siri-ai-plus/issues/new).
 - 💡 **Got an idea or a question?** Join the [Discussions](https://github.com/ivanmosetti07/siri-ai-plus/discussions).
@@ -530,6 +536,7 @@ Hai trovato qualcosa? Apri una [issue](https://github.com/ivanmosetti07/siri-ai-
 ### ⭐ Supporta il progetto
 
 - ⭐ **Metti una stella** al repository con il pulsante in alto a destra. È gratis, mi motiva e aiuta altre persone a trovare Siri AI+.
+- 💙 **[Sostienimi su PayPal](https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=ivanmosetti%40gmail.com&item_name=Support%20Siri%20AI%2B%20and%20future%20open-source%20apps&currency_code=EUR)** per aiutarmi a realizzare altre app open source.
 - 👀 **Watch › Custom › Releases** per ricevere un avviso quando esce una nuova versione.
 - 🐛 **Hai trovato un bug?** [Apri una issue](https://github.com/ivanmosetti07/siri-ai-plus/issues/new).
 - 💡 **Hai un'idea o una domanda?** Scrivila nelle [Discussions](https://github.com/ivanmosetti07/siri-ai-plus/discussions).
