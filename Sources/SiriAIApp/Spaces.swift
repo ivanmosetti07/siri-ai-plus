@@ -165,7 +165,7 @@ struct ScheduleContent: View {
             VStack(alignment: .leading, spacing: 14) {
                 PanelLabel(text: Language.t("Tutto ciò che fanno da soli", "Everything they do on their own"), symbol: "calendar.badge.clock")
                 MetricsGrid(metrics: [
-                    DashMetric(label: Language.t("Genius attivi", "Active Genius"), value: "\(active.count)", note: Language.t("su \(state.spaceAgents.count)", "of \(state.spaceAgents.count)"), tint: .purple),
+                    DashMetric(label: Language.t("Genius attivi", "Active Geniuses"), value: "\(active.count)", note: Language.t("su \(state.spaceAgents.count)", "of \(state.spaceAgents.count)"), tint: .purple),
                     DashMetric(label: Language.t("Programmazioni", "Schedules"), value: "\(routines.count)", note: Language.t("attive", "active"), tint: Color(red: 0.4, green: 0.7, blue: 1)),
                     DashMetric(label: Language.t("Prossima", "Next"), value: occurrences.first.map { $0.date.formatted(.dateTime.hour().minute()) } ?? "—",
                                note: occurrences.first.map { Dates.friendly($0.date, time: false) } ?? Language.t("niente in programma", "nothing scheduled"), tint: .teal),
@@ -197,8 +197,9 @@ struct ScheduleContent: View {
                         AgentAvatar(agent: agent, size: 32)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(agent.displayName).font(DS.Fonts.bodyStrong)
-                            Text(Language.t("\(state.pendingApprovals(for: agent)) azioni aspettano la tua conferma",
-                                            "\(state.pendingApprovals(for: agent)) actions await your approval")).font(DS.Fonts.caption).foregroundStyle(.secondary)
+                            let pending = state.pendingApprovals(for: agent)
+                            Text(pending == 1 ? Language.t("1 azione aspetta la tua conferma", "1 action awaits your approval")
+                                 : Language.t("\(pending) azioni aspettano la tua conferma", "\(pending) actions await your approval")).font(DS.Fonts.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
                         Button(Language.t("Approva tutte", "Approve all")) {
@@ -247,7 +248,7 @@ struct ScheduleContent: View {
     private func occurrenceRow(_ item: Occurrence) -> some View {
         HStack(spacing: 12) {
             Text(item.date.formatted(.dateTime.hour().minute())).font(.system(size: 13, weight: .semibold, design: .rounded)).monospacedDigit()
-                .frame(width: 48, alignment: .trailing)
+                .lineLimit(1).fixedSize().frame(minWidth: 48, alignment: .trailing)
             ZStack(alignment: .bottomTrailing) {
                 AgentAvatar(agent: item.agent, size: 28)
                 if item.isDream {

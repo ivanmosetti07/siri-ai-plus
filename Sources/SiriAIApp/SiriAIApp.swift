@@ -91,7 +91,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 await state.start()
                 let settings = args.contains("--snapshot-settings")
                 if let tab = args.firstIndex(of: "--snapshot-settings").flatMap({ args.count > $0 + 1 ? args[$0 + 1] : nil }) { state.settingsTab = tab }
-                let root: AnyView = settings ? AnyView(SettingsView().environment(state)) : AnyView(RootView().environment(state))
+                let creation = args.contains("--genius-creation-demo")
+                let root: AnyView = settings ? AnyView(SettingsView().environment(state))
+                    : creation ? AnyView(RootView().overlay { GeniusCreationSnapshot() }.environment(state))
+                    : AnyView(RootView().environment(state))
                 let window = NSWindow(contentRect: CGRect(x: -6000, y: 0, width: size.width, height: size.height),
                                       styleMask: [.titled, .closable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
                 window.contentView = NSHostingView(rootView: root.frame(width: size.width, height: size.height))

@@ -296,7 +296,7 @@ struct FilesAppView: View {
                 Text("Nome").tag("nome")
                 Text("Data di modifica").tag("data")
                 Text("Dimensioni").tag("dimensioni")
-                Text("Tipo").tag("tipo")
+                Text(String(localized: "file.kind", defaultValue: "Tipo")).tag("tipo")
             }
             .pickerStyle(.inline)
             Picker("Ordine", selection: Binding(get: { sortAscending }, set: { setSort(sortKey, ascending: $0) })) {
@@ -441,7 +441,7 @@ struct FilesAppView: View {
                 Text(entry.size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "—").foregroundStyle(.secondary)
             }
             .width(min: 56, ideal: 70)
-            TableColumn(String(localized: "Tipo"), value: \.kind) { entry in Text(entry.kind).foregroundStyle(.secondary).lineLimit(1) }
+            TableColumn(String(localized: "file.kind", defaultValue: "Tipo"), value: \.kind) { entry in Text(entry.kind).foregroundStyle(.secondary).lineLimit(1) }
                 .width(min: 60, ideal: 110)
         } rows: {
             ForEach(entries) { entry in
@@ -912,7 +912,7 @@ private struct FileInspector: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     Text(entry.name).font(.system(size: 16, weight: .bold)).textSelection(.enabled)
                     InspectorGroup {
-                        InspectorRow(label: String(localized: "Tipo")) { Text(entry.kind) }
+                        InspectorRow(label: String(localized: "file.kind", defaultValue: "Tipo")) { Text(entry.kind) }
                         if let size = entry.size {
                             InspectorRow(label: String(localized: "Dimensioni")) { Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file)) }
                         }

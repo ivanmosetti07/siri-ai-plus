@@ -132,7 +132,9 @@ public struct ScreenItem: Sendable, Equatable {
                             "conversazione": "conversation", "conversazioni": "conversations", "documento": "document",
                             "documenti": "documents", "registrazione": "recording", "registrazioni": "recordings",
                             "appuntamenti": "appointments", "riunioni": "meetings", "attività": "tasks", "immagini": "images",
-                            "cartella": "folder", "cartelle": "folders"]
+                            "cartella": "folder", "cartelle": "folders", "cose da fare": "to-dos", "lista": "list", "impegni": "appointments",
+                            "calendario": "calendar", "rubrica": "address book", "persone": "people", "appunti": "notes",
+                            "fogli": "sheets", "presentazioni": "presentations", "memo": "memos"]
         return nouns + nouns.compactMap { translations[$0.lowercased()] }
     }
 

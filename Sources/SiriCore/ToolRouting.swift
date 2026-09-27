@@ -369,7 +369,7 @@ extension Assistant {
         let t = Language.t
         let areas = route.areas ?? route.tools
         trace?.steps.insert(TraceStep(action: "smistatore",
-                                      detail: (route.note.isEmpty ? "" : "«\(route.note)» · ") + t("aree: ", "areas: ") + (areas.isEmpty ? t("nessuna", "none") : areas.joined(separator: ", ")),
+                                      detail: (route.note.isEmpty ? "" : "«\(route.note)» · ") + t("aree: ", "areas: ") + (areas.isEmpty ? t("nessuna", "none") : areas.map(Self.toolLabel).joined(separator: ", ")),
                                       result: (names.isEmpty ? t("nessuno strumento: basta rispondere", "no tools: a reply is enough") : t("strumenti: ", "tools: ") + names.joined(separator: ", "))
                                           + (route.multiStep ? t(" · piano a passi con i sub-agent", " · step-by-step plan with sub-agents") : t(" · piano di un passo", " · one-step plan")),
                                       milliseconds: route.milliseconds, ok: true), at: 0)
@@ -384,8 +384,30 @@ extension Assistant {
             let parts = name.dropFirst(5).components(separatedBy: "__")
             return parts.joined(separator: " · ").replacingOccurrences(of: "_", with: " ")
         }
+        if Language.isEnglish, let english = englishToolNames[name] { return english }
         return name.replacingOccurrences(of: "_", with: " ")
     }
+
+    /// Gli strumenti, le azioni e le aree nella traccia delle richieste in inglese (gli id restano italiani).
+    nonisolated static let englishToolNames: [String: String] = [
+        "agenda": "agenda", "aggiungi_a_nota": "append to note", "calendari": "calendars", "cerca_conversazioni": "search conversations",
+        "cerca_file_mac": "search Mac files", "cerca_nei_file": "search in files", "cerca_web": "web search", "crea_cartella": "new folder",
+        "crea_documento": "create document", "crea_evento": "create event", "crea_nota": "create note", "crea_promemoria": "create reminder",
+        "elenca_file": "list files", "elimina_evento": "delete event", "elimina_promemoria": "delete reminder", "inoltra_email": "forward email",
+        "invia_messaggio": "send message", "leggi_email": "read email", "leggi_file": "read file", "leggi_messaggi": "read messages",
+        "leggi_note": "read notes", "leggi_pagina": "read page", "modifica_aperto": "edit open document", "modifica_evento": "edit event",
+        "modifica_file": "edit file", "modifica_promemoria": "edit reminder", "ricorda": "remember", "rispondi_email": "reply to email",
+        "scrivi_email": "write email", "scrivi_file": "write file", "sposta_file": "move file",
+        "rispondi": "reply", "eventi": "events", "promemoria": "reminders", "crea_lista_promemoria": "new reminder list",
+        "completa_promemoria": "complete reminder", "crea_foglio": "create sheet", "crea_presentazione": "create presentation", "piano": "plan",
+        "mail_leggi": "read mail", "note": "notes", "file": "files", "messaggi": "messages", "modifica_nota": "edit note",
+        "genera_immagine": "generate image", "file_elenca": "list files", "file_leggi": "read file", "file_cerca": "search files",
+        "file_scrivi": "write file", "file_sposta": "move file", "file_cartella": "new folder", "file_elimina": "delete file",
+        "strumento_esterno": "connector", "modifica_artefatto": "edit document", "naviga": "browse", "segui_link": "follow link",
+        "nuova_chat": "new chat", "crea_agente": "create Genius", "crea_sito": "create website",
+        "calendario": "calendar", "email": "email", "posta": "mail", "contatti": "contacts", "connettori": "connectors", "memoria": "memory",
+        "documenti": "documents", "conversazioni": "conversations", "immagini": "images", "sito": "website",
+    ]
 }
 
 extension ToolRegistry {

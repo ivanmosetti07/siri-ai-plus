@@ -189,7 +189,7 @@ private struct ModelsSettings: View {
             status(String(localized: "Motore rizzo-pii"), ok: PIIEngine.isInstalled,
                    detail: PIIEngine.isInstalled ? String(localized: "sul Mac · solo i dati personali · dizionario per chat") : String(localized: "non installato (Support/rizzo-pii/install.sh)"))
             if state.cloudPrivacy {
-                Label("Sempre nascosti: " + PIICategory.sensitive.filter { $0 != "BUILDINGNUM" }.map(PIICategory.name).joined(separator: ", ") + ".",
+                Label(String(localized: "Sempre nascosti: ") + PIICategory.sensitive.filter { $0 != "BUILDINGNUM" }.map(PIICategory.name).joined(separator: ", ") + ".",
                       systemImage: "eye.slash")
                     .font(DS.Fonts.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 DisclosureGroup("Nascondi anche (di solito servono all'AI per lavorare)") {
@@ -243,7 +243,7 @@ private struct ModelsSettings: View {
 
         SettingsGroup(title: String(localized: "Gemma 4 (Google, locale da Hugging Face)"),
                       footnote: String(localized: "Il modello viene scaricato da Hugging Face sul Mac (\(GemmaVariant.folder.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))) e gira con llama.cpp sulla GPU. Consigliata per questo Mac (\(DeviceProfile.memoryGB) GB): \(DeviceProfile.recommendedGemma.label).")) {
-            status("llama.cpp", ok: models.llamaInstalled, detail: models.llamaInstalled ? (models.gemmaRunning ? String(localized: "Gemma in esecuzione") : "installato") : String(localized: "non installato"))
+            status("llama.cpp", ok: models.llamaInstalled, detail: models.llamaInstalled ? (models.gemmaRunning ? String(localized: "Gemma in esecuzione") : String(localized: "installato")) : String(localized: "non installato"))
             if !models.llamaInstalled {
                 Button(models.brewAvailable ? String(localized: "Installa llama.cpp") : String(localized: "Scarica llama.cpp…")) { models.installLlama() }.disabled(models.isBusy("llama"))
             }
@@ -257,7 +257,7 @@ private struct ModelsSettings: View {
         SettingsGroup(title: String(localized: "ds4 (antirez, locale)"),
                       footnote: String(localized: "Motore per modelli come DeepSeek V4 Flash. Su Mac serve Apple Silicon con almeno 96 GB di memoria (questo Mac: \(DeviceProfile.memoryGB) GB). Il download del modello pesa decine di GB.")) {
             if DeviceProfile.supportsDS4 {
-                status("ds4", ok: models.ds4Running, detail: models.ds4Installed ? (models.ds4Running ? String(localized: "server in esecuzione") : "installato") : String(localized: "non installato"))
+                status("ds4", ok: models.ds4Running, detail: models.ds4Installed ? (models.ds4Running ? String(localized: "server in esecuzione") : String(localized: "installato")) : String(localized: "non installato"))
                 HStack {
                     if !models.ds4Installed { Button("Installa ds4 e scarica il modello") { models.installDS4() }.disabled(models.isBusy("ds4")) }
                     else if !models.ds4Running { Button("Avvia il server ds4") { models.startDS4() }.disabled(models.isBusy("ds4-start")) }

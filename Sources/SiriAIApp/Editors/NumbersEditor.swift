@@ -405,19 +405,19 @@ struct ChartBlock: View {
             Chart(points) { point in
                 switch spec.kind {
                 case .bar:
-                    BarMark(x: .value(String(localized: "Voce"), point.label), y: .value(String(localized: "Valore"), point.value))
+                    BarMark(x: .value(String(localized: "chart.item", defaultValue: "Voce"), point.label), y: .value(String(localized: "Valore"), point.value))
                         .foregroundStyle(by: .value(String(localized: "Serie"), point.series))
                         .position(by: .value(String(localized: "Serie"), point.series))
                         .cornerRadius(3)
                 case .line:
-                    LineMark(x: .value(String(localized: "Voce"), point.label), y: .value(String(localized: "Valore"), point.value))
+                    LineMark(x: .value(String(localized: "chart.item", defaultValue: "Voce"), point.label), y: .value(String(localized: "Valore"), point.value))
                         .foregroundStyle(by: .value(String(localized: "Serie"), point.series))
                         .symbol(by: .value(String(localized: "Serie"), point.series))
                         .interpolationMethod(.monotone)
                 case .pie:
                     if point.series == data.series.first?.name {
                         SectorMark(angle: .value(String(localized: "Valore"), max(0, point.value)), innerRadius: .ratio(0.5), angularInset: 1.5)
-                            .foregroundStyle(by: .value(String(localized: "Voce"), point.label))
+                            .foregroundStyle(by: .value(String(localized: "chart.item", defaultValue: "Voce"), point.label))
                             .cornerRadius(3)
                     }
                 }

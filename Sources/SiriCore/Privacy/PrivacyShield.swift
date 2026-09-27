@@ -132,6 +132,8 @@ public final class PrivacyShield: @unchecked Sendable {
     static let scaffolding: [NSRegularExpression] = [
         try! NSRegularExpression(pattern: #"(?:(?:Adesso|Oggi) è|It is now|It's now|Today is) [^\n]{0,40}?\d{4}(?:-\d{2}-\d{2})?(?:,? (?:ore |at )?\d{1,2}[:.]\d{2})?"#),
         try! NSRegularExpression(pattern: #"(?m)^- \p{L}+ \d{4}-\d{2}-\d{2}(?: \((?:oggi|domani|today|tomorrow)\))?$"#),
+        // Il nome dell'assistente nelle istruzioni («You are Siri AI+…»): il modello inglese lo prendeva per una persona.
+        try! NSRegularExpression(pattern: #"\bSiri(?: AI\+)?"#),
     ]
 
     /// Le entità da nascondere: solo quelle delle categorie scelte. Restano in chiaro gli indirizzi IP del Mac e della rete

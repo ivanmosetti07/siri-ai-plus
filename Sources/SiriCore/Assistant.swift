@@ -203,9 +203,10 @@ public struct FileOpDraft: Sendable, Equatable, Codable {
 
     public var title: String {
         switch kind {
-        case .move: (from as NSString).deletingLastPathComponent == (to as NSString).deletingLastPathComponent ? "Rinomina" : "Sposta"
-        case .folder: "Nuova cartella"
-        case .trash: "Sposta nel Cestino"
+        case .move: (from as NSString).deletingLastPathComponent == (to as NSString).deletingLastPathComponent
+            ? Language.t("Rinomina", "Rename") : Language.t("Sposta", "Move")
+        case .folder: Language.t("Nuova cartella", "New folder")
+        case .trash: Language.t("Sposta nel Cestino", "Move to Trash")
         }
     }
 }

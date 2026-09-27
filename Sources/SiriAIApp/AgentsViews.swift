@@ -156,7 +156,7 @@ struct AgentsGallery: View {
         let since = Calendar.current.date(byAdding: .day, value: -6, to: Calendar.current.startOfDay(for: .now)) ?? .now
         let runs = state.spaceAgents.reduce(0) { $0 + $1.history.filter { $0.start >= since }.count }
         return [
-            GlassPill(id: "agenti", title: Language.t("I tuoi Genius", "Your Genius"), value: state.spaceAgents.isEmpty ? Language.t("Nessuno", "None") : Language.t("\(state.spaceAgents.filter(\.active).count) attivi", "\(state.spaceAgents.filter(\.active).count) active"),
+            GlassPill(id: "agenti", title: Language.t("I tuoi Genius", "Your Geniuses"), value: state.spaceAgents.isEmpty ? Language.t("Nessuno", "None") : Language.t("\(state.spaceAgents.filter(\.active).count) attivi", "\(state.spaceAgents.filter(\.active).count) active"),
                       symbol: "person.2.fill", colors: Hue.purple, badge: pending),
             GlassPill(id: "programmazioni", title: Language.t("Programmazioni", "Schedules"), value: next.map { Language.t("Prossima \($0.formatted(.dateTime.hour().minute()))", "Next \($0.formatted(.dateTime.hour().minute()))") } ?? Language.t("Nessuna", "None"),
                       symbol: "calendar.badge.clock", colors: Hue.orange),
@@ -192,7 +192,7 @@ struct AgentsGallery: View {
                             colors: Hue.purple, actionTitle: Language.t("Nuovo Genius", "New Genius")) { state.startGeniusCreation() }
         } else {
             VStack(alignment: .leading, spacing: 12) {
-                GroupTitle(text: Language.t("I tuoi Genius", "Your Genius"))
+                GroupTitle(text: Language.t("I tuoi Genius", "Your Geniuses"))
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 14) {
                     ForEach(state.spaceAgents) { agent in
                         Button { state.openAgent(agent.id) } label: { AgentTile(agent: agent) }.buttonStyle(.plain)
@@ -252,7 +252,7 @@ struct AgentDetailView: View {
     /// Sezioni del dettaglio: elenco a sinistra, come nelle Impostazioni di sistema.
     private static let sections: [(tag: Int, label: String, symbol: String)] = [
         (0, Language.t("Attività", "Activity"), "clock.arrow.circlepath"), (4, Language.t("Programmazioni", "Schedules"), "calendar.badge.clock"),
-        (1, Language.t("Cronologia", "History"), "clock"), (8, "Skill", "wand.and.stars"), (5, Language.t("Cartelle", "Folders"), "folder"),
+        (1, Language.t("Cronologia", "History"), "clock"), (8, Language.t("Skill", "Skills"), "wand.and.stars"), (5, Language.t("Cartelle", "Folders"), "folder"),
         (6, Language.t("Anima", "Soul"), "heart.text.square"), (7, Language.t("Sogni", "Dreams"), "moon.stars"), (2, Language.t("Memoria", "Memory"), "brain"), (3, Language.t("Accessi", "Access"), "lock.shield"),
     ]
 
@@ -502,7 +502,7 @@ struct AgentDetailView: View {
                     if dream.previousInstructions != dream.newInstructions {
                         DisclosureGroup("Istruzioni cambiate") {
                             VStack(alignment: .leading, spacing: 6) {
-                                Text("Prima: \(dream.previousInstructions.isEmpty ? "nessuna" : dream.previousInstructions)").font(DS.Fonts.caption).foregroundStyle(.secondary)
+                                Text("Prima: \(dream.previousInstructions.isEmpty ? String(localized: "nessuna") : dream.previousInstructions)").font(DS.Fonts.caption).foregroundStyle(.secondary)
                                 Text("Dopo: \(dream.newInstructions)").font(DS.Fonts.caption)
                             }
                         }
@@ -791,6 +791,7 @@ struct AgentEditor: View {
     @Environment(AppState.self) private var state
     @Environment(\.dismiss) private var dismiss
     @State private var draft: AgentSpec
+    @State private var pendingCloud: ModelSelection?
 
     init(agent: AgentSpec) { _draft = State(initialValue: agent) }
 
@@ -821,13 +822,16 @@ struct AgentEditor: View {
                 HStack {
                     Text(Language.t("Modello del Genius", "Genius model"))
                     ModelPicker(current: draft.model ?? state.defaultSelection(for: Space(rawValue: draft.space) ?? .lavoro)) {
-                        draft.model = state.resolved($0)
+                        let choice = state.resolved($0)
+                        if choice.needsCloudConsent(after: draft.model ?? state.defaultSelection(for: Space(rawValue: draft.space) ?? .lavoro)) {
+                            pendingCloud = choice
+                        } else { draft.model = choice }
                     }
                 }
                 Toggle(Language.t("Può cercare sul web", "Can search the web"), isOn: binding.allowWeb)
                 Toggle(Language.t("Può usare i connettori", "Can use connectors"), isOn: binding.allowConnectors)
                 Toggle(Language.t("Approva da solo eventi, promemoria, note e file", "Automatically approve events, reminders, notes, and files"), isOn: binding.autoApprove)
-                Toggle(Language.t("Controlla prima se c'è qualcosa da fare", "Check whether there is work to do first"), isOn: binding.heartbeat)
+                Toggle(Language.t("Controlla prima se c'è qualcosa da fare", "Check first whether there's anything to do"), isOn: binding.heartbeat)
             }
             .formStyle(.grouped)
             .frame(maxHeight: 330)
@@ -883,6 +887,7 @@ struct AgentEditor: View {
         }
         .padding(22)
         .frame(width: 580)
+        .cloudConsent($pendingCloud) { draft.model = $0 }
     }
 }
 
@@ -927,6 +932,9 @@ struct RoutinesEditor: View {
     @Binding var routines: [AgentRoutine]
     var geniusModel: ModelSelection?
     var run: ((UUID) -> Void)?
+    /// Modello cloud in attesa dell'avviso sulla privacy, con la programmazione a cui andrà.
+    @State private var pendingCloud: ModelSelection?
+    @State private var pendingRoutine: UUID?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -983,7 +991,11 @@ struct RoutinesEditor: View {
                     HStack(spacing: 8) {
                         Text(Language.t("Modello", "Model")).font(DS.Fonts.caption).foregroundStyle(.secondary)
                         ModelPicker(current: routine.model ?? geniusModel ?? state.defaultSelection(for: state.space), compact: true) {
-                            routine.model = state.resolved($0)
+                            let choice = state.resolved($0)
+                            if choice.needsCloudConsent(after: routine.model ?? geniusModel ?? state.defaultSelection(for: state.space)) {
+                                pendingRoutine = routine.id
+                                pendingCloud = choice
+                            } else { routine.model = choice }
                         }
                         if routine.model != nil {
                             Button(Language.t("Usa quello del Genius", "Use the Genius model")) { routine.model = nil }.buttonStyle(.link).font(DS.Fonts.caption)
@@ -1005,6 +1017,9 @@ struct RoutinesEditor: View {
             } label: {
                 Label(Language.t("Aggiungi programmazione", "Add schedule"), systemImage: "plus")
             }
+        }
+        .cloudConsent($pendingCloud) { cloud in
+            if let index = routines.firstIndex(where: { $0.id == pendingRoutine }) { routines[index].model = cloud }
         }
     }
 }

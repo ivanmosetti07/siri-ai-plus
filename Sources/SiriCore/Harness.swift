@@ -243,9 +243,18 @@ extension Assistant {
     static func traceDetail(_ plan: Plan) -> String {
         plan.fields.filter { $0.key != "argomento" || $0.value.count < 120 }
             .sorted { $0.key < $1.key }
-            .map { "\($0.key)=\($0.value.prefix(60))" }
+            .map { "\(Language.isEnglish ? englishFieldNames[$0.key] ?? $0.key : $0.key)=\($0.value.prefix(60))" }
             .joined(separator: " · ")
     }
+
+    /// I campi del piano nella traccia delle richieste in inglese (nello schema restano italiani).
+    static let englishFieldNames: [String: String] = [
+        "cerca": "query", "titolo": "title", "testo": "text", "quando": "when", "inizio": "start", "fine": "end", "luogo": "location",
+        "lista": "list", "scadenza": "due", "oggetto": "subject", "corpo": "body", "messaggio": "message", "note": "notes",
+        "cartella": "folder", "percorso": "path", "destinazione": "destination", "rinomina": "rename", "argomento": "topic",
+        "destinatario": "to", "email": "email", "server": "server", "strumento": "tool", "tipo": "kind", "voce": "item",
+        "riepilogo": "summary", "sottotitolo": "subtitle", "dettagli": "details", "azione": "action", "url": "url", "nome": "name",
+    ]
 
     static func traceResult(_ outcome: Outcome, error: String?) -> String {
         if Language.isEnglish { return englishTraceResult(outcome, error: error) }

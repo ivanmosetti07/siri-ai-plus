@@ -521,7 +521,7 @@ private struct ReminderRow: View {
                     if entry.priority != .none {
                         Text(entry.priority.marks).font(.system(size: 13, weight: .bold)).foregroundStyle(Color(entry.color))
                     }
-                    TextField("Promemoria", text: $title)
+                    TextField(String(localized: "reminder.placeholder", defaultValue: "Promemoria"), text: $title)
                         .textFieldStyle(.plain)
                         .font(.system(size: 13.5))
                         .foregroundStyle(checked ? .secondary : .primary)
@@ -613,7 +613,7 @@ private struct ReminderInspector: View {
                                 DatePicker("", selection: Binding(get: { draft.due ?? .now }, set: { draft.due = $0 }), displayedComponents: [.date])
                                     .labelsHidden().datePickerStyle(.field)
                             }
-                            InspectorRow(label: String(localized: "Ora"), divider: draft.dueHasTime) {
+                            InspectorRow(label: String(localized: "reminder.time", defaultValue: "Ora"), divider: draft.dueHasTime) {
                                 Toggle("", isOn: Binding(get: { draft.dueHasTime }, set: { on in
                                     draft.dueHasTime = on
                                     if on, let due = draft.due, Calendar.current.component(.hour, from: due) == 0 {

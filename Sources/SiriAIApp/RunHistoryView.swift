@@ -30,7 +30,7 @@ struct RunHistoryView: View {
             case .tutte: Language.t("Tutte", "All")
             case .programmate: Language.t("Programmate", "Scheduled")
             case .manuali: Language.t("Avviate da te", "Started by you")
-            case .problemi: Language.t("Con problemi", "With problems")
+            case .problemi: Language.t("Con problemi", "With issues")
             }
         }
     }
@@ -117,7 +117,7 @@ struct RunHistoryView: View {
             } label: {
                 HStack(alignment: .top, spacing: 12) {
                     Text(item.date.formatted(.dateTime.hour().minute())).font(DS.Fonts.captionStrong).monospacedDigit()
-                        .foregroundStyle(.secondary).frame(width: 40, alignment: .trailing)
+                        .foregroundStyle(.secondary).lineLimit(1).fixedSize().frame(minWidth: 40, alignment: .trailing)
                     if showAgent {
                         AgentAvatar(agent: item.agent, size: 24)
                     }

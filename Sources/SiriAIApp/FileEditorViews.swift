@@ -11,7 +11,7 @@ final class TextEditingController {
     weak var textView: NSTextView?
 
     /// Avvolge la selezione (grassetto, corsivo, codice…) o inserisce i marcatori al cursore.
-    func wrap(_ prefix: String, _ suffix: String, placeholder: String = "testo") {
+    func wrap(_ prefix: String, _ suffix: String, placeholder: String = String(localized: "testo")) {
         guard let view = textView else { return }
         let range = view.selectedRange()
         let selected = (view.string as NSString).substring(with: range)

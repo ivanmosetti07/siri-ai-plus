@@ -1,7 +1,222 @@
 {
-  "sourceLanguage" : "it",
-  "strings" : {
-
+  "sourceLanguage": "it",
+  "strings": {
+    "CFBundleDisplayName": {
+      "comment": "Bundle display name",
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+"
+          }
+        }
+      }
+    },
+    "CFBundleName": {
+      "comment": "Bundle name",
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+"
+          }
+        }
+      }
+    },
+    "NSAppleEventsUsageDescription": {
+      "comment": "Privacy - AppleEvents Sending Usage Description",
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+ uses Notes, Mail, Messages, Safari, and Keynote to read and create what you ask for: notes, emails, messages (only after you confirm), web pages, and presentations."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+ usa Note, Mail, Messaggi, Safari e Keynote per leggere e creare ciò che le chiedi: note, email, messaggi (solo dopo la tua conferma), pagine web e presentazioni."
+          }
+        }
+      }
+    },
+    "NSCalendarsFullAccessUsageDescription": {
+      "comment": "Privacy - Calendars Full Access Usage Description",
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+ reads and creates events in your calendar when you ask."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+ legge e crea eventi nel tuo calendario su tua richiesta."
+          }
+        }
+      }
+    },
+    "NSCalendarsUsageDescription": {
+      "comment": "Privacy - Calendars Usage Description",
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+ reads and creates events in your calendar when you ask."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+ legge e crea eventi nel tuo calendario su tua richiesta."
+          }
+        }
+      }
+    },
+    "NSContactsUsageDescription": {
+      "comment": "Privacy - Contacts Usage Description",
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+ uses Contacts to find the phone number or email address of the people you want to write to, and to show names in Messages."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+ usa i Contatti per trovare il numero o l'email delle persone a cui vuoi scrivere e per mostrare i nomi nei Messaggi."
+          }
+        }
+      }
+    },
+    "NSLocationUsageDescription": {
+      "comment": "Privacy - Location Usage Description",
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+ uses your Mac's approximate location (about 1 km) for the weather on Home, only if you turn it on in Settings."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+ usa la posizione del Mac (circa 1 km) per il meteo della Home, solo se lo attivi nelle Impostazioni."
+          }
+        }
+      }
+    },
+    "NSLocationWhenInUseUsageDescription": {
+      "comment": "Privacy - Location When In Use Usage Description",
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+ uses your Mac's approximate location (about 1 km) for the weather on Home, only if you turn it on in Settings."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+ usa la posizione del Mac (circa 1 km) per il meteo della Home, solo se lo attivi nelle Impostazioni."
+          }
+        }
+      }
+    },
+    "NSMicrophoneUsageDescription": {
+      "comment": "Privacy - Microphone Usage Description",
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+ uses the microphone to dictate your requests."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+ usa il microfono per la dettatura delle richieste."
+          }
+        }
+      }
+    },
+    "NSRemindersFullAccessUsageDescription": {
+      "comment": "Privacy - Reminders Full Access Usage Description",
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+ reads, creates, and completes your reminders when you ask."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+ legge, crea e completa i tuoi promemoria su tua richiesta."
+          }
+        }
+      }
+    },
+    "NSRemindersUsageDescription": {
+      "comment": "Privacy - Reminders Usage Description",
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+ reads, creates, and completes your reminders when you ask."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+ legge, crea e completa i tuoi promemoria su tua richiesta."
+          }
+        }
+      }
+    },
+    "NSSpeechRecognitionUsageDescription": {
+      "comment": "Privacy - Speech Recognition Usage Description",
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+ transcribes your voice on your Mac to write your requests."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siri AI+ trascrive la tua voce sul dispositivo per scrivere le richieste."
+          }
+        }
+      }
+    }
   },
-  "version" : "1.0"
+  "version": "1.0"
 }

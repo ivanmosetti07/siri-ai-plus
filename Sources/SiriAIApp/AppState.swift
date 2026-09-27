@@ -569,6 +569,10 @@ final class AppState {
         prefs = AppPaths.isTestEnvironment
             ? Dictionary(uniqueKeysWithValues: SourceKind.allCases.map { ($0, SourcePref(enabled: false, allowWrite: false)) })
             : Self.loadPrefs()
+        // Diagnostica (solo istanze di prova, per le foto): `--demo-sources files` attiva in sola lettura le fonti elencate.
+        if let list = AppTesting.value(after: "--demo-sources") {
+            for kind in list.split(separator: ",").compactMap({ SourceKind(rawValue: String($0)) }) { prefs[kind] = SourcePref(enabled: true, allowWrite: false) }
+        }
         activity = Self.loadActivity()
         projects = Self.loadProjects()
         agents = Self.loadAgents()
@@ -629,7 +633,8 @@ final class AppState {
             agents = (0..<count).map { index in
                 let template = AgentTemplate.all[index % AgentTemplate.all.count]
                 var spec = template.spec
-                spec.name += " \(index + 1)"
+                // Il numero solo quando i modelli si ripetono (le foto del README mostrano i nomi veri).
+                if index >= AgentTemplate.all.count { spec.name += " \(index / AgentTemplate.all.count + 1)" }
                 spec.space = space.rawValue
                 spec.created = .now.addingTimeInterval(-Double(index) * 3_600)
                 if index == 2 { spec.active = false }
@@ -645,8 +650,9 @@ final class AppState {
             if count > 1 { runningAgents.insert(agents[1].id) }
             if count > 0, AppPaths.isTestEnvironment, args.contains("--demo-skill") {
                 _ = try? SkillStore.save(name: String(localized: "Rassegna con fonti"), description: String(localized: "Cinque notizie con link e data"),
-                                         cues: [String(localized: "rassegna stampa"), "notizie"],
-                                         body: "## Procedura\n1. Cerca le novità del giorno.\n2. Verifica data e fonte di ogni notizia.\n3. Consegna cinque punti con i link.",
+                                         cues: [String(localized: "rassegna stampa"), Language.t("notizie", "news")],
+                                         body: Language.t("## Procedura\n1. Cerca le novità del giorno.\n2. Verifica data e fonte di ogni notizia.\n3. Consegna cinque punti con i link.",
+                                                          "## Steps\n1. Find today's news.\n2. Check the date and source of each story.\n3. Deliver five points with links."),
                                          agent: agents[0].id)
                 skillsRevision += 1
             }
@@ -1769,7 +1775,7 @@ final class AppState {
             }
             if !result.facts.isEmpty { memoryRevision += 1; projectRevision += 1 }
             log(icon: "rectangle.compress.vertical", title: String(localized: "Riassunto della conversazione aggiornato"),
-                detail: String(localized: "\(current?.title ?? "") · \(result.exchanges) \(result.exchanges == 1 ? "scambio" : "scambi") · sub-agent")
+                detail: "\(current?.title ?? "") · " + (result.exchanges == 1 ? String(localized: "1 scambio") : String(localized: "\(result.exchanges) scambi")) + " · sub-agent"
                     + (result.pieces > 1 ? String(localized: " (\(result.pieces) pezzi in parallelo)") : ""), status: .done)
         }
         // Con un modello esterno l'anello misura la sua finestra (aggiornato dopo ogni risposta).
@@ -1782,7 +1788,9 @@ final class AppState {
         isResponding = true
         Task {
             if let result = await assistant.compactIfNeeded(threshold: 0) {
-                append(.notice(String(localized: "Conversazione compattata: \(result.exchanges) \(result.exchanges == 1 ? "scambio" : "scambi") nel riassunto, contesto dal \(Int(result.before * 100))% al \(Int(result.after * 100))%.")))
+                append(.notice(result.exchanges == 1
+                    ? String(localized: "Conversazione compattata: 1 scambio nel riassunto, contesto dal \(Int(result.before * 100))% al \(Int(result.after * 100))%.")
+                    : String(localized: "Conversazione compattata: \(result.exchanges) scambi nel riassunto, contesto dal \(Int(result.before * 100))% al \(Int(result.after * 100))%.")))
             }
             contextUsage = assistant.contextUsage
             isResponding = false
@@ -3131,14 +3139,14 @@ final class AppState {
         var lines: [String] = []
         if agent.allowApps.contains(.calendar), isEnabled(.calendar) {
             let events = Overview.events().filter { $0.end > .now }.prefix(8).map { "- \($0.title) \(Dates.friendly($0.start))" }
-            lines.append(String(localized: "Eventi di oggi:\n") + (events.isEmpty ? "nessuno" : events.joined(separator: "\n")))
+            lines.append(Language.t("Eventi di oggi:\n", "Today's events:\n") + (events.isEmpty ? Language.t("nessuno", "none") : events.joined(separator: "\n")))
         }
         if agent.allowApps.contains(.reminders), isEnabled(.reminders) {
             let due = await Overview.openReminders(limit: 60).filter { ($0.due ?? .distantFuture) < Calendar.current.date(byAdding: .day, value: 1, to: .now)! }
-            lines.append(String(localized: "Promemoria in scadenza:\n") + (due.isEmpty ? "nessuno" : due.prefix(8).map { "- \($0.title)" }.joined(separator: "\n")))
+            lines.append(Language.t("Promemoria in scadenza:\n", "Reminders due:\n") + (due.isEmpty ? Language.t("nessuno", "none") : due.prefix(8).map { "- \($0.title)" }.joined(separator: "\n")))
         }
         if agent.allowApps.contains(.mail), isEnabled(.mail), let unread = try? await MailReader.inbox(query: nil, unreadOnly: true, limit: 8) {
-            lines.append(String(localized: "Email non lette:\n") + (unread.rows.isEmpty ? "nessuna" : unread.rows.map { "- \($0.title) — \($0.subtitle)" }.joined(separator: "\n")))
+            lines.append(Language.t("Email non lette:\n", "Unread emails:\n") + (unread.rows.isEmpty ? Language.t("nessuna", "none") : unread.rows.map { "- \($0.title) — \($0.subtitle)" }.joined(separator: "\n")))
         }
         let worker = Assistant()
         worker.isSubAgent = true

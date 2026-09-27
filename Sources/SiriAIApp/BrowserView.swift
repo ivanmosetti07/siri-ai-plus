@@ -446,7 +446,7 @@ private struct PreviewBar: View {
                 Label("Nessun errore", systemImage: "checkmark.circle").font(DS.Fonts.caption).foregroundStyle(.green)
             } else {
                 Button { showErrors.toggle() } label: {
-                    Label("\(browser.consoleErrors.count) \(browser.consoleErrors.count == 1 ? "errore" : "errori")", systemImage: "exclamationmark.triangle.fill")
+                    Label(browser.consoleErrors.count == 1 ? String(localized: "1 errore") : String(localized: "\(browser.consoleErrors.count) errori"), systemImage: "exclamationmark.triangle.fill")
                         .font(DS.Fonts.captionStrong)
                         .foregroundStyle(.white)
                         .padding(.horizontal, 8).padding(.vertical, 3)

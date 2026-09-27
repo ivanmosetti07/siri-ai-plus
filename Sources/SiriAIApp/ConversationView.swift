@@ -285,7 +285,7 @@ struct CodeBlock: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text(language.isEmpty ? "codice" : language).font(.system(size: 10.5, weight: .semibold)).foregroundStyle(.secondary)
+                Text(language.isEmpty ? String(localized: "codice") : language).font(.system(size: 10.5, weight: .semibold)).foregroundStyle(.secondary)
                 Spacer()
                 Button {
                     NSPasteboard.general.clearContents()

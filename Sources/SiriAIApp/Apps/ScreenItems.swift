@@ -121,7 +121,7 @@ extension ScreenItem {
             entry.title + (entry.due.map { String(localized: " (scade \(when($0, time: entry.dueHasTime)))") } ?? "")
         }
         return ScreenItem(app: String(localized: "Promemoria"), kind: .overview, title: String(localized: "lista «\(list)»"), details: String(localized: "\(open.count) da fare"),
-                          text: lines.joined(separator: "\n"), nouns: ["promemoria", String(localized: "cose da fare"), String(localized: "attività"), "lista"])
+                          text: lines.joined(separator: "\n"), nouns: ["promemoria", "cose da fare", "attività", "lista"])
     }
 
     // MARK: Contatti
@@ -167,7 +167,7 @@ extension ScreenItem {
 
     static func chats(_ chats: [ChatSummary]) -> ScreenItem {
         let lines = chats.prefix(15).map { "\($0.unread > 0 ? "• " : "")\($0.title): \($0.lastFromMe ? "Io: " : "")\($0.lastText.prefix(80)) (\($0.date.listStamp))" }
-        return ScreenItem(app: String(localized: "Messaggi"), kind: .overview, title: "conversazioni", details: String(localized: "\(chats.count) conversazioni"),
+        return ScreenItem(app: String(localized: "Messaggi"), kind: .overview, title: String(localized: "conversazioni"), details: String(localized: "\(chats.count) conversazioni"),
                           text: lines.joined(separator: "\n"), nouns: ["conversazioni", "messaggi", "chat"])
     }
 
@@ -199,7 +199,7 @@ extension ScreenItem {
 
     static func memos(_ memos: [VoiceMemo]) -> ScreenItem {
         let lines = memos.prefix(15).map { "\($0.title) (\($0.date.listStamp), \($0.durationText))" + ($0.preview.map { ": \($0.prefix(80))" } ?? "") }
-        return ScreenItem(app: String(localized: "Memo Vocali"), kind: .overview, title: "registrazioni", details: String(localized: "\(memos.count) registrazioni"),
+        return ScreenItem(app: String(localized: "Memo Vocali"), kind: .overview, title: String(localized: "registrazioni"), details: String(localized: "\(memos.count) registrazioni"),
                           text: lines.joined(separator: "\n"), nouns: ["registrazioni", "memo", "audio"])
     }
 

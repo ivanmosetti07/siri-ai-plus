@@ -290,3 +290,31 @@ extension AppState {
         }
     }
 }
+
+/// Per i Genius come nella chat: ChatGPT e Claude si usano solo dopo l'avviso sulla privacy.
+private struct CloudConsent: ViewModifier {
+    @Binding var pending: ModelSelection?
+    let apply: (ModelSelection) -> Void
+
+    func body(content: Content) -> some View {
+        content.alert("La privacy è a rischio", isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } }), presenting: pending) { cloud in
+            Button("Usa \(cloud.provider.name)", role: .destructive) { apply(cloud) }
+            Button("Annulla", role: .cancel) {}
+        } message: { cloud in
+            Text("Con \(cloud.provider.name) le risposte non sono più generate sul Mac: la richiesta, la conversazione recente e i dati usati per rispondere (calendario, file, pagine, connettori) vengono inviati a \(cloud.provider.company). Continuare?")
+        }
+    }
+}
+
+extension View {
+    func cloudConsent(_ pending: Binding<ModelSelection?>, apply: @escaping (ModelSelection) -> Void) -> some View {
+        modifier(CloudConsent(pending: pending, apply: apply))
+    }
+}
+
+extension ModelSelection {
+    /// Serve l'avviso sulla privacy passando da `previous` a questo modello (un cloud diverso da quello già scelto).
+    func needsCloudConsent(after previous: ModelSelection?) -> Bool {
+        !provider.isLocal && previous?.provider != provider
+    }
+}

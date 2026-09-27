@@ -164,6 +164,29 @@ SIRIAI_PLAN_ONLY=1 ./bin/siriai --eval Support/eval/strumenti.json        # coma
 
 Al primo avvio «Siri AI+» chiude la vecchia app se è aperta, sposta `Application Support/SiriAI`, `Documenti/SiriAI` e il log nelle nuove cartelle, aggiorna i percorsi salvati e copia le impostazioni. macOS chiederà di nuovo i permessi (Calendario, Promemoria, Automazione, Microfono, Contatti, Accesso completo al disco) perché l'identificatore è nuovo (`com.ivanmosetti.siriaiplus`).
 
+## Lingue: italiano e inglese
+
+- **Interfaccia.** Segue la lingua del Mac. I testi dell'app stanno nel catalogo `Sources/SiriAIApp/Localizable.xcstrings`: le chiavi sono le frasi italiane (lingua sorgente `it`) e ognuna ha la traduzione `en`, con le forme al singolare dove servono. Le descrizioni dei permessi sono in `InfoPlist.xcstrings`. `CFBundleDevelopmentRegion` è `en`, quindi un Mac in un'altra lingua (francese, tedesco…) riceve l'inglese.
+- **Motore.** SiriCore non usa il catalogo: i testi hanno le due versioni in `Language.t("…", "…")`. La lingua è quella della richiesta (`Language.detect`, applicata con `Language.$scoped` a tutta la risposta, sub-agent compresi); fuori da una richiesta vale `Language.system`, che segue la stessa lingua scelta dal bundle. Gli id delle azioni restano italiani (`crea_evento`, `rispondi`…).
+- **Chiavi con due significati.** Hanno un identificatore esplicito con il testo italiano come `defaultValue`: `button.done`, `menu.quit`, `files.home`, `time.now` («Ora» = adesso), `reminder.time` e `reminder.placeholder`, `chart.item`, `file.kind`, `home.upcoming`, `mail.to.label`. Le voci degli enum mostrate con `LocalizedStringKey(rawValue)` (schede delle Impostazioni, viste del Calendario) sono nel catalogo come chiavi manuali.
+- **Testi nuovi.** Nell'app `Text("…")` o `String(localized: "…")`; nel motore `Language.t`. Mai parole italiane dentro un'interpolazione (`"\(n) \(n == 1 ? "passo" : "passi")"`): in inglese resterebbero in italiano. Si scrivono due frasi intere, una per il singolare e una per il plurale.
+- **Aggiornare il catalogo.** `xcodebuild -exportLocalizations -project "Siri AI+.xcodeproj" -scheme "Siri AI+" -localizationPath /tmp/loc -exportLanguage en`, tradurre le voci nuove dell'XLIFF e reimportarlo con `-importLocalizations` (oppure aprire il progetto in Xcode, che aggiunge da solo le chiavi nuove al catalogo). Con SwiftPM (`swift build`) i cataloghi sono esclusi: per provare le traduzioni serve l'app compilata con Xcode (`./build.sh`).
+- **Banchi di prova in inglese.** `Support/eval/planner-en.json`, `router-en.json`, `tools-en.json` e `quality-en.json`, come quelli italiani.
+- **Provare una lingua.** `"Siri AI+.app/Contents/MacOS/SiriAIPlus" -AppleLanguages '(en)' -AppleLocale en_US --ephemeral …`.
+
+## Aggiornamenti
+
+- `UpdateChecker` (`SiriCore/AppUpdate.swift`) legge `releases/latest` del repository all'avvio e ogni 6 ore (dopo un errore di rete riprova dopo 15 minuti) e confronta il tag (`v2.1`) con `CFBundleShortVersionString`. Chi compila una versione più nuova di quella pubblicata non vede l'invito a tornare indietro.
+- Se c'è una versione più nuova, in fondo alla barra laterale compare l'icona ⬇️. «Scarica e riavvia» (`UpdateInstaller` in `Updates.swift`) scarica il primo `.zip` della release, solo da `github.com/ivanmosetti07/siri-ai-plus/releases/download/`. Lo estrae e controlla la firma (`codesign --verify --deep --strict`), il bundle ID, la versione e che il Team ID sia quello dell'app installata. Poi `Support/install_update.zsh` aspetta che l'app si chiuda, la sostituisce e la riapre; se la cartella non è scrivibile chiede la password di amministratore. Se la release non ha lo ZIP, il pulsante apre la pagina della release.
+- Dal menu: Siri AI+ › «Controlla aggiornamenti…».
+- **Pubblicare una versione:**
+  1. aumentare `CFBundleShortVersionString` e `CFBundleVersion` in `Support/App-Info.plist`;
+  2. `./build.sh`;
+  3. `cp "Siri AI+.zip" Siri-AI-Plus-macOS.zip` e `gh release create v2.2 Siri-AI-Plus-macOS.zip --title "Siri AI+ 2.2" --notes "…"` (le prime righe delle note compaiono nella finestrella dell'aggiornamento).
+
+  Lo ZIP va firmato con lo stesso certificato (stesso Team ID) delle versioni già installate, altrimenti l'aggiornamento viene rifiutato.
+- **Prova senza rete:** `--ephemeral --update-demo 9.9` mostra l'icona senza chiedere a GitHub.
+
 ## Diagnostica
 
 ```bash
@@ -189,6 +212,8 @@ bin/siriai --anonimizza "Mario Rossi, CF RSSMRA85H12F205Y"                      
 bin/siriai --anonimizza-prova riferimento.json cpu                                  # confronto con la pipeline Python originale (vedi Support/rizzo-pii)
 Support/rizzo-pii/install.sh                                                         # scarica, converte in Core ML e installa il motore di anonimizzazione
 ```
+
+Per i Genius (solo con `--ephemeral`): `--demo-genius 3` crea Genius di esempio dai modelli consigliati, `--demo-history` e `--demo-skill` aggiungono esecuzioni e una skill, `--section agents|agent|agent-schedule|agent-history|agent-skills|schedule` apre la vista, `--genius-creation-demo` (con `--snapshot`) mostra la chat guidata a metà. `--demo-sources files` attiva le fonti elencate in sola lettura. `--expand-traces` apre «Come ho lavorato» e `--expand-privacy` il riquadro dello scudo per la privacy.
 
 Con `--prompt`, `--plan` fa partire il piano con sub-agent come dal menu «+». Opzioni delle app (solo con `--ephemeral`): `--select-first` apre il primo elemento di ogni app, `--calendar-mode Mese`, `--calendar-date 2026-09-29`, `--app-focus files:/percorso` (come «Apri» in una scheda), `--project-tab 5` (scheda del progetto: 0 Chat, 1 File, 5 Grafo…), `--graph-focus nome` (nota a fuoco nel grafo), `--tab-sequence chat,chat+,say:testo` (chat affiancate). Le istanze di prova non salvano la vista del calendario né i calendari nascosti.
 

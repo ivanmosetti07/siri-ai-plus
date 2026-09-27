@@ -1075,13 +1075,17 @@ extension Assistant {
         guard text.split(separator: " ").count >= 4, let best = recognizer.languageHypotheses(withMaximum: 1).max(by: { $0.value < $1.value }),
               best.value >= 0.8 else { return fallback }
         let code = best.key.rawValue
-        return NSSpellChecker.shared.availableLanguages.contains(code) ? code : fallback
+        return spellLock.withLock { NSSpellChecker.shared.availableLanguages.contains(code) } ? code : fallback
     }
+
+    /// Il correttore del Mac è uno solo e non regge chiamate contemporanee (risposte, sub-agent e test in parallelo).
+    private static let spellLock = NSLock()
 
     /// Parole sconosciute al correttore del Mac (nella lingua del testo), con la posizione e i suoi suggerimenti.
     static func spellingSuggestions(_ text: String, limit: Int = 6) -> [(word: String, range: NSRange, guesses: [String])] {
-        let checker = NSSpellChecker.shared
         let language = spellingLanguage(for: text)
+        spellLock.lock(); defer { spellLock.unlock() }
+        let checker = NSSpellChecker.shared
         let ns = text as NSString
         var results: [(String, NSRange, [String])] = []
         var start = 0
@@ -1180,9 +1184,10 @@ extension Assistant {
 
     /// Il correttore ortografico del Mac (nella lingua del testo) trova parole sbagliate?
     static func hasSpellingErrors(_ text: String) -> Bool {
-        let checker = NSSpellChecker.shared
-        let range = checker.checkSpelling(of: text, startingAt: 0, language: spellingLanguage(for: text), wrap: false, inSpellDocumentWithTag: 0, wordCount: nil)
-        return range.location != NSNotFound
+        let language = spellingLanguage(for: text)
+        return spellLock.withLock {
+            NSSpellChecker.shared.checkSpelling(of: text, startingAt: 0, language: language, wrap: false, inSpellDocumentWithTag: 0, wordCount: nil).location != NSNotFound
+        }
     }
 
     /// Scarta riscritture sospette (vuote o molto più corte senza che la richiesta chieda di accorciare).

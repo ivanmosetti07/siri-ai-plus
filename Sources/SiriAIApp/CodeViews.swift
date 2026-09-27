@@ -73,9 +73,9 @@ struct CodeHomeView: View {
     @ViewBuilder private var badges: some View {
         let models = state.models
         EngineBadge(name: String(localized: "Codex"), ok: models.codexInstalled && models.codexLoggedIn,
-                    detail: !models.codexInstalled ? String(localized: "non installato") : models.codexLoggedIn ? "pronto" : String(localized: "accesso da fare"))
+                    detail: !models.codexInstalled ? String(localized: "non installato") : models.codexLoggedIn ? String(localized: "pronto") : String(localized: "accesso da fare"))
         EngineBadge(name: String(localized: "Claude Code"), ok: models.claudeInstalled && models.claudeLoggedIn,
-                    detail: !models.claudeInstalled ? String(localized: "non installato") : models.claudeLoggedIn ? "pronto" : String(localized: "accesso da fare"))
+                    detail: !models.claudeInstalled ? String(localized: "non installato") : models.claudeLoggedIn ? String(localized: "pronto") : String(localized: "accesso da fare"))
         EngineBadge(name: String(localized: "Sul Mac"), ok: state.availabilityProblem == nil,
                     detail: ([String(localized: "Apple Intelligence")] + (models.downloadedVariants.isEmpty ? [] : [String(localized: "Gemma")])).joined(separator: ", "))
         EngineBadge(name: String(localized: "Xcode"), ok: FileManager.default.fileExists(atPath: "/Applications/Xcode.app"), detail: String(localized: "per le app Apple"))
@@ -469,7 +469,7 @@ struct CodePanel: View {
                 Button { state.fixPreviewErrors(previewErrors) } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle.fill")
-                        Text("\(previewErrors.count) \(previewErrors.count == 1 ? "errore" : "errori") nell'anteprima").lineLimit(1)
+                        Text(previewErrors.count == 1 ? String(localized: "1 errore nell'anteprima") : String(localized: "\(previewErrors.count) errori nell'anteprima")).lineLimit(1)
                         Spacer(minLength: 4)
                         Text("Correggi").fontWeight(.semibold)
                     }

@@ -148,6 +148,7 @@ struct UpdateButton: View {
     @Environment(AppState.self) private var state
     let update: AppUpdate
     @State private var showing = false
+    private var hasArchive: Bool { update.downloadURL != update.pageURL }
 
     var body: some View {
         Button { showing = true } label: {
@@ -164,16 +165,25 @@ struct UpdateButton: View {
             VStack(alignment: .leading, spacing: 10) {
                 Label(Language.t("Siri AI+ \(update.version) è disponibile", "Siri AI+ \(update.version) is available"), systemImage: "arrow.down.circle.fill")
                     .font(DS.Fonts.bodyStrong)
-                Text(Language.t("Versione installata: \(UpdateChecker.installedVersion ?? "?"). L'app scaricherà la release, verificherà la firma e si riavvierà. macOS potrebbe chiedere la password di amministratore.",
-                                "Installed version: \(UpdateChecker.installedVersion ?? "?"). The app will download the release, verify its signature, and restart. macOS may ask for an administrator password."))
+                Text(hasArchive
+                     ? Language.t("Versione installata: \(UpdateChecker.installedVersion ?? "?"). L'app scaricherà la release, verificherà la firma e si riavvierà. macOS potrebbe chiedere la password di amministratore.",
+                                  "Installed version: \(UpdateChecker.installedVersion ?? "?"). The app will download the release, verify its signature, and restart. macOS may ask for an administrator password.")
+                     : Language.t("Versione installata: \(UpdateChecker.installedVersion ?? "?"). Scarica la nuova versione dalla pagina della release.",
+                                  "Installed version: \(UpdateChecker.installedVersion ?? "?"). Download the new version from the release page."))
                     .font(DS.Fonts.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 if !update.notes.isEmpty { Text(update.notes).font(DS.Fonts.caption).lineLimit(6).fixedSize(horizontal: false, vertical: true) }
                 if let error = state.updateError { Text(error).font(DS.Fonts.caption).foregroundStyle(.orange) }
                 HStack {
                     Button(Language.t("Novità", "What's new")) { NSWorkspace.shared.open(update.pageURL) }
                     Spacer()
-                    Button(Language.t("Scarica e riavvia", "Download and restart")) { state.downloadAndInstall(update) }
-                        .buttonStyle(.borderedProminent).disabled(state.updateDownloading)
+                    if hasArchive {
+                        Button(Language.t("Scarica e riavvia", "Download and restart")) { state.downloadAndInstall(update) }
+                            .buttonStyle(.borderedProminent).disabled(state.updateDownloading)
+                    } else {
+                        // Release senza lo ZIP dell'app: si scarica dalla pagina.
+                        Button(Language.t("Apri la pagina", "Open the page")) { NSWorkspace.shared.open(update.pageURL) }
+                            .buttonStyle(.borderedProminent)
+                    }
                 }
             }
             .padding(16).frame(width: 320)

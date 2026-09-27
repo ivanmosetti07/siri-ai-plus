@@ -151,7 +151,7 @@ public enum VoiceMemosStore {
     }
 
     /// Trascrive sul Mac con il riconoscimento vocale di sistema (in italiano; scarica il modello la prima volta).
-    public static func transcribe(_ url: URL, locale: Locale = Locale(identifier: "it_IT")) async throws -> String {
+    public static func transcribe(_ url: URL, locale: Locale = Language.system.locale) async throws -> String {
         let chosen = await SpeechTranscriber.supportedLocale(equivalentTo: locale) ?? locale
         let transcriber = SpeechTranscriber(locale: chosen, preset: .transcription)
         if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {

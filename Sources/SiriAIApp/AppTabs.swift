@@ -569,7 +569,7 @@ struct AppLauncher: View {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 104, maximum: 124), spacing: 12)], spacing: 16) {
                     ForEach(entries, id: \.self) { tab in cell(tab) }
                     // Oltre alle app: una chat accanto a quella del pannello e i file da leggere o modificare.
-                    action(String(localized: "Chat accanto"), note: "affiancate", help: String(localized: "Una o più chat accanto al pannello"), icon: AnyView(ChatTabIcon(size: 60))) {
+                    action(String(localized: "Chat accanto"), note: String(localized: "affiancate"), help: String(localized: "Una o più chat accanto al pannello"), icon: AnyView(ChatTabIcon(size: 60))) {
                         state.newChatTab()
                     }
                     action(String(localized: "Apri file…"), note: ".md, testo, codice", help: String(localized: "Leggi e modifica un file (⌘O)"),

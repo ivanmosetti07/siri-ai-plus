@@ -405,7 +405,7 @@ private struct MailReader: View {
                                 Text(summary.senderAddress).font(.system(size: 12)).foregroundStyle(.secondary).textSelection(.enabled)
                             }
                             if let to = header?.to ?? content?.to, !to.isEmpty {
-                                Text("A: " + to.joined(separator: ", ")).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(3)
+                                Text(String(localized: "mail.to.label", defaultValue: "A: ") + to.joined(separator: ", ")).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(3)
                             }
                             if let cc = header?.cc ?? content?.cc, !cc.isEmpty {
                                 Text("Cc: " + cc.joined(separator: ", ")).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(3)

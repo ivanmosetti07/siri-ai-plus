@@ -315,7 +315,7 @@ struct ReminderDraftRow: View {
             .disabled(!editable)
             .accessibilityLabel(draft.included ? String(localized: "Incluso") : String(localized: "Escluso"))
 
-            TextField("Promemoria", text: $draft.title)
+            TextField(String(localized: "reminder.placeholder", defaultValue: "Promemoria"), text: $draft.title)
                 .textFieldStyle(.plain)
                 .font(DS.Fonts.body)
                 .disabled(!editable)

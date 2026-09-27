@@ -358,7 +358,7 @@ public enum NotesService {
         let script = """
         tell application "Notes"
             set nt to note id \(AppleScript.quote(id))
-            if (body of nt) is not \(AppleScript.quote(expectedHTML)) then error "La nota è stata modificata anche in Note. Ricaricala prima di salvare." number 4001
+            if (body of nt) is not \(AppleScript.quote(expectedHTML)) then error "\(Language.t("La nota è stata modificata anche in Note. Ricaricala prima di salvare.", "The note was also changed in Notes. Reload it before saving."))" number 4001
             set body of nt to \(AppleScript.quote(newHTML))
             return body of nt
         end tell
@@ -405,7 +405,7 @@ public enum NotesService {
         let script = """
         tell application "Notes"
             set nt to note id \(AppleScript.quote(id))
-            if (body of nt) is not \(AppleScript.quote(expectedHTML)) then error "La nota è stata modificata nel frattempo. Riprova." number 4001
+            if (body of nt) is not \(AppleScript.quote(expectedHTML)) then error "\(Language.t("La nota è stata modificata nel frattempo. Riprova.", "The note was changed in the meantime. Try again."))" number 4001
             set body of nt to \(AppleScript.quote(html))
             return body of nt
         end tell

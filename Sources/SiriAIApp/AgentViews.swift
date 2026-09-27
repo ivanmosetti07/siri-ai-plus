@@ -215,7 +215,8 @@ struct NewChildChatSheet: View {
 /// (visibili solo qui, sul Mac: il modello ha ricevuto i segnaposto).
 struct PrivacyRow: View {
     let report: PrivacyReport
-    @State private var expanded = false
+    /// `--expand-privacy`: aperta subito (per le foto di prova).
+    @State private var expanded = ProcessInfo.processInfo.arguments.contains("--expand-privacy")
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -229,7 +230,8 @@ struct PrivacyRow: View {
                     Image(systemName: "lock.shield.fill")
                         .symbolRenderingMode(.hierarchical)
                         .foregroundStyle(.green)
-                    Text("Anonimizzato prima dell'invio a \(report.destination) · \(report.total) \(report.total == 1 ? "dato" : "dati"): \(report.summary)")
+                    Text(report.total == 1 ? String(localized: "Anonimizzato prima dell'invio a \(report.destination) · 1 dato: \(report.summary)")
+                         : String(localized: "Anonimizzato prima dell'invio a \(report.destination) · \(report.total) dati: \(report.summary)"))
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }

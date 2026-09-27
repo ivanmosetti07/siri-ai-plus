@@ -421,7 +421,7 @@ private struct ContactDetail: View {
                 }
             }
             if !memberOf.isEmpty {
-                Text("Gruppi: " + groups.filter { memberOf.contains($0.id) }.map(\.name).joined(separator: ", "))
+                Text(String(localized: "Gruppi: ") + groups.filter { memberOf.contains($0.id) }.map(\.name).joined(separator: ", "))
                     .font(.system(size: 12)).foregroundStyle(.secondary)
             }
         }

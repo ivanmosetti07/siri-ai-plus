@@ -14,9 +14,9 @@ public enum StepDifficulty: String, Codable, Sendable, CaseIterable {
 
     public var label: String {
         switch self {
-        case .facile: "facile"
-        case .media: "medio"
-        case .difficile: "difficile"
+        case .facile: Language.t("facile", "easy")
+        case .media: Language.t("medio", "medium")
+        case .difficile: Language.t("difficile", "hard")
         }
     }
 }

@@ -416,18 +416,18 @@ struct HomeDashboard: View {
         case .oggi:
             guard enabled(.calendar) else { return String(localized: "Collega") }
             let count = day.events.count
-            return count == 0 ? String(localized: "Giornata libera") : "\(count) \(count == 1 ? "impegno" : "impegni")"
+            return count == 0 ? String(localized: "Giornata libera") : count == 1 ? String(localized: "1 impegno") : String(localized: "\(count) impegni")
         case .daFare:
             guard enabled(.reminders) else { return String(localized: "Collega") }
             let open = day.dueToday(now: now).count + day.overdue(now: now).count
-            return open == 0 ? String(localized: "Tutto fatto") : "\(open) \(open == 1 ? "promemoria" : "promemoria")"
+            return open == 0 ? String(localized: "Tutto fatto") : open == 1 ? String(localized: "1 promemoria") : String(localized: "\(open) promemoria")
         case .agenti:
             let agents = state.spaceAgents
             let pending = agents.reduce(0) { $0 + state.pendingApprovals(for: $1) }
             if pending > 0 { return String(localized: "\(pending) da approvare") }
             if agents.contains(where: { state.runningAgents.contains($0.id) }) { return String(localized: "Al lavoro") }
             let active = agents.filter(\.active).count
-            return agents.isEmpty ? String(localized: "Nessuno") : "\(active) \(active == 1 ? "attivo" : "attivi")"
+            return agents.isEmpty ? String(localized: "Nessuno") : active == 1 ? String(localized: "1 attivo") : String(localized: "\(active) attivi")
         }
     }
 
@@ -513,7 +513,8 @@ struct HomeDashboard: View {
     private func weatherNote(at date: Date) -> String? {
         guard let snapshot = state.weather.snapshot,
               let hour = snapshot.hours.first(where: { Calendar.current.isDate($0.date, equalTo: date, toGranularity: .hour) }) else { return nil }
-        let clock = Calendar.current.component(.hour, from: date)
+        // «Alle 9» in italiano, «at 9 AM» in inglese.
+        let clock = Language.system == .en ? date.formatted(.dateTime.hour().locale(Dates.locale)) : "\(Calendar.current.component(.hour, from: date))"
         if hour.condition == .thunderstorm { return String(localized: "Alle \(clock) sono previsti temporali.") }
         if hour.condition == .snow { return String(localized: "Alle \(clock) è prevista neve.") }
         if hour.condition.isWet || hour.precipitationChance >= 50 {
@@ -630,8 +631,8 @@ struct HomeDashboard: View {
 
     private func windNote(_ speed: Double) -> String {
         switch speed {
-        case ..<6: "calma"
-        case ..<20: "brezza"
+        case ..<6: String(localized: "calma")
+        case ..<20: String(localized: "brezza")
         case ..<39: String(localized: "vento moderato")
         default: String(localized: "vento forte")
         }
@@ -645,13 +646,13 @@ struct HomeDashboard: View {
         let busy = day.busyMinutes
         let free = day.freeFrom(now: now)
         MetricsGrid(metrics: [
-            DashMetric(label: String(localized: "Impegni"), value: "\(day.events.count)", note: day.allDay.isEmpty ? "oggi" : String(localized: "\(day.allDay.count) tutto il giorno"),
+            DashMetric(label: String(localized: "Impegni"), value: "\(day.events.count)", note: day.allDay.isEmpty ? String(localized: "oggi") : String(localized: "\(day.allDay.count) tutto il giorno"),
                        tint: .red, action: { state.section = .app(.calendar) }),
             DashMetric(label: String(localized: "Occupato"), value: busy == 0 ? String(localized: "0 min") : (busy >= 60 ? "\(busy / 60) h \(busy % 60 > 0 ? String(localized: "\(busy % 60) min") : "")" : String(localized: "\(busy) min")),
                        note: String(localized: "in calendario"), tint: .orange),
             DashMetric(label: String(localized: "Libero"), value: free.map { $0 <= now ? String(localized: "Adesso") : $0.formatted(.dateTime.hour().minute().locale(Dates.locale)) } ?? String(localized: "Domani"),
                        note: free.map { $0 <= now ? String(localized: "fino al prossimo impegno") : String(localized: "dopo gli impegni") }, tint: .green),
-            DashMetric(label: String(localized: "Domani"), value: "\(day.tomorrowCount)", note: day.tomorrowCount == 1 ? "impegno" : "impegni", tint: Color(red: 0.4, green: 0.7, blue: 1)),
+            DashMetric(label: String(localized: "Domani"), value: "\(day.tomorrowCount)", note: day.tomorrowCount == 1 ? String(localized: "impegno") : String(localized: "impegni"), tint: Color(red: 0.4, green: 0.7, blue: 1)),
         ])
     }
 
@@ -663,7 +664,7 @@ struct HomeDashboard: View {
         MetricsGrid(metrics: [
             DashMetric(label: String(localized: "Oggi"), value: "\(day.dueToday(now: now).count)", note: String(localized: "in scadenza"), tint: .orange, action: { state.section = .app(.reminders) }),
             DashMetric(label: String(localized: "Scaduti"), value: "\(day.overdue(now: now).count)", note: String(localized: "da recuperare"), tint: day.overdue(now: now).isEmpty ? .secondary : .red),
-            DashMetric(label: String(localized: "Completati"), value: "\(day.completedToday + completing.count)", note: "oggi", tint: .green),
+            DashMetric(label: String(localized: "Completati"), value: "\(day.completedToday + completing.count)", note: String(localized: "oggi"), tint: .green),
             DashMetric(label: String(localized: "Senza data"), value: "\(day.undated)", note: String(localized: "in lista"), tint: .gray),
         ])
     }
@@ -684,7 +685,7 @@ struct HomeDashboard: View {
                        action: pending > 0 ? { state.section = .schedule } : nil),
             DashMetric(label: String(localized: "Esecuzioni"), value: "\(runs.count)", note: String(localized: "in sette giorni"), tint: Color(red: 0.4, green: 0.7, blue: 1), action: { state.section = .schedule }),
             DashMetric(label: String(localized: "Prossima"), value: next.map { $0.formatted(.dateTime.hour().minute().locale(Dates.locale)) } ?? "—",
-                       note: next.map { Dates.friendly($0, time: false) } ?? "nessuna", tint: .teal),
+                       note: next.map { Dates.friendly($0, time: false) } ?? String(localized: "nessuna"), tint: .teal),
         ])
         if agents.isEmpty {
             Button { state.startGeniusCreation() } label: { Label("Nuovo Genius", systemImage: "plus") }
@@ -806,7 +807,7 @@ struct HomeDashboard: View {
                 emptyLine(String(localized: "Niente da fare. Goditi la giornata."), symbol: "checkmark.circle")
             } else {
                 VStack(alignment: .leading, spacing: 10) {
-                    if items.isEmpty { Text("In arrivo").font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary) }
+                    if items.isEmpty { Text(String(localized: "home.upcoming", defaultValue: "In arrivo")).font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary) }
                     ForEach(shown) { reminder in reminderRow(reminder) }
                 }
             }
@@ -911,7 +912,7 @@ struct HomeDashboard: View {
                             Tile(kind, size: 32)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(kind.app).font(.system(size: 14, weight: .semibold))
-                                Text("Nuov\(kind.ending) \(kind.noun.lowercased())").font(.system(size: 12)).foregroundStyle(.secondary)
+                                Text(kind.newLabel).font(.system(size: 12)).foregroundStyle(.secondary)
                             }
                             Spacer(minLength: 0)
                             Image(systemName: "plus").font(.system(size: 12, weight: .bold)).foregroundStyle(.secondary)

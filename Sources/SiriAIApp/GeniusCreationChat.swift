@@ -12,6 +12,9 @@ struct GeniusCreationChat: View {
     @State private var time: Date
     @State private var weekday: Int
     @State private var lines: [Line]
+    /// Modello cloud in attesa dell'avviso sulla privacy, e se è per la programmazione.
+    @State private var pendingCloud: ModelSelection?
+    @State private var pendingForRoutine = false
     @FocusState private var inputFocused: Bool
 
     private enum Step: Int { case task, result, access, cadence, time, model, routineModel, role, name, review }
@@ -66,6 +69,23 @@ struct GeniusCreationChat: View {
         }
         .frame(width: 650, height: 700)
         .onAppear { inputFocused = true }
+        .cloudConsent($pendingCloud) { cloud in
+            if pendingForRoutine, !draft.routines.isEmpty { draft.routines[0].model = cloud } else { draft.model = cloud }
+        }
+        .task {
+            // Diagnostica (solo istanze di prova, per le foto del README): risponde da sola fino alla scelta del modello.
+            guard AppTesting.ephemeral, CommandLine.arguments.contains("--genius-creation-demo"), step == .task else { return }
+            submitText()
+            input = Language.t("Cinque punti con i link alle fonti e i prossimi passi più utili.",
+                               "A five-point brief with source links and the most useful next steps.")
+            submitText()
+            draft.allowWeb = true
+            draft.allowApps = [.calendar, .reminders, .mail, .notes, .files]
+            answer(Language.t("Web e app", "Web and apps"), next: .cadence)
+            draft.routines = [AgentRoutine(schedule: AgentSchedule(kind: .giornaliero, hour: 8))]
+            answer(Language.t("Ogni giorno", "Every day"), next: .time)
+            answer(draft.routines[0].schedule.label, next: .model)
+        }
     }
 
     private func bubble(_ line: Line) -> some View {
@@ -148,7 +168,11 @@ struct GeniusCreationChat: View {
         case .model:
             VStack(alignment: .leading, spacing: 10) {
                 ModelPicker(current: draft.model ?? state.defaultSelection(for: Space(rawValue: draft.space) ?? .lavoro)) {
-                    draft.model = state.resolved($0)
+                    let choice = state.resolved($0)
+                    if choice.needsCloudConsent(after: draft.model ?? state.defaultSelection(for: Space(rawValue: draft.space) ?? .lavoro)) {
+                        pendingForRoutine = false
+                        pendingCloud = choice
+                    } else { draft.model = choice }
                 }
                 Text(Language.t("Questo modello sarà usato dal Genius. Potrai sceglierne uno diverso per ogni programmazione.",
                                 "This model will be used by the Genius. You can choose a different one for each schedule."))
@@ -171,7 +195,11 @@ struct GeniusCreationChat: View {
                     }
                     .buttonStyle(.bordered)
                     ModelPicker(current: draft.routines[0].model ?? draft.model!, compact: true) {
-                        draft.routines[0].model = state.resolved($0)
+                        let choice = state.resolved($0)
+                        if choice.needsCloudConsent(after: draft.routines[0].model ?? draft.model) {
+                            pendingForRoutine = true
+                            pendingCloud = choice
+                        } else { draft.routines[0].model = choice }
                     }
                 }
                 if let model = draft.routines[0].model {
@@ -286,5 +314,25 @@ struct GeniusCreationChat: View {
         state.saveAgent(spec)
         dismiss()
         state.openAgent(spec.id)
+    }
+}
+
+/// Solo per le foto (`--snapshot … --genius-creation-demo`): la chat guidata sopra la finestra, come il foglio vero,
+/// che la foto della sola finestra non catturerebbe.
+struct GeniusCreationSnapshot: View {
+    @Environment(AppState.self) private var state
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.3).ignoresSafeArea()
+            GeniusCreationChat(initial: {
+                var spec = AgentTemplate.all[0].spec
+                spec.space = state.space == .codice ? Space.lavoro.rawValue : state.space.rawValue
+                return spec
+            }())
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .shadow(color: .black.opacity(0.35), radius: 30, y: 12)
+        }
     }
 }

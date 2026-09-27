@@ -9,7 +9,7 @@ public enum AppleResponseModel: Sendable, Equatable {
 
     public var label: String {
         switch self {
-        case .onDevice: Language.t("Apple Intelligence sul Mac", "Apple Intelligence on the Mac")
+        case .onDevice: Language.t("Apple Intelligence sul Mac", "Apple Intelligence on your Mac")
         case .privateCloud: "Apple Intelligence · Private Cloud Compute"
         }
     }

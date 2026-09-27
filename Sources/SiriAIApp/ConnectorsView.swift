@@ -27,7 +27,7 @@ struct ConnectorsView: View {
                     VStack(alignment: .leading, spacing: 14) {
                         PanelLabel(text: String(localized: "Stato"), symbol: "puzzlepiece.extension")
                         MetricsGrid(metrics: [
-                            DashMetric(label: String(localized: "Connettori"), value: "\(state.mcp.servers.count)", note: "configurati", tint: .indigo),
+                            DashMetric(label: String(localized: "Connettori"), value: "\(state.mcp.servers.count)", note: String(localized: "configurati"), tint: .indigo),
                             DashMetric(label: String(localized: "Collegati"), value: "\(ready.count)", note: ready.count == state.mcp.servers.count ? String(localized: "tutti attivi") : String(localized: "gli altri sono spenti"), tint: .green),
                             DashMetric(label: String(localized: "Strumenti"), value: "\(state.mcp.allTools.count)", note: String(localized: "a disposizione"), tint: Color(red: 0.4, green: 0.7, blue: 1)),
                         ])

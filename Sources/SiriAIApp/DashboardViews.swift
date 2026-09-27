@@ -231,7 +231,7 @@ struct HourlyStrip: View {
             HStack(spacing: 0) {
                 ForEach(Array(hours.enumerated()), id: \.element.id) { index, hour in
                     VStack(spacing: 7) {
-                        Text(index == 0 ? String(localized: "Ora") : String(format: "%02d", Calendar.current.component(.hour, from: hour.date)))
+                        Text(index == 0 ? String(localized: "time.now", defaultValue: "Ora") : String(format: "%02d", Calendar.current.component(.hour, from: hour.date)))
                             .font(.system(size: 13, weight: .semibold))
                         Image(systemName: hour.condition.symbol(isDay: hour.isDay))
                             .symbolRenderingMode(.multicolor)
@@ -324,6 +324,7 @@ struct DayRing: View {
             } else if let next {
                 Text("PROSSIMO").font(.system(size: 11, weight: .bold)).tracking(0.5).foregroundStyle(.white.opacity(0.7))
                 Text(clock(next.start)).font(.system(size: 42, weight: .bold, design: .rounded)).contentTransition(.numericText())
+                    .lineLimit(1).minimumScaleFactor(0.55)
                 Text(next.title).font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.8)).lineLimit(2)
             } else {
                 Text("OGGI").font(.system(size: 11, weight: .bold)).tracking(0.5).foregroundStyle(.white.opacity(0.7))
@@ -422,15 +423,15 @@ struct TodoRing: View {
             VStack(spacing: 1) {
                 if open == 0 {
                     Image(systemName: "checkmark").font(.system(size: 44, weight: .bold)).symbolEffect(.drawOn, isActive: !drawn)
-                    Text(done > 0 ? String(localized: "\(done) \(done == 1 ? "fatto" : "fatti") oggi") : String(localized: "niente in scadenza"))
+                    Text(done == 1 ? String(localized: "1 fatto oggi") : done > 1 ? String(localized: "\(done) fatti oggi") : String(localized: "niente in scadenza"))
                         .font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.8))
                 } else {
                     Text("\(open)").font(.system(size: 58, weight: .bold, design: .rounded)).contentTransition(.numericText())
                     Text(open == 1 ? String(localized: "da fare") : String(localized: "da fare")).font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.8))
-                    if done > 0 { Text("\(done) \(done == 1 ? "fatto" : "fatti")").font(.system(size: 12)).foregroundStyle(.white.opacity(0.6)) }
+                    if done > 0 { Text(done == 1 ? String(localized: "1 fatto") : String(localized: "\(done) fatti")).font(.system(size: 12)).foregroundStyle(.white.opacity(0.6)) }
                 }
                 if overdue > 0 {
-                    Text("\(overdue) \(overdue == 1 ? "scaduto" : "scaduti")")
+                    Text(overdue == 1 ? String(localized: "1 scaduto") : String(localized: "\(overdue) scaduti"))
                         .font(.system(size: 11.5, weight: .bold))
                         .padding(.horizontal, 9).padding(.vertical, 3)
                         .background(Color.red.gradient, in: Capsule())

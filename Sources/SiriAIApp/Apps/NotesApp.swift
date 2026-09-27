@@ -548,7 +548,7 @@ private struct NoteEditor: View {
         } catch {
             status = String(localized: "Non salvata")
             self.error = error.localizedDescription
-            if error.localizedDescription.contains("modificata") { conflict = true }
+            if error.localizedDescription.contains("modificata") || error.localizedDescription.contains("changed") { conflict = true }
         }
     }
 

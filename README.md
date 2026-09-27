@@ -33,7 +33,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/home.jpg" alt="Siri AI+: the Home with your day, the weather and your chats" width="100%">
+  <img src="docs/screenshots/en/home.jpg" alt="Siri AI+: the Home with your day, the weather and your chats" width="100%">
 </p>
 
 > [!NOTE]
@@ -54,8 +54,8 @@ The goal: publish the Siri AI that Apple should have launched. It's fully integr
 
 It runs on **Apple Intelligence**, right on your Mac by default: no account or subscription, and requests stay on the Mac. When Apple's small on-device model isn't enough, you can plug in bigger brains. Local ones like Gemma 4 and ds4 stay on your Mac. A one-time ChatGPT or Claude request from Quick Chat shows the source text proposed for sending and asks for confirmation.
 
-> [!IMPORTANT]
-> The interface is still mainly **Italian** 🇮🇹. You can ask in English for supported app, coding, date, document, sheet and slide commands; the interface translation is in progress.
+> [!TIP]
+> 🌍 **Speaks English and Italian.** The interface follows your Mac's language: Italian on a Mac set to Italian, English everywhere else. The assistant answers in the language of each request, so you can switch between English and Italian in the same chat.
 
 ### 🇮🇹 Why I made it
 
@@ -65,6 +65,7 @@ I'm convinced that 70% of people can already do most of their everyday tasks wit
 
 ### What it can do
 
+- 🌍 **English and Italian.** The whole interface is translated, and the assistant replies in the language you write in. Dates, numbers, commands for your apps, documents, sheets, slides and coding work in both.
 - 💬 **Chat like the big ones.**
   - Chats, projects, side-by-side chats (up to 4) and child chats.
   - ⌘K search, voice mode and dictation.
@@ -88,12 +89,12 @@ I'm convinced that 70% of people can already do most of their everyday tasks wit
 - 🤖 **Genius.**
   - Create a Genius through a step-by-step chat: describe its task and expected result, choose access, schedule, model, role and name, then review it before creation. Find each Genius in the sidebar alongside Projects, with a persistent chat on the right.
   - Pick a model for each Genius during creation and override it for any individual schedule. Existing schedules can keep using the Genius model.
-  - The six suggested Genius come with distinct, native Apple Genmoji made in Image Playground; you can make a personal Genmoji for any Genius.
+  - The six suggested Geniuses come with distinct, native Apple Genmoji made in Image Playground; you can make a personal Genmoji for any Genius.
   - Create a personal Genmoji with Apple's Image Playground. Its role icon stays visible behind the Genmoji in the sidebar, chat and activity views; the icon can be selected or inferred from the Genius's work.
   - Create private skills for each Genius, or copy an existing skill into its Skill tab. They guide its chat and scheduled runs when the task matches.
   - They plan, use sub-agents, ask before important actions and keep a run history.
   - At night they "dream" to learn from their mistakes.
-- ⬇️ **In-app updates.** When online, Siri AI+ checks the latest published GitHub release on launch. A sidebar icon appears for a newer version; download the signed app, then restart to install it. Available in Italian and English.
+- ⬇️ **In-app updates.** When you're online, Siri AI+ checks GitHub for a newer release at launch and every few hours. If there is one, a download icon appears at the bottom of the sidebar: one click downloads it, checks its signature and restarts the app. You can also use **Siri AI+ › Check for Updates…**
 - 🧩 **MCP connectors.** Local or remote servers (with OAuth login), which you can import from Claude Desktop.
 - 🧠 **A harness built for small models.**
   - A sub-agent picks the right tools for every request.
@@ -105,46 +106,39 @@ I'm convinced that 70% of people can already do most of their everyday tasks wit
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/web-search.jpg" alt="Web search with sources"><br><sub><b>Web search</b> with numbered sources and the "How I worked" trace</sub></td>
-    <td width="50%"><img src="docs/screenshots/plan.jpg" alt="Plan with sub-agents"><br><sub><b>Plans with sub-agents:</b> complex tasks split into steps that run in parallel</sub></td>
+    <td width="50%"><img src="docs/screenshots/en/web-search.jpg" alt="Web search with sources"><br><sub><b>Web search</b> with numbered sources and the "How I worked" trace</sub></td>
+    <td width="50%"><img src="docs/screenshots/en/plan.jpg" alt="Plan with sub-agents"><br><sub><b>Plans with sub-agents:</b> complex tasks split into steps that run in parallel</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/privacy.jpg" alt="Privacy shield"><br><sub><b>Privacy shield:</b> Claude only gets placeholders, you read the real data</sub></td>
-    <td><img src="docs/screenshots/models.jpg" alt="Model picker"><br><sub><b>Pick a model</b> for each chat, on your Mac or in the cloud</sub></td>
+    <td><img src="docs/screenshots/en/privacy.jpg" alt="Privacy shield"><br><sub><b>Privacy shield:</b> Claude only gets placeholders, you read the real data</sub></td>
+    <td><img src="docs/screenshots/en/models.jpg" alt="Model picker"><br><sub><b>Pick a model</b> for each chat, on your Mac or in the cloud</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/keynote.jpg" alt="Presentation"><br><sub><b>Presentations</b> written by Apple Intelligence, ready to edit</sub></td>
-    <td><img src="docs/screenshots/browser.jpg" alt="Safari next to the chat"><br><sub><b>Apps in tabs:</b> Safari next to the chat, which reads the page for you</sub></td>
+    <td><img src="docs/screenshots/en/keynote.jpg" alt="Presentation"><br><sub><b>Presentations</b> written by Apple Intelligence, ready to edit</sub></td>
+    <td><img src="docs/screenshots/en/browser.jpg" alt="Safari next to the chat"><br><sub><b>Apps in tabs:</b> Safari next to the chat, which reads the page for you</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/files.jpg" alt="Files app"><br><sub><b>Files</b> with thumbnails, and the chat knows what you selected</sub></td>
-    <td><img src="docs/screenshots/graph.jpg" alt="Project graph"><br><sub><b>Projects:</b> your notes as a brain, Obsidian style</sub></td>
+    <td><img src="docs/screenshots/en/files.jpg" alt="Files app"><br><sub><b>Files</b> with thumbnails, and the chat knows what you selected</sub></td>
+    <td><img src="docs/screenshots/en/graph.jpg" alt="Project graph"><br><sub><b>Projects:</b> your notes as a brain, Obsidian style</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/side-chats.jpg" alt="Side-by-side chats"><br><sub><b>Side-by-side chats</b>, each with its own model</sub></td>
-    <td><img src="docs/screenshots/genius-sidebar.png" alt="Genius in the sidebar with run history and chat"><br><sub><b>Genius</b> that work on a schedule and ask before acting</sub></td>
+    <td><img src="docs/screenshots/en/side-chats.jpg" alt="Side-by-side chats"><br><sub><b>Side-by-side chats</b>, each with its own model</sub></td>
+    <td><img src="docs/screenshots/en/genius.jpg" alt="A Genius with its run history and its chat"><br><sub><b>Geniuses</b> work on a schedule, keep a run history and ask before acting</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/genius-sidebar-dark.png" alt="Genius sidebar in the Personal space and dark mode"><br><sub><b>Genius in the sidebar:</b> open a chat, schedule, run history or skills directly</sub></td>
-    <td><img src="docs/screenshots/genius-skills.png" alt="Private skills dedicated to a Genius"><br><sub><b>Private Genius skills</b> guide its conversations and scheduled work</sub></td>
+    <td><img src="docs/screenshots/en/genius-create.jpg" alt="Step-by-step Genius creation chat"><br><sub><b>Create a Genius through chat:</b> task, result, access, schedule and model, one step at a time</sub></td>
+    <td><img src="docs/screenshots/en/genius-schedule.jpg" alt="A Genius schedule with its own model"><br><sub><b>Schedules:</b> each one can use its own model</sub></td>
   </tr>
   <tr>
-    <td colspan="2"><img src="docs/screenshots/genius-genmoji.png" alt="Apple Image Playground Genmoji for a Genius with its role icon behind it" width="100%"><br><sub><b>Apple Genmoji:</b> created in Image Playground, saved for the Genius and shown with its role icon</sub></td>
+    <td colspan="2"><img src="docs/screenshots/en/genius-ideas.jpg" alt="Six suggested Geniuses with Apple Genmoji" width="100%"><br><sub><b>Six Genius ideas</b>, each with its own Apple Genmoji made in Image Playground</sub></td>
   </tr>
   <tr>
-    <td colspan="2"><img src="docs/screenshots/genius-suggestions.png" alt="Six suggested Genius with native Apple Genmoji and their role icons" width="100%"><br><sub><b>Six Genius ideas:</b> each has a distinct Apple Genmoji made in Image Playground</sub></td>
-  </tr>
-  <tr>
-    <td><img src="docs/screenshots/genius-creation-chat.png" alt="Step-by-step Genius creation chat with model selection"><br><sub><b>Create through chat:</b> define the task, access, schedule and model one step at a time</sub></td>
-    <td><img src="docs/screenshots/genius-schedule-model.png" alt="A Genius schedule using a different model from its chat"><br><sub><b>A model for each schedule:</b> Giulia uses GPT-6 Sol in chat and Claude Opus for this routine</sub></td>
-  </tr>
-  <tr>
-    <td><img src="docs/screenshots/home-dark.jpg" alt="Work space in dark mode"><br><sub><b>Spaces:</b> Personal, Work and Coding, each with its own look (here Work, in the rain)</sub></td>
-    <td><img src="docs/screenshots/coding.jpg" alt="Coding space"><br><sub><b>Coding space:</b> websites, web apps and SwiftUI apps with Xcode</sub></td>
+    <td><img src="docs/screenshots/en/home-dark.jpg" alt="Work space in dark mode"><br><sub><b>Spaces:</b> Personal, Work and Coding, each with its own look (here Work, in the rain)</sub></td>
+    <td><img src="docs/screenshots/en/coding.jpg" alt="Coding space"><br><sub><b>Coding space:</b> websites, web apps and SwiftUI apps with Xcode</sub></td>
   </tr>
 </table>
 
-<sub>The screenshots use a demo profile: chats, notes, files and appointments are all made up.</sub>
+<sub>The screenshots use a demo profile: chats, notes, files and appointments are all made up. The [Italian section](#-italiano) shows the same screens in Italian.</sub>
 
 ### The models
 
@@ -166,11 +160,11 @@ Confession: my computer isn't powerful enough for [ds4](https://github.com/antir
 
 Claude and ChatGPT are great, but your text ends up on someone else's servers, so privacy isn't guaranteed. Apple would never approve 😅. That's why Siri AI+ has a privacy shield. It's built on [rizzo-pii](https://github.com/Rizzo-AI-Academy/rizzo-pii), the open source anonymizer by Simone Rizzo ([@simone-rizzo](https://github.com/simone-rizzo)) and Rizzo AI Academy.
 
-Whenever personal data is detected, the Mac swaps it for a placeholder before the text goes to Claude or ChatGPT. When the answer comes back, the real data is put back in. A real run (the app speaks Italian):
+Whenever personal data is detected, the Mac swaps it for a placeholder before the text goes to Claude or ChatGPT. When the answer comes back, the real data is put back in. A real run:
 
 ```text
-You write:        Scrivi a Mario Rossi (mario.rossi@studio.it) che la fattura da 1.200 € scade il 15 ottobre, IBAN IT60X0542811101000000123456
-What leaves:      Scrivi a [FULLNAME_1] ([EMAIL_1]) che la fattura da 1.200 € scade il 15 ottobre, IBAN [IBAN_1]
+You write:        Write to John Smith (john.smith@example.com) that the €1,200 invoice is due on October 15, IBAN IT60X0542811101000000123456
+What leaves:      Write to [FULLNAME_1] ([EMAIL_1]) that the €1,200 invoice is due on October 15, IBAN [IBAN_1]
 What you read:    the answer, with the real name, email and IBAN put back on your Mac
 ```
 
@@ -211,6 +205,8 @@ My two cents: Siri AI+ is open to other models, both local and cloud. Personal d
    xattr -dr com.apple.quarantine "/Applications/Siri AI+.app"
    ```
 
+**Updates.** From version 2.1 on, Siri AI+ tells you when a new release is out: click the download icon at the bottom of the sidebar and it installs the new version and restarts. It only accepts an app signed like the one you have, and macOS may ask for your password if the app is in Applications. On version 2.0, download the new release by hand once.
+
 **Option 2: build it yourself** (needs Xcode 27)
 
 ```bash
@@ -225,12 +221,12 @@ cp -R "Siri AI+.app" /Applications/
 ### 🚀 How to use it
 
 1. **First launch.** Choose which sources Siri AI+ can use (Calendar, Reminders, Mail, Notes…) and whether it can only read them or also edit. macOS asks for each permission once. Messages and Voice Memos need Full Disk Access, and Mail is much faster with it.
-2. **Just ask**, in Italian or English for supported commands:
-   - «Cosa ho domani?» (what's on tomorrow?)
-   - «Ricordami di chiamare il commercialista venerdì» (remind me to call the accountant on Friday)
-   - «Rispondi a Mario che giovedì va bene» (reply to Mario that Thursday works)
-   - «Crea una presentazione sul lancio del prodotto» (make a presentation about the product launch)
-   - «Cerca sul web le ultime notizie su Apple» (search the web for the latest Apple news)
+2. **Just ask**, in English or Italian:
+   - "What's on tomorrow?"
+   - "Remind me to call the accountant on Friday"
+   - "Reply to Mario that Thursday works"
+   - "Make a presentation about the product launch"
+   - "Search the web for the latest Apple news"
 3. **Confirm.** Anything that writes, sends or deletes shows up as a card, and you decide.
 4. **Shortcuts:**
 
@@ -245,7 +241,7 @@ cp -R "Siri AI+.app" /Applications/
    | ⌥⌘V | Voice mode |
    | ⌥⌘S | Show or hide the side chat |
 
-5. **Spaces.** Switch between Personal, Work and Coding next to the name in the sidebar. Each space has its own chats, projects, Genius, calendars and model.
+5. **Spaces.** Switch between Personal, Work and Coding next to the name in the sidebar. Each space has its own chats, projects, Geniuses, calendars and model.
 6. **Change model** from the model panel in the text field. Every chat keeps its own model, version and reasoning level.
 
 The native Xcode app exposes **Open Siri AI+** and **Ask Siri AI+** as actions in Shortcuts. On macOS, add these actions to your own shortcut; the app does not install a preconfigured App Shortcut. In Settings you can opt in to launching Siri AI+ at login. Closing its window leaves the menu bar companion and scheduled Genius running; **Quit** stops them.
@@ -261,13 +257,12 @@ The native Xcode app exposes **Open Siri AI+** and **Ask Siri AI+** as actions i
   Support/rizzo-pii/install.sh
   ```
 
-For developers, the technical guide is in Italian: [docs/GUIDA-TECNICA.md](docs/GUIDA-TECNICA.md). It covers the architecture, the test benches and the diagnostic flags. To run the tests: `./test.sh`.
+For developers, the technical guide is in Italian (it also explains how the translations and the updates work): [docs/GUIDA-TECNICA.md](docs/GUIDA-TECNICA.md). It covers the architecture, the test benches and the diagnostic flags. To run the tests: `./test.sh`.
 
 ### 🐛 Known issues
 
 I built this on a Sunday and a few evenings, just for fun, so there are bugs. The ones I know about:
 
-- The interface is still mainly Italian; the English translation is in progress.
 - Apple's small on-device model still trips on trick questions and very long texts. The harness helps a lot, but it's a 3-billion-parameter model.
 - The release isn't notarized, so macOS complains the first time.
 - The privacy shield doesn't cover the coding space.
@@ -281,7 +276,7 @@ Found something? Open an [issue](https://github.com/ivanmosetti07/siri-ai-plus/i
 - 👀 **Watch › Custom › Releases** to get a notification when a new version comes out.
 - 🐛 **Found a bug?** [Open an issue](https://github.com/ivanmosetti07/siri-ai-plus/issues/new).
 - 💡 **Got an idea or a question?** Join the [Discussions](https://github.com/ivanmosetti07/siri-ai-plus/discussions).
-- 🍴 **Fork it** and experiment, for non-commercial use (see the license). Pull requests are welcome, starting with an English translation!
+- 🍴 **Fork it** and experiment, for non-commercial use (see the license). Pull requests are welcome, new languages included!
 - 📣 **Share it** on [X](https://twitter.com/intent/tweet?text=Siri%20AI%2B%3A%20the%20Siri%20AI%20Apple%20should%20have%20shipped%20%F0%9F%8D%8E&url=https%3A%2F%2Fgithub.com%2Fivanmosetti07%2Fsiri-ai-plus) or [LinkedIn](https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fgithub.com%2Fivanmosetti07%2Fsiri-ai-plus).
 - 👤 **Follow me** on GitHub: [@ivanmosetti07](https://github.com/ivanmosetti07).
 
@@ -304,6 +299,10 @@ Third-party credits and licenses are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOT
 
 ## 🇮🇹 Italiano
 
+<p align="center">
+  <img src="docs/screenshots/it/home.jpg" alt="Siri AI+: la Home con la tua giornata, il meteo e le tue chat" width="100%">
+</p>
+
 ### Cos'è?
 
 Immagina il Siri che tutti aspettavamo. Legge davvero il tuo calendario, risponde alle email, tiene in ordine le note, lavora nelle cartelle dei tuoi progetti, crea app con Xcode e chatta come le migliori app di AI per desktop. Ecco Siri AI+. 🪄
@@ -312,8 +311,8 @@ Lo scopo: pubblicare il Siri AI che Apple avrebbe dovuto lanciare. È completame
 
 Funziona con **Apple Intelligence**, direttamente sul tuo Mac come scelta iniziale: niente account o abbonamenti, e le richieste restano sul Mac. Quando il modello piccolo di Apple non basta, puoi collegare modelli più grandi. Quelli locali, come Gemma 4 e ds4, restano sul Mac. Per riprovare una richiesta della Chat rapida con Claude o ChatGPT, l'app mostra il testo che uscirebbe dal Mac e chiede conferma.
 
-> [!IMPORTANT]
-> L'interfaccia è ancora soprattutto in **italiano** 🇮🇹. Puoi chiedere in inglese i comandi supportati per app, programmazione, date, documenti, fogli e presentazioni; la traduzione dell'interfaccia è in corso.
+> [!TIP]
+> 🌍 **Parla italiano e inglese.** L'interfaccia segue la lingua del Mac: in italiano sui Mac impostati in italiano, in inglese in tutti gli altri. L'assistente risponde nella lingua di ogni richiesta, quindi nella stessa chat puoi passare dall'italiano all'inglese.
 
 ### 🇮🇹 Perché l'ho fatto
 
@@ -323,6 +322,7 @@ Sono convinto che il 70% delle persone possa già fare la maggior parte delle at
 
 ### Cosa sa fare
 
+- 🌍 **Italiano e inglese.** Tutta l'interfaccia è tradotta e l'assistente risponde nella lingua in cui scrivi. Date, numeri, comandi alle app, documenti, fogli, presentazioni e programmazione funzionano in entrambe.
 - 💬 **Chatta come le app più famose.**
   - Chat, progetti, chat affiancate (fino a 4) e chat figlie.
   - Ricerca con ⌘K, modalità vocale e dettatura.
@@ -351,7 +351,7 @@ Sono convinto che il 70% delle persone possa già fare la maggior parte delle at
   - Crea skill dedicate a ogni Genius, o copia quelle esistenti nella sua scheda Skill. Guidano la chat e le esecuzioni programmate quando il compito è pertinente.
   - Fanno un piano, usano i sub-agent, chiedono prima delle azioni importanti e conservano la cronologia delle esecuzioni.
   - Di notte «sognano» per imparare dagli errori.
-- ⬇️ **Aggiornamenti nell'app.** Quando sei online, Siri AI+ controlla all'apertura l'ultima release pubblicata su GitHub. Se c'è una versione nuova, compare un'icona nella barra laterale: scarica l'app firmata e riavviala per installarla. Disponibile in italiano e inglese.
+- ⬇️ **Aggiornamenti nell'app.** Quando sei online, Siri AI+ controlla su GitHub se c'è una release più nuova all'apertura e ogni qualche ora. Se c'è, in fondo alla barra laterale compare l'icona per scaricarla: con un clic la scarica, ne controlla la firma e riavvia l'app. C'è anche **Siri AI+ › Controlla aggiornamenti…**
 - 🧩 **Connettori MCP.** Server locali o remoti (con login OAuth), che puoi importare da Claude Desktop.
 - 🧠 **Un harness pensato per i modelli piccoli.**
   - Un sub-agent sceglie gli strumenti giusti per ogni richiesta.
@@ -363,46 +363,39 @@ Sono convinto che il 70% delle persone possa già fare la maggior parte delle at
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/web-search.jpg" alt="Ricerca sul web con le fonti"><br><sub><b>Ricerca sul web</b> con le fonti numerate e il riquadro «Come ho lavorato»</sub></td>
-    <td width="50%"><img src="docs/screenshots/plan.jpg" alt="Piano con i sub-agent"><br><sub><b>Piani con i sub-agent:</b> i compiti complessi divisi in passi che lavorano in parallelo</sub></td>
+    <td width="50%"><img src="docs/screenshots/it/web-search.jpg" alt="Ricerca sul web con le fonti"><br><sub><b>Ricerca sul web</b> con le fonti numerate e il riquadro «Come ho lavorato»</sub></td>
+    <td width="50%"><img src="docs/screenshots/it/plan.jpg" alt="Piano con i sub-agent"><br><sub><b>Piani con i sub-agent:</b> i compiti complessi divisi in passi che lavorano in parallelo</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/privacy.jpg" alt="Scudo per la privacy"><br><sub><b>Scudo per la privacy:</b> a Claude arrivano solo i segnaposto, tu leggi i dati veri</sub></td>
-    <td><img src="docs/screenshots/models.jpg" alt="Scelta del modello"><br><sub><b>Scegli il modello</b> per ogni chat, sul Mac o nel cloud</sub></td>
+    <td><img src="docs/screenshots/it/privacy.jpg" alt="Scudo per la privacy"><br><sub><b>Scudo per la privacy:</b> a Claude arrivano solo i segnaposto, tu leggi i dati veri</sub></td>
+    <td><img src="docs/screenshots/it/models.jpg" alt="Scelta del modello"><br><sub><b>Scegli il modello</b> per ogni chat, sul Mac o nel cloud</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/keynote.jpg" alt="Presentazione"><br><sub><b>Presentazioni</b> scritte da Apple Intelligence, pronte da modificare</sub></td>
-    <td><img src="docs/screenshots/browser.jpg" alt="Safari accanto alla chat"><br><sub><b>App in schede:</b> Safari accanto alla chat, che legge la pagina per te</sub></td>
+    <td><img src="docs/screenshots/it/keynote.jpg" alt="Presentazione"><br><sub><b>Presentazioni</b> scritte da Apple Intelligence, pronte da modificare</sub></td>
+    <td><img src="docs/screenshots/it/browser.jpg" alt="Safari accanto alla chat"><br><sub><b>App in schede:</b> Safari accanto alla chat, che legge la pagina per te</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/files.jpg" alt="App File"><br><sub><b>File</b> con le anteprime, e la chat sa cosa hai selezionato</sub></td>
-    <td><img src="docs/screenshots/graph.jpg" alt="Grafo del progetto"><br><sub><b>Progetti:</b> le tue note come un cervello, in stile Obsidian</sub></td>
+    <td><img src="docs/screenshots/it/files.jpg" alt="App File"><br><sub><b>File</b> con le anteprime, e la chat sa cosa hai selezionato</sub></td>
+    <td><img src="docs/screenshots/it/graph.jpg" alt="Grafo del progetto"><br><sub><b>Progetti:</b> le tue note come un cervello, in stile Obsidian</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/side-chats.jpg" alt="Chat affiancate"><br><sub><b>Chat affiancate</b>, ognuna con il suo modello</sub></td>
-    <td><img src="docs/screenshots/genius-sidebar.png" alt="Genius nella barra laterale con cronologia e chat"><br><sub><b>Genius</b> che lavorano agli orari che scegli e chiedono prima di agire</sub></td>
+    <td><img src="docs/screenshots/it/side-chats.jpg" alt="Chat affiancate"><br><sub><b>Chat affiancate</b>, ognuna con il suo modello</sub></td>
+    <td><img src="docs/screenshots/it/genius.jpg" alt="Un Genius con la cronologia delle esecuzioni e la sua chat"><br><sub><b>Genius</b> che lavorano agli orari che scegli, tengono la cronologia e chiedono prima di agire</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/genius-sidebar-dark.png" alt="Genius nella barra laterale dello spazio Personale in modalità scura"><br><sub><b>Genius nella barra laterale:</b> apri direttamente chat, programmazioni, cronologia e skill</sub></td>
-    <td><img src="docs/screenshots/genius-skills.png" alt="Skill private dedicate a un Genius"><br><sub><b>Skill private del Genius</b> per chat e lavori programmati</sub></td>
+    <td><img src="docs/screenshots/it/genius-create.jpg" alt="Chat guidata per creare un Genius"><br><sub><b>Crea un Genius in chat:</b> compito, risultato, accessi, orari e modello, un passo alla volta</sub></td>
+    <td><img src="docs/screenshots/it/genius-schedule.jpg" alt="Una programmazione di un Genius con il suo modello"><br><sub><b>Programmazioni:</b> ognuna può usare il suo modello</sub></td>
   </tr>
   <tr>
-    <td colspan="2"><img src="docs/screenshots/genius-genmoji.png" alt="Genmoji di Apple Image Playground per un Genius con l'icona del ruolo sullo sfondo" width="100%"><br><sub><b>Genmoji Apple:</b> creato in Image Playground, salvato per il Genius e mostrato con l'icona del suo ruolo</sub></td>
+    <td colspan="2"><img src="docs/screenshots/it/genius-ideas.jpg" alt="Sei Genius consigliati con i Genmoji di Apple" width="100%"><br><sub><b>Sei idee di Genius</b>, ognuna con il suo Genmoji Apple creato in Image Playground</sub></td>
   </tr>
   <tr>
-    <td colspan="2"><img src="docs/screenshots/genius-suggestions.png" alt="Sei Genius consigliati con Genmoji Apple nativi e icone dei ruoli" width="100%"><br><sub><b>Sei idee Genius:</b> ciascuna ha un Genmoji Apple distinto, creato in Image Playground</sub></td>
-  </tr>
-  <tr>
-    <td><img src="docs/screenshots/genius-creation-chat.png" alt="Chat di creazione Genius passo per passo con scelta del modello"><br><sub><b>Creazione in chat:</b> definisci compito, accessi, orari e modello un passo alla volta</sub></td>
-    <td><img src="docs/screenshots/genius-schedule-model.png" alt="Una programmazione Genius con un modello diverso dalla chat"><br><sub><b>Un modello per ogni programmazione:</b> Giulia usa GPT-6 Sol in chat e Claude Opus per questa routine</sub></td>
-  </tr>
-  <tr>
-    <td><img src="docs/screenshots/home-dark.jpg" alt="Spazio Lavoro con l'aspetto scuro"><br><sub><b>Spazi:</b> Personale, Lavoro e Programmazione, ognuno con il suo stile (qui Lavoro, sotto la pioggia)</sub></td>
-    <td><img src="docs/screenshots/coding.jpg" alt="Spazio di programmazione"><br><sub><b>Programmazione:</b> siti, app web e app SwiftUI con Xcode</sub></td>
+    <td><img src="docs/screenshots/it/home-dark.jpg" alt="Spazio Lavoro con l'aspetto scuro"><br><sub><b>Spazi:</b> Personale, Lavoro e Programmazione, ognuno con il suo stile (qui Lavoro, sotto la pioggia)</sub></td>
+    <td><img src="docs/screenshots/it/coding.jpg" alt="Spazio di programmazione"><br><sub><b>Programmazione:</b> siti, app web e app SwiftUI con Xcode</sub></td>
   </tr>
 </table>
 
-<sub>Le schermate usano un profilo dimostrativo: chat, note, file e impegni sono tutti inventati.</sub>
+<sub>Le schermate usano un profilo dimostrativo: chat, note, file e impegni sono tutti inventati. La [sezione inglese](#-english) mostra le stesse schermate in inglese.</sub>
 
 ### I modelli
 
@@ -469,6 +462,8 @@ Il mio parere: Siri AI+ è aperta agli altri modelli, locali e cloud. I dati per
    xattr -dr com.apple.quarantine "/Applications/Siri AI+.app"
    ```
 
+**Aggiornamenti.** Dalla versione 2.1 Siri AI+ ti avvisa quando esce una release nuova: fai clic sull'icona di download in fondo alla barra laterale e installa la nuova versione, poi si riavvia. Accetta solo un'app firmata come quella che hai, e macOS può chiedere la password se l'app è in Applicazioni. Dalla 2.0 scarica a mano la nuova release una volta.
+
 **Opzione 2: compilala tu** (serve Xcode 27)
 
 ```bash
@@ -483,7 +478,7 @@ cp -R "Siri AI+.app" /Applications/
 ### 🚀 Come si usa
 
 1. **Primo avvio.** Scegli quali fonti può usare Siri AI+ (Calendario, Promemoria, Mail, Note…) e se può solo leggerle o anche modificarle. macOS chiede ogni permesso una volta sola. Messaggi e Memo Vocali richiedono l'Accesso completo al disco, e con quello anche Mail diventa molto più veloce.
-2. **Chiedi e basta, in italiano o in inglese per i comandi supportati:**
+2. **Chiedi e basta**, in italiano o in inglese:
    - «Cosa ho domani?»
    - «Ricordami di chiamare il commercialista venerdì»
    - «Rispondi a Mario che giovedì va bene»
@@ -519,13 +514,12 @@ L'app nativa Xcode rende disponibili in **Comandi Rapidi** le azioni «Apri Siri
   Support/rizzo-pii/install.sh
   ```
 
-Per chi sviluppa c'è la guida tecnica: [docs/GUIDA-TECNICA.md](docs/GUIDA-TECNICA.md). Spiega l'architettura, i banchi di prova e le opzioni di diagnostica. Per i test: `./test.sh`.
+Per chi sviluppa c'è la guida tecnica: [docs/GUIDA-TECNICA.md](docs/GUIDA-TECNICA.md). Spiega l'architettura, i banchi di prova, le opzioni di diagnostica, le traduzioni e gli aggiornamenti. Per i test: `./test.sh`.
 
 ### 🐛 Bug noti
 
 L'ho fatto una domenica e qualche sera, per hobby, quindi ci sono alcuni bug. Quelli che conosco:
 
-- L'interfaccia è ancora soprattutto in italiano; la traduzione inglese è in corso.
 - Il modello piccolo di Apple ogni tanto inciampa sugli indovinelli e sui testi molto lunghi. L'harness aiuta tanto, ma resta un modello da 3 miliardi di parametri.
 - La release non è autenticata da Apple, quindi macOS si lamenta la prima volta.
 - Lo scudo per la privacy non copre lo spazio di programmazione.
@@ -539,7 +533,7 @@ Hai trovato qualcosa? Apri una [issue](https://github.com/ivanmosetti07/siri-ai-
 - 👀 **Watch › Custom › Releases** per ricevere un avviso quando esce una nuova versione.
 - 🐛 **Hai trovato un bug?** [Apri una issue](https://github.com/ivanmosetti07/siri-ai-plus/issues/new).
 - 💡 **Hai un'idea o una domanda?** Scrivila nelle [Discussions](https://github.com/ivanmosetti07/siri-ai-plus/discussions).
-- 🍴 **Fai un fork** e sperimenta, per usi non commerciali (vedi la licenza). Le pull request sono benvenute, anche per completare la traduzione inglese!
+- 🍴 **Fai un fork** e sperimenta, per usi non commerciali (vedi la licenza). Le pull request sono benvenute, anche per aggiungere nuove lingue!
 - 📣 **Condividilo** su [X](https://twitter.com/intent/tweet?text=Siri%20AI%2B%3A%20il%20Siri%20AI%20che%20Apple%20avrebbe%20dovuto%20lanciare%20%F0%9F%8D%8E&url=https%3A%2F%2Fgithub.com%2Fivanmosetti07%2Fsiri-ai-plus) o su [LinkedIn](https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fgithub.com%2Fivanmosetti07%2Fsiri-ai-plus).
 - 👤 **Seguimi** su GitHub: [@ivanmosetti07](https://github.com/ivanmosetti07).
 
