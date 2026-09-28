@@ -55,7 +55,10 @@ struct AssistantPanel: View {
             state.browser.url == nil
                 ? [String(localized: "Apri il sito del Post"), String(localized: "Cerca le recensioni del nuovo MacBook Air"), String(localized: "Quali sono le notizie di oggi?")]
                 : [String(localized: "Riassumi questa pagina"), String(localized: "Quali sono i punti principali?"), String(localized: "Traduci in italiano i passaggi chiave")]
-        case .project: [String(localized: "Quali file ci sono nel progetto?"), String(localized: "Riassumi il file AGENTS.md"), String(localized: "Crea un file note-riunione.md con l'ordine del giorno")]
+        case .project:
+            state.currentProject?.managed == true
+                ? [String(localized: "Quali file ci sono nel progetto?"), String(localized: "Cosa ricordi di questo progetto?"), String(localized: "Crea un file da-fare.md con le prossime cose da fare")]
+                : [String(localized: "Quali file ci sono nel progetto?"), String(localized: "Riassumi il file AGENTS.md"), String(localized: "Crea un file note-riunione.md con l'ordine del giorno")]
         case .agent:
             [String(localized: "Su cosa stai lavorando?"), String(localized: "Qual è la prossima programmazione?"), String(localized: "Cosa aspetta la mia approvazione?")]
         case .schedule, .agents:

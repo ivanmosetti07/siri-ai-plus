@@ -1,0 +1,7 @@
+{
+  "server": {"host": "0.0.0.0", "port": 8080, "workers": 4, "timeout_seconds": 30},
+  "database": {"engine": "postgres", "pool_size": 10, "ssl": true},
+  "cache": {"backend": "redis", "ttl_seconds": 600},
+  "features": {"new_checkout": true, "dark_mode": false, "beta_search": true},
+  "logging": {"level": "info", "format": "json", "rotate_mb": 50}
+}

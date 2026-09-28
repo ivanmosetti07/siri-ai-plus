@@ -10,7 +10,7 @@ struct ConnectorsView: View {
         let ready = state.mcp.servers.filter { if case .ready = state.mcp.status[$0.id] ?? .off { true } else { false } }
         GlassPage(maxWidth: 900) {
             PageHeader(eyebrow: String(localized: "Collega i tuoi strumenti"), title: String(localized: "Connettori"),
-                       subtitle: String(localized: "Server MCP esterni: i loro strumenti diventano disponibili a Siri AI+ e ai Genius. Ogni esecuzione chiede conferma, a meno che tu non scelga «Consenti sempre» per uno strumento.")) {
+                       subtitle: String(localized: "Server MCP esterni: i loro strumenti diventano disponibili a Siri AI+ e ai Genius. Gli strumenti che leggono soltanto partono da soli; quelli che creano, modificano o inviano chiedono conferma, a meno che tu non scelga «Consenti sempre».")) {
                 Button("Importa da Claude Desktop…") { importing = true }
                     .buttonStyle(.glass)
                 Button {
@@ -116,6 +116,10 @@ struct ServerCard: View {
                 let tools = state.mcp.tools[server.id] ?? []
                 if !tools.isEmpty {
                     Divider()
+                    Toggle("Chiedi conferma anche per gli strumenti che leggono soltanto",
+                           isOn: Binding(get: { server.confirmReads == true }, set: { state.mcp.setConfirmReads(server.id, $0) }))
+                        .toggleStyle(.checkbox)
+                        .font(DS.Fonts.caption)
                     ForEach(tools) { tool in
                         HStack(alignment: .top) {
                             VStack(alignment: .leading, spacing: 1) {
@@ -125,9 +129,15 @@ struct ServerCard: View {
                                 }
                             }
                             Spacer()
-                            Toggle("Consenti sempre", isOn: Binding(get: { state.mcp.isAlwaysAllowed(tool) }, set: { state.mcp.setAlwaysAllow(tool, $0) }))
-                                .toggleStyle(.checkbox)
-                                .font(DS.Fonts.caption)
+                            if tool.isReadOnly, server.confirmReads != true {
+                                Label("Lettura, parte da sola", systemImage: "eye")
+                                    .font(DS.Fonts.caption).foregroundStyle(.secondary)
+                                    .help("Questo strumento legge soltanto: Siri AI+ lo usa senza chiedere conferma")
+                            } else {
+                                Toggle("Consenti sempre", isOn: Binding(get: { state.mcp.isAlwaysAllowed(tool) }, set: { state.mcp.setAlwaysAllow(tool, $0) }))
+                                    .toggleStyle(.checkbox)
+                                    .font(DS.Fonts.caption)
+                            }
                         }
                     }
                 }

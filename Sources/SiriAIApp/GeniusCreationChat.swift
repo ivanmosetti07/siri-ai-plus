@@ -167,7 +167,7 @@ struct GeniusCreationChat: View {
             }
         case .model:
             VStack(alignment: .leading, spacing: 10) {
-                ModelPicker(current: draft.model ?? state.defaultSelection(for: Space(rawValue: draft.space) ?? .lavoro)) {
+                ModelPicker(current: draft.model ?? state.defaultSelection(for: Space(rawValue: draft.space) ?? .lavoro), offersAuto: true) {
                     let choice = state.resolved($0)
                     if choice.needsCloudConsent(after: draft.model ?? state.defaultSelection(for: Space(rawValue: draft.space) ?? .lavoro)) {
                         pendingForRoutine = false
@@ -194,7 +194,7 @@ struct GeniusCreationChat: View {
                         answer(Language.t("Modello del Genius", "Genius model"), next: .role)
                     }
                     .buttonStyle(.bordered)
-                    ModelPicker(current: draft.routines[0].model ?? draft.model!, compact: true) {
+                    ModelPicker(current: draft.routines[0].model ?? draft.model!, compact: true, offersAuto: true) {
                         let choice = state.resolved($0)
                         if choice.needsCloudConsent(after: draft.routines[0].model ?? draft.model) {
                             pendingForRoutine = true

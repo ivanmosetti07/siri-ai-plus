@@ -55,6 +55,8 @@ struct SpaceSettings: Codable, Equatable {
     /// Versione e ragionamento dell'ultimo modello scelto in questo spazio (valgono per le chat nuove).
     var model: String?
     var effort: String?
+    /// L'ultimo modello scelto è «Auto» (a ogni richiesta sceglie rizzo-flow).
+    var auto: Bool?
 }
 
 // MARK: - Selettore nella barra laterale

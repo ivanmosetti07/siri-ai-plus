@@ -222,6 +222,19 @@ final class MCPRegistry {
         servers.first { $0.id == tool.serverID }?.alwaysAllow.contains(tool.name) == true
     }
 
+    /// Parte senza chiedere: gli strumenti che leggono soltanto (come le letture di calendario e mail), salvo che l'utente
+    /// voglia confermare anche quelle, e quelli che ha consentito per sempre. Ciò che scrive o invia chiede conferma.
+    func runsFreely(_ tool: MCPToolInfo) -> Bool {
+        if isAlwaysAllowed(tool) { return true }
+        return tool.isReadOnly && servers.first { $0.id == tool.serverID }?.confirmReads != true
+    }
+
+    func setConfirmReads(_ serverID: UUID, _ value: Bool) {
+        guard let index = servers.firstIndex(where: { $0.id == serverID }) else { return }
+        servers[index].confirmReads = value ? true : nil
+        persist()
+    }
+
     /// Importa server dal formato `mcpServers` di Claude Desktop. Restituisce quanti ne ha aggiunti.
     func importClaudeDesktop(_ json: String) throws -> Int {
         let parsed = try MCPServerConfig.parseClaudeDesktop(json)

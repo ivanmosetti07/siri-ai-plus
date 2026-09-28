@@ -62,10 +62,15 @@ public final class PrivacyShield: @unchecked Sendable {
     /// luoghi e aziende restano in chiaro, altrimenti l'AI non può fare conti, confronti e ricerche.
     public let labels: Set<String>
 
-    public init(vault: PIIVault, destination: String, labels: Set<String> = Set(PIICategory.sensitive)) {
+    /// La chat dei testi: con lei la cache dei paragrafi vale per tutta la conversazione, non solo per una richiesta
+    /// (istruzioni, cronologia, memoria e file non si rianalizzano a ogni messaggio).
+    private let memoryKey: String?
+
+    public init(vault: PIIVault, destination: String, labels: Set<String> = Set(PIICategory.sensitive), chat: UUID? = nil) {
         self.vault = vault
         self.destination = destination
         self.labels = labels
+        memoryKey = chat.map { $0.uuidString + "|" + labels.sorted().joined(separator: ",") + "|" }
     }
 
     public var currentVault: PIIVault { lock.withLock { vault } }
@@ -76,6 +81,19 @@ public final class PrivacyShield: @unchecked Sendable {
     /// una riga (l'ora nelle istruzioni, un messaggio nuovo) si rianalizza solo quella.
     public func protect(_ text: String) async throws -> String {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return text }
+        // Testi lunghi: rizzo-flow decide se serve rizzo-pii (vedi `PrivacyGate`). Se no, restano formati, checksum e nomi noti.
+        if text.count >= PrivacyGate.threshold {
+            if let memoryKey, let entry = ShieldMemory.shared.entry(memoryKey + "gate|" + text),
+               lock.withLock({ entry.values.allSatisfy { vault.values[$0.key] == $0.value } }) {
+                note(Self.placeholders(in: entry.output))
+                return entry.output
+            }
+            if await PrivacyGate.canSkipModel(text) {
+                let output = formatsOnly(text)
+                remember("gate|" + text, output)
+                return output
+            }
+        }
         var output = ""
         for part in Self.paragraphs(text) {
             output += try await protectParagraph(part)
@@ -83,31 +101,19 @@ public final class PrivacyShield: @unchecked Sendable {
         return output
     }
 
-    /// Istruzioni, cronologia e richiesta insieme.
-    public func protect(system: String, history: [ChatTurn], prompt: String) async throws -> (String, [ChatTurn], String) {
-        let safeSystem = try await protect(system)
-        var safeHistory: [ChatTurn] = []
-        for turn in history { safeHistory.append(ChatTurn(role: turn.role, text: try await protect(turn.text))) }
-        return (safeSystem, safeHistory, try await protect(prompt))
+    /// Senza il modello di rizzo-pii: solo i dati riconoscibili dal formato (email, telefoni, IBAN, codici fiscali, carte, con i
+    /// controlli di checksum) e i valori che la chat ha già nascosto.
+    private func formatsOnly(_ text: String) -> String {
+        let source = PIIText(text)
+        let (output, changed) = substitute(Self.masked(PIIDetectors.detect(source), in: source, labels: labels), in: source)
+        if changed { onVaultChange?(currentVault) }
+        return mask(output)
     }
 
-    private func protectParagraph(_ text: String) async throws -> String {
-        if let cached = lock.withLock({ cache[text] }) {
-            note(Self.placeholders(in: cached))
-            return cached
-        }
-        guard text.unicodeScalars.contains(where: { !$0.properties.isWhitespace }) else { return text }
-        onStatus?(Language.t("Anonimizzo prima di inviare a \(destination)…", "Anonymizing before sending to \(destination)…"))
-        let source = PIIText(text)
-        // La data e l'ora di adesso, scritte dall'app, non sono dati personali: senza, il modello non sa cos'è «domani».
-        let kept = Self.scaffolding.flatMap { source.matches($0) }
-        let found = try await PIIEngine.shared.entities(in: text).filter { entity in
-            !kept.contains { $0.start < entity.end && entity.start < $0.end }
-        }
-        let entities = Self.masked(found, in: source, labels: labels)
-        // Il segnaposto si assegna qui, con il dizionario della chat: due passi in parallelo non danno lo stesso
-        // segnaposto a due dati diversi.
-        let (output, changed) = lock.withLock { () -> (String, Bool) in
+    /// I segnaposto al posto delle entità, con il dizionario della chat (sotto lock: due passi in parallelo non danno lo stesso
+    /// segnaposto a due dati diversi).
+    private func substitute(_ entities: [PIIEntity], in source: PIIText) -> (String, Bool) {
+        lock.withLock { () -> (String, Bool) in
             var result = ""
             var position = 0
             var changed = false
@@ -120,11 +126,80 @@ public final class PrivacyShield: @unchecked Sendable {
                 position = entity.end
             }
             result += source.slice(position, source.count)
-            cache[text] = result
             return (result, changed)
         }
+    }
+
+    /// Istruzioni, cronologia e richiesta insieme.
+    public func protect(system: String, history: [ChatTurn], prompt: String) async throws -> (String, [ChatTurn], String) {
+        let safeSystem = try await protect(system)
+        var safeHistory: [ChatTurn] = []
+        for turn in history { safeHistory.append(ChatTurn(role: turn.role, text: try await protect(turn.text))) }
+        return (safeSystem, safeHistory, try await protect(prompt))
+    }
+
+    private func protectParagraph(_ text: String) async throws -> String {
+        // L'ora e il mini-calendario cambiano a ogni minuto: restano in chiaro e fuori dalla cache, il resto del paragrafo
+        // (le istruzioni intorno) si riusa. Prima l'ora nel primo paragrafo faceva rianalizzare tutto a ogni messaggio.
+        let pieces = Self.changingLines(text)
+        guard pieces.count > 1 else { return try await protectPiece(text) }
+        var output = ""
+        for piece in pieces { output += piece.changing ? piece.text : try await protectPiece(piece.text) }
+        return output
+    }
+
+    private func protectPiece(_ text: String) async throws -> String {
+        if let cached = lock.withLock({ cache[text] }) {
+            note(Self.placeholders(in: cached))
+            return cached
+        }
+        // Già anonimizzato in una richiesta precedente della stessa chat, con segnaposto che il dizionario ha ancora.
+        if let memoryKey, let entry = ShieldMemory.shared.entry(memoryKey + text),
+           lock.withLock({ entry.values.allSatisfy { vault.values[$0.key] == $0.value } }) {
+            lock.withLock { cache[text] = entry.output }
+            note(Self.placeholders(in: entry.output))
+            return entry.output
+        }
+        guard text.unicodeScalars.contains(where: { !$0.properties.isWhitespace }) else { return text }
+        onStatus?(Language.t("Anonimizzo prima di inviare a \(destination)…", "Anonymizing before sending to \(destination)…"))
+        let source = PIIText(text)
+        // La data e l'ora di adesso, scritte dall'app, non sono dati personali: senza, il modello non sa cos'è «domani».
+        let kept = Self.scaffolding.flatMap { source.matches($0) }
+        let found = try await PIIEngine.shared.entities(in: text).filter { entity in
+            !kept.contains { $0.start < entity.end && entity.start < $0.end }
+        }
+        let entities = Self.masked(found, in: source, labels: labels)
+        let (output, changed) = substitute(entities, in: source)
+        lock.withLock { cache[text] = output }
+        remember(text, output)
         if changed { onVaultChange?(currentVault) }
         return output
+    }
+
+    /// Nella cache della chat, con i valori dei segnaposto usati: se il dizionario cambia, la voce non vale più.
+    private func remember(_ original: String, _ output: String) {
+        guard let memoryKey else { return }
+        let values = lock.withLock { () -> [String: String] in
+            Dictionary(Self.placeholders(in: output).compactMap { key in vault.values[key].map { (key, $0) } }, uniquingKeysWith: { first, _ in first })
+        }
+        ShieldMemory.shared.store(memoryKey + original, .init(output: output, values: values))
+    }
+
+    /// Righe che cambiano da sola a sola (ora, mini-calendario) separate dal resto; riunite danno il testo di partenza.
+    static func changingLines(_ text: String) -> [(text: String, changing: Bool)] {
+        let ns = text as NSString
+        let ranges = scaffolding.prefix(2).flatMap { $0.matches(in: text, range: NSRange(location: 0, length: ns.length)).map(\.range) }
+            .sorted { $0.location < $1.location }
+        guard !ranges.isEmpty else { return [(text, false)] }
+        var pieces: [(text: String, changing: Bool)] = []
+        var position = 0
+        for range in ranges where range.location >= position {
+            if range.location > position { pieces.append((ns.substring(with: NSRange(location: position, length: range.location - position)), false)) }
+            pieces.append((ns.substring(with: range), true))
+            position = range.location + range.length
+        }
+        if position < ns.length { pieces.append((ns.substring(from: position), false)) }
+        return pieces
     }
 
     /// Righe di contesto scritte dall'app che restano in chiaro: «Adesso è gio 2026-09-25 13:05», «Oggi è giovedì 25 settembre 2026»,
@@ -277,6 +352,7 @@ public final class PrivacyShield: @unchecked Sendable {
     public func learn(anonymized: String) -> String {
         let revealed = reveal(anonymized)
         lock.withLock { cache[revealed] = anonymized }
+        remember(revealed, anonymized)
         return revealed
     }
 
@@ -322,5 +398,32 @@ extension PIIEngine {
         guard source.count > 0 else { return [] }
         let existing = source.matches(PIIAnalysis.placeholderRegex)
         return try analyze(source).filter { entity in !existing.contains { $0.start < entity.end && entity.start < $0.end } }
+    }
+}
+
+/// Paragrafi già anonimizzati di ogni chat, per tutta la vita dell'app. Solo in memoria (dentro ci sono i testi veri),
+/// con un tetto: le voci più vecchie escono per prime.
+final class ShieldMemory: @unchecked Sendable {
+    static let shared = ShieldMemory()
+    static let limit = 4000
+
+    struct Entry {
+        let output: String
+        /// Segnaposto → valore al momento dell'anonimizzazione.
+        let values: [String: String]
+    }
+
+    private let lock = NSLock()
+    private var entries: [String: Entry] = [:]
+    private var order: [String] = []
+
+    func entry(_ key: String) -> Entry? { lock.withLock { entries[key] } }
+
+    func store(_ key: String, _ entry: Entry) {
+        lock.withLock {
+            if entries[key] == nil { order.append(key) }
+            entries[key] = entry
+            if order.count > Self.limit { entries[order.removeFirst()] = nil }
+        }
     }
 }

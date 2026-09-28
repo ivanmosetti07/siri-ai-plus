@@ -193,7 +193,8 @@ extension Assistant {
             }
 
             // Azione fallita: si riprova una volta con un'altra azione, sapendo cosa non ha funzionato.
-            if let error = lastError, !retried {
+            // Non dopo un connettore: i suoi dati non stanno altrove, e un ripiego a caso (un'email!) sarebbe peggio di un errore spiegato.
+            if let error = lastError, !retried, plan.action != .strumento_esterno {
                 retried = true
                 var others = candidates.subtracting(done)
                 others.insert(.rispondi)
@@ -241,7 +242,10 @@ extension Assistant {
     }
 
     static func traceDetail(_ plan: Plan) -> String {
-        plan.fields.filter { $0.key != "argomento" || $0.value.count < 120 }
+        // Per un connettore contano solo servizio e strumento: gli altri campi del pianificatore (date, luoghi) non si usano
+        // e nella traccia sembrerebbero gli argomenti della chiamata.
+        let fields = plan.action == .strumento_esterno ? plan.fields.filter { ["server", "strumento"].contains($0.key) } : plan.fields
+        return fields.filter { $0.key != "argomento" || $0.value.count < 120 }
             .sorted { $0.key < $1.key }
             .map { "\(Language.isEnglish ? englishFieldNames[$0.key] ?? $0.key : $0.key)=\($0.value.prefix(60))" }
             .joined(separator: " · ")
@@ -267,6 +271,7 @@ extension Assistant {
         case .reply: return "dati letti"
         case .message(let text): return String(text.prefix(140))
         case .combined(let items): return "\(items.count) risultati"
+        case .mcpCall(let draft): return draft.tool.isReadOnly ? "letture dal connettore" : "scheda da confermare"
         default: return "scheda da confermare"
         }
     }
@@ -283,6 +288,7 @@ extension Assistant {
         case .reply: return "data read"
         case .message(let text): return String(text.prefix(140))
         case .combined(let items): return count(items.count, "result", "results")
+        case .mcpCall(let draft): return draft.tool.isReadOnly ? "connector reads" : "card to confirm"
         default: return "card to confirm"
         }
     }

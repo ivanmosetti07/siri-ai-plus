@@ -276,17 +276,34 @@ public struct ProjectFiles: Sendable {
     var legacyMemoryURL: URL { root.appending(path: ".siriai/memory.md") }
 
     static let memoryHeading = "## Ricordi di \(AppInfo.name)"
+    static let englishMemoryHeading = "## \(AppInfo.name) memories"
     /// Titolo scritto dalla versione precedente: si riconosce e si aggiorna.
     static let legacyMemoryHeading = "## Ricordi di \(AppInfo.legacyName)"
 
-    /// Crea MEMORY.md se manca (portando dentro i fatti della vecchia `.siriai/memory.md`).
+    /// La sezione dei ricordi nel file: il titolo che c'è già (italiano o inglese), altrimenti quello della lingua in uso.
+    static func heading(in text: String) -> String {
+        if text.contains(memoryHeading) { return memoryHeading }
+        if text.contains(englishMemoryHeading) { return englishMemoryHeading }
+        return Language.isEnglish ? englishMemoryHeading : memoryHeading
+    }
+
+    /// Crea MEMORY.md se manca (portando dentro i fatti della vecchia `.siriai/memory.md`), nella lingua in uso.
     @discardableResult
     public func ensureMemoryFile() -> URL {
         let url = memoryURL
         guard !FileManager.default.fileExists(atPath: url.path) else { return url }
         let legacy = (try? String(contentsOf: legacyMemoryURL, encoding: .utf8))?
             .split(separator: "\n").filter { $0.trimmingCharacters(in: .whitespaces).hasPrefix("- ") }.joined(separator: "\n") ?? ""
-        let body = """
+        let body = Language.isEnglish ? """
+        # Project memory
+
+        Facts, decisions and preferences to remember in this project. Siri AI+ reads it in every conversation of the project \
+        and adds below what you ask it to remember. You can edit it freely.
+
+        \(Self.englishMemoryHeading)
+
+        \(legacy)
+        """ : """
         # Memoria del progetto
 
         Fatti, decisioni e preferenze da ricordare in questo progetto. Siri AI+ la legge a ogni conversazione del progetto \
@@ -313,8 +330,9 @@ public struct ProjectFiles: Sendable {
     /// Fatti salvati da Siri AI+ (righe "- …" sotto «Ricordi di Siri AI+»; se la sezione non c'è, tutte le righe di elenco).
     public func memoryFacts() -> [String] {
         let text = memoryText()
-        var section = text.range(of: Self.memoryHeading).map { String(text[$0.upperBound...]) } ?? text
-        if text.contains(Self.memoryHeading), let next = section.range(of: "\n## ") { section = String(section[..<next.lowerBound]) }
+        let heading = Self.heading(in: text)
+        var section = text.range(of: heading).map { String(text[$0.upperBound...]) } ?? text
+        if text.contains(heading), let next = section.range(of: "\n## ") { section = String(section[..<next.lowerBound]) }
         return section.split(separator: "\n").compactMap { line in
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             guard trimmed.hasPrefix("- ") else { return nil }
@@ -326,14 +344,15 @@ public struct ProjectFiles: Sendable {
     public func saveMemory(_ facts: [String]) throws {
         ensureMemoryFile()
         var text = memoryText()
+        let heading = Self.heading(in: text)
         let list = facts.map { "- \($0)" }.joined(separator: "\n")
-        if let range = text.range(of: Self.memoryHeading) {
+        if let range = text.range(of: heading) {
             // La sezione arriva fino al prossimo titolo "## " o alla fine.
             let after = text[range.upperBound...]
             let end = after.range(of: "\n## ")?.lowerBound ?? text.endIndex
             text.replaceSubrange(range.upperBound..<end, with: "\n\n" + list + "\n")
         } else {
-            text += (text.hasSuffix("\n") ? "" : "\n") + "\n\(Self.memoryHeading)\n\n\(list)\n"
+            text += (text.hasSuffix("\n") ? "" : "\n") + "\n\(heading)\n\n\(list)\n"
         }
         try saveMemoryText(text)
     }

@@ -59,6 +59,13 @@ extension Assistant {
     /// Rende autonoma una richiesta che dipende da ciò che si è detto prima ("e lui?", "rendilo più corto", "e domani?").
     func standalone(_ prompt: String) async -> String {
         guard !turns.isEmpty, Self.dependsOnConversation(prompt) else { return prompt }
+        // Le parole spia sbagliano spesso per eccesso («questa», «di più»): se rizzo-flow è sicuro che la richiesta
+        // si capisce da sola, niente riscrittura (una chiamata ad Apple Intelligence in meno).
+        if let answer = await DecisionEngine.shared.decide(decisionState(for: prompt), Self.refersBackQuestion, label: "riscrittura"),
+           answer.confident(Quick.refersBack), answer.flag == false {
+            Agent.log("RISCRITTURA SALTATA (rizzo-flow: si capisce da sola, \(String(format: "%.2f", answer.top)))")
+            return prompt
+        }
         let english = Language.isEnglish
         let session = english ? LanguageModelSession(model: Agent.model, instructions: Self.englishStandaloneInstructions)
             : LanguageModelSession(model: Agent.model, instructions: """
@@ -99,7 +106,7 @@ extension Assistant {
     /// Il messaggio si capisce solo con quelli di prima: pronomi e dimostrativi («lui», «quella»), verbi con il pronome
     /// attaccato («rendilo», «fanne»), riferimenti a un elenco («il secondo», «in tutto») o frammenti brevi senza soggetto
     /// («In che anno è nato?», «Quante once sono?», «Ora in spagnolo»). Saluti e ringraziamenti no.
-    nonisolated static func dependsOnConversation(_ prompt: String) -> Bool {
+    nonisolated public static func dependsOnConversation(_ prompt: String) -> Bool {
         let lower = " \(prompt.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)) "
         let words = lower.split(separator: " ").count
         guard words <= 14 else { return false }
@@ -239,7 +246,7 @@ extension Assistant {
     }
 
     /// Frasi che di solito contengono una preferenza o un fatto personale da ricordare.
-    public static func mayContainMemory(_ prompt: String) -> Bool {
+    nonisolated public static func mayContainMemory(_ prompt: String) -> Bool {
         let lower = prompt.lowercased()
         let cues = ["preferisco", "non mi piace", "mi piace", "odio ", "d'ora in poi", "da ora in poi", "da oggi in poi", "chiamami",
                     "mi chiamo", "sono allergic", "vivo a ", "abito a ", "lavoro come", "lavoro per", "il mio compleanno", "mia moglie",
@@ -258,6 +265,11 @@ extension Assistant {
     /// "Nudge" di memoria: estrae dal messaggio le preferenze dichiarate da salvare (al massimo due).
     public func memoryWorthy(_ prompt: String) async -> [String] {
         guard Self.mayContainMemory(prompt) else { return [] }
+        return await extractMemory(prompt)
+    }
+
+    /// Estrae i fatti da ricordare con Apple Intelligence, senza guardare prima le parole spia (lo decide chi chiama).
+    public func extractMemory(_ prompt: String) async -> [String] {
         let session = LanguageModelSession(model: Agent.model, instructions: Language.t(
             "Individui solo preferenze e fatti personali dichiarati esplicitamente. Nel dubbio restituisci una lista vuota.",
             "You identify only preferences and personal facts stated explicitly, written in English. When in doubt return an empty list."))

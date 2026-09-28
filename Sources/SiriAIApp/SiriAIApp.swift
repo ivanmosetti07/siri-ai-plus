@@ -262,7 +262,7 @@ struct SiriAIApp: App {
                     .disabled(!state.currentIsResponding)
             }
             CommandMenu("Siri AI+") {
-                Button("Nuovo progetto…") { ProjectPicker.choose { state.addProject(folder: $0) } }
+                Button("Nuovo progetto…") { state.requestNewProject() }
                     .keyboardShortcut("o", modifiers: [.command, .shift])
                 Button("Home") { state.section = .home }
                     .keyboardShortcut("h", modifiers: [.command, .shift])

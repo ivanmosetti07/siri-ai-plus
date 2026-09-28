@@ -158,14 +158,26 @@ private struct ModelsSettings: View {
         @Bindable var state = state
         SettingsGroup(title: String(localized: "Modello per le risposte"),
                       footnote: String(localized: "Con Apple Intelligence il Mac capisce la richiesta e sceglie gli strumenti. Gli altri modelli, se l'opzione è attiva, usano da soli gli stessi strumenti dell'app (calendario, email, file, web, connettori): quello che crea o invia resta sempre una scheda da confermare. Ogni chat ricorda il suo modello: per ChatGPT e Claude scegli versione e ragionamento dal menu sotto il campo di scrittura.")) {
-            Picker("Risponde", selection: Binding(get: { state.selection.provider }, set: { choice in
-                state.request(choice)
+            Picker("Risponde", selection: Binding(get: { state.selection.isAuto ? "auto" : state.selection.provider.rawValue }, set: { choice in
+                if choice == "auto" { state.choose(.automatic) } else if let provider = ResponseProvider(rawValue: choice) { state.request(provider) }
             })) {
+                Text("Auto · sceglie il modello a ogni richiesta").tag("auto")
                 ForEach(ResponseProvider.allCases) { provider in
-                    Text(provider.label).tag(provider)
+                    Text(provider.label).tag(provider.rawValue)
                 }
             }
             .pickerStyle(.radioGroup)
+            if state.selection.isAuto {
+                Picker("Per i compiti difficili e il codice", selection: Binding(get: { state.autoCloudProvider?.rawValue ?? "none" },
+                                                                                    set: { state.autoCloudProvider = ResponseProvider(rawValue: $0) })) {
+                    Text("ChatGPT").tag(ResponseProvider.chatgpt.rawValue)
+                    Text("Claude").tag(ResponseProvider.claude.rawValue)
+                    Text("Nessun modello cloud: solo sul Mac").tag("none")
+                }
+                Label("Auto: Apple Intelligence per le cose semplici, Gemma per quelle private, medie o lunghe, il modello cloud (anonimizzato) per ragionamenti difficili e codice. Il perché di ogni scelta è in «Come ho lavorato».",
+                      systemImage: "sparkles")
+                    .font(DS.Fonts.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
             Label("Finestra di contesto: \(state.contextBudget.label). Siri AI+ adatta a questo spazio quante pagine web, quanto testo dei file e quanta conversazione passare al modello.",
                   systemImage: "rectangle.stack")
                 .font(DS.Fonts.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -204,6 +216,11 @@ private struct ModelsSettings: View {
                     .padding(.top, 6)
                 }
                 .font(DS.Fonts.caption)
+            }
+            if state.cloudPrivacy {
+                Toggle("Lascia decidere a rizzo-flow quando serve rizzo-pii", isOn: $state.privacyGate).toggleStyle(.switch)
+                Text("Sui testi lunghi (oltre 12.000 caratteri) rizzo-flow legge inizio, metà e fine: se è sicuro che non ci sono dati personali (codice, manuali, pagine pubbliche) il modello di rizzo-pii non gira. Email, telefoni, IBAN, codici fiscali, carte e i nomi già nascosti nella chat restano comunque nascosti.")
+                    .font(DS.Fonts.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             if state.cloudPrivacy && !PIIEngine.isInstalled {
                 Label("Finché il motore non c'è, niente parte verso ChatGPT e Claude: risponde Apple Intelligence sul Mac.", systemImage: "lock.shield")
@@ -252,6 +269,12 @@ private struct ModelsSettings: View {
                 GemmaRow(variant: variant)
             }
             job(models, keys: ["llama", "gemma-start"])
+        }
+
+        SettingsGroup(title: String(localized: "Decisioni rapide (rizzo-flow)"),
+                      footnote: String(localized: "rizzo-flow di Rizzo AI Academy (licenza Apache-2.0) risponde sul Mac a domande chiuse — quale area e quale azione servono, quale modello usa Auto, se un testo va anonimizzato, se una frase va ricordata — in pochi decimi di secondo e con una probabilità. Quando è sicuro, Siri AI+ salta il lavoro di Apple Intelligence; quando non lo è, decide come prima. Gira con llama.cpp (circa 3,7 GB di memoria mentre lavora) e dopo 15 minuti senza richieste libera la memoria.")) {
+            Toggle("Usa le decisioni rapide", isOn: $state.fastDecisions).toggleStyle(.switch)
+            DecisionEngineRow()
         }
 
         SettingsGroup(title: String(localized: "ds4 (antirez, locale)"),
@@ -417,6 +440,60 @@ private struct PrivacySettings: View {
 }
 
 /// Una versione di Gemma 4: dimensione, memoria consigliata, scarica / usa / elimina.
+/// Il modello di rizzo-flow: stato, download (revisione fissa, sha256 controllato), Cestino.
+private struct DecisionEngineRow: View {
+    @Environment(AppState.self) private var state
+    @State private var confirmRemove = false
+
+    var body: some View {
+        let models = state.models
+        let _ = models.revision
+        let id = ModelManager.decisionModelID
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("rizzo-flow 4B · Q4_K_M").font(DS.Fonts.bodyStrong)
+                Text(detail(models)).font(DS.Fonts.caption).foregroundStyle(.secondary)
+                if let error = models.errors[id] { Text(error).font(DS.Fonts.caption).foregroundStyle(.red) }
+            }
+            Spacer()
+            if let progress = models.downloads[id] {
+                ProgressView(value: progress).frame(width: 110)
+                Text("\(Int(progress * 100))%").font(.system(size: 11, design: .monospaced)).frame(width: 36)
+                Button("Annulla") { models.cancelDecisionDownload() }.controlSize(.small)
+            } else if DecisionEngine.isInstalled {
+                Button(role: .destructive) { confirmRemove = true } label: { Image(systemName: "trash") }
+                    .buttonStyle(.borderless).iconHelp(String(localized: "Sposta il modello nel Cestino"))
+                    .confirmationDialog("Spostare rizzo-flow nel Cestino?", isPresented: $confirmRemove) {
+                        Button("Sposta nel Cestino (2,6 GB)", role: .destructive) { Task { await models.removeDecisionModel() } }
+                    } message: { Text("Le decisioni torneranno ad Apple Intelligence e alle parole chiave. Il file resta nel Cestino finché non lo svuoti.") }
+            } else {
+                Button("Scarica (2,6 GB)") { models.downloadDecisionModel() }.controlSize(.small)
+            }
+            Link(destination: URL(string: "https://github.com/rizzo-ai-academy/rizzo-flow")!) { Image(systemName: "arrow.up.right.square") }
+                .help("rizzo-flow su GitHub")
+        }
+        .task {
+            // Lo stato cambia da solo (avvio, riposo): si rilegge finché la finestra è aperta.
+            while !Task.isCancelled {
+                await models.refreshDecisions()
+                try? await Task.sleep(for: .seconds(3))
+            }
+        }
+    }
+
+    private func detail(_ models: ModelManager) -> String {
+        switch models.decisionStatus {
+        case .notInstalled: String(localized: "Da scaricare da Hugging Face (rizzoaiacademy/rizzo-flow)")
+        case .off: String(localized: "Spente: decidono Apple Intelligence e le parole chiave")
+        case .stopped: String(localized: "Pronto: si accende alla prima richiesta")
+        case .starting: String(localized: "Si sta accendendo…")
+        case .ready: models.decisionLatency.map { String(localized: "Attivo · ultima prima occhiata in \($0) ms") } ?? String(localized: "Attivo")
+        case .sleeping: String(localized: "A riposo: memoria libera, si risveglia alla prossima richiesta")
+        case .unavailable(let reason): String(localized: "Non disponibile: \(reason)")
+        }
+    }
+}
+
 private struct GemmaRow: View {
     @Environment(AppState.self) private var state
     let variant: GemmaVariant

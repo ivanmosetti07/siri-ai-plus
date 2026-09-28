@@ -325,6 +325,16 @@
         }
       }
     },
+    " · dalle parole chiave": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " · from keywords"
+          }
+        }
+      }
+    },
     " · passo %lld": {
       "localizations": {
         "en": {
@@ -2999,6 +3009,16 @@
         }
       }
     },
+    "A riposo: memoria libera, si risveglia alla prossima richiesta": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resting: memory freed, it wakes up with the next request"
+          }
+        }
+      }
+    },
     "A: nome, numero o email": {
       "localizations": {
         "en": {
@@ -3361,6 +3381,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Updated in “%@”"
+          }
+        }
+      }
+    },
+    "Aggiornato: «%@»": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updated: «%@»"
           }
         }
       }
@@ -3931,6 +3961,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Canceled"
+          }
+        }
+      }
+    },
+    "Annullato: «%@»": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Undone: «%@»"
           }
         }
       }
@@ -5061,6 +5101,56 @@
           "stringUnit": {
             "state": "translated",
             "value": "Active"
+          }
+        }
+      }
+    },
+    "Attivo · ultima prima occhiata in %lld ms": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Active · last first look in %lld ms"
+          }
+        }
+      }
+    },
+    "Auto": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto"
+          }
+        }
+      }
+    },
+    "Auto · ": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto · "
+          }
+        }
+      }
+    },
+    "Auto · sceglie il modello a ogni richiesta": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto · picks the model for every request"
+          }
+        }
+      }
+    },
+    "Auto: Apple Intelligence per le cose semplici, Gemma per quelle private, medie o lunghe, il modello cloud (anonimizzato) per ragionamenti difficili e codice. Il perché di ogni scelta è in «Come ho lavorato».": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto: Apple Intelligence for simple things, Gemma for private, medium or long ones, the cloud model (anonymized) for hard reasoning and code. The reason for each choice is in «How I worked»."
           }
         }
       }
@@ -6325,12 +6415,32 @@
         }
       }
     },
+    "Chat, memoria e file del progetto restano insieme dentro Siri AI+, separati dal resto. Nessuna cartella sul Mac.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The project's chats, memory and files stay together inside Siri AI+, apart from everything else. No folder on your Mac."
+          }
+        }
+      }
+    },
     "Chat, registro, anima, skill dedicate e programmazioni del Genius verranno cancellati.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "The Genius's chat, log, soul, dedicated skills and schedules will be deleted."
+          }
+        }
+      }
+    },
+    "ChatGPT": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ChatGPT"
           }
         }
       }
@@ -6495,6 +6605,16 @@
         }
       }
     },
+    "Chiedi conferma anche per gli strumenti che leggono soltanto": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ask for confirmation for read-only tools too"
+          }
+        }
+      }
+    },
     "Chiedi qualsiasi cosa a Siri AI+…": {
       "localizations": {
         "en": {
@@ -6511,16 +6631,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ask for a plan (I won't change any files)…"
-          }
-        }
-      }
-    },
-    "Chiedo a %@…": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Asking %@…"
           }
         }
       }
@@ -7261,6 +7371,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "With Apple Intelligence, your Mac understands the request and picks the tools. The other models, if the option is on, use the same app tools on their own (calendar, email, files, web, connectors): anything they create or send is always a card for you to confirm. Each chat remembers its model: for ChatGPT and Claude, choose the version and reasoning from the menu below the text field."
+          }
+        }
+      }
+    },
+    "Con Auto i compiti difficili li svolge %@: la richiesta, la conversazione recente e i dati usati per rispondere (calendario, file, pagine, connettori) vengono inviati a %@, con i dati personali anonimizzati sul Mac. Continuare?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "With Auto, hard tasks are handled by %@: the request, the recent conversation and the data used to answer (calendar, files, pages, connectors) are sent to %@, with personal data anonymized on your Mac. Continue?"
           }
         }
       }
@@ -8085,6 +8205,16 @@
         }
       }
     },
+    "Cosa ricordi di questo progetto?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What do you remember about this project?"
+          }
+        }
+      }
+    },
     "Cosa sai di %@? Cerca nelle email, nei messaggi e nel calendario gli ultimi contatti che ho avuto": {
       "localizations": {
         "en": {
@@ -8245,6 +8375,16 @@
         }
       }
     },
+    "Crea un file da-fare.md con le prossime cose da fare": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create a to-do.md file with the next things to do"
+          }
+        }
+      }
+    },
     "Crea un file note-riunione.md con l'ordine del giorno": {
       "localizations": {
         "en": {
@@ -8291,6 +8431,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Create a small browser game"
+          }
+        }
+      }
+    },
+    "Crea un progetto per tenere insieme chat, memoria e file di un argomento, separati dal resto.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create a project to keep the chats, memory and files of a topic together, apart from everything else."
           }
         }
       }
@@ -8597,6 +8747,16 @@
         }
       }
     },
+    "Da scaricare da Hugging Face (rizzoaiacademy/rizzo-flow)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To download from Hugging Face (rizzoaiacademy/rizzo-flow)"
+          }
+        }
+      }
+    },
     "Da verificare": {
       "localizations": {
         "en": {
@@ -8643,6 +8803,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Missing date: create it from the chat"
+          }
+        }
+      }
+    },
+    "Decisioni rapide (rizzo-flow)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fast decisions (rizzo-flow)"
           }
         }
       }
@@ -11650,6 +11820,16 @@
         }
       }
     },
+    "Il file scaricato non è quello pubblicato (sha256 diverso): riprova.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The downloaded file is not the published one (different sha256): try again."
+          }
+        }
+      }
+    },
     "Il file verrà cancellato: per usarla di nuovo andrà riscaricata.": {
       "localizations": {
         "en": {
@@ -13096,6 +13276,16 @@
         }
       }
     },
+    "La memoria di questo progetto, separata da quella delle altre chat: Siri AI+ la legge in ogni chat del progetto (se è lunga ne usa una sintesi) e aggiunge sotto «Ricordi di Siri AI+» ciò che le chiedi di ricordare.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This project's memory, separate from your other chats: Siri AI+ reads it in every chat of the project (if it's long, it uses a summary) and adds what you ask it to remember under “Siri AI+ memories”."
+          }
+        }
+      }
+    },
     "La mia posizione": {
       "localizations": {
         "en": {
@@ -13206,6 +13396,16 @@
         }
       }
     },
+    "Lascia decidere a rizzo-flow quando serve rizzo-pii": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Let rizzo-flow decide when rizzo-pii is needed"
+          }
+        }
+      }
+    },
     "Lavora %@. Ogni richiesta parte da un punto di ripristino; il sito si prova con «Anteprima», qui accanto.": {
       "localizations": {
         "en": {
@@ -13296,6 +13496,16 @@
         }
       }
     },
+    "Le chat del progetto verranno cancellate; la sua memoria e i suoi file finiscono nel Cestino.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The project's chats will be deleted; its memory and files will be moved to the Trash."
+          }
+        }
+      }
+    },
     "Le conversazioni vanno a %@ anonimizzate sul Mac: i dati veri non escono.": {
       "localizations": {
         "en": {
@@ -13312,6 +13522,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Conversations are sent to %@: privacy is no longer guaranteed by the local model."
+          }
+        }
+      }
+    },
+    "Le decisioni torneranno ad Apple Intelligence e alle parole chiave. Il file resta nel Cestino finché non lo svuoti.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Decisions will go back to Apple Intelligence and keywords. The file stays in the Trash until you empty it."
           }
         }
       }
@@ -13544,6 +13764,22 @@
         }
       }
     },
+    "Lettura da %@: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read from %@: %@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lettura da %1$@: %2$@"
+          }
+        }
+      }
+    },
     "Lettura e modifica": {
       "localizations": {
         "en": {
@@ -13580,6 +13816,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Read page"
+          }
+        }
+      }
+    },
+    "Lettura, parte da sola": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read-only, runs on its own"
           }
         }
       }
@@ -13810,16 +14056,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "The app accepted the change but didn't allow it to be verified. Check the field before trying again."
-          }
-        }
-      }
-    },
-    "MEMORY.md": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MEMORY.md"
           }
         }
       }
@@ -14278,6 +14514,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Model for replies"
+          }
+        }
+      }
+    },
+    "Modello scelto da Auto": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model chosen by Auto"
           }
         }
       }
@@ -14956,6 +15202,16 @@
         }
       }
     },
+    "Nessun modello cloud: solo sul Mac": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No cloud model: only on your Mac"
+          }
+        }
+      }
+    },
     "Nessun progetto": {
       "localizations": {
         "en": {
@@ -15432,6 +15688,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Not available on this Mac: more memory is needed."
+          }
+        }
+      }
+    },
+    "Non disponibile: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not available: %@"
           }
         }
       }
@@ -16554,6 +16820,16 @@
         }
       }
     },
+    "Ogni chat è dedicata a questo progetto: Siri AI+ usa la sua memoria e i suoi file. Allegati, documenti e immagini delle sue chat restano raccolti in File. Scrivi a destra per iniziare.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Every chat is dedicated to this project: Siri AI+ uses its memory and files. Attachments, documents and images from its chats are collected in Files. Type on the right to start."
+          }
+        }
+      }
+    },
     "Ogni cosa che Siri AI+ ha fatto per te e cosa può vedere: i dati salvati restano sul Mac; le risposte possono usare Private Cloud Compute di Apple.": {
       "localizations": {
         "en": {
@@ -16838,6 +17114,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "For complex tasks, Siri AI+ prepares a plan and has sub-agents carry it out, each with its own context window: the more of them work together, the faster the plan runs, but more memory is needed. Automatic: %lld on this Mac."
+          }
+        }
+      }
+    },
+    "Per i compiti difficili e il codice": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For hard tasks and code"
           }
         }
       }
@@ -17398,6 +17684,16 @@
         }
       }
     },
+    "Prima era: «%@»": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Before it was: «%@»"
+          }
+        }
+      }
+    },
     "Prima: %@": {
       "localizations": {
         "en": {
@@ -17647,6 +17943,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Project linked"
+          }
+        }
+      }
+    },
+    "Progetto creato": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Project created"
           }
         }
       }
@@ -17907,6 +18213,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ready"
+          }
+        }
+      }
+    },
+    "Pronto: si accende alla prima richiesta": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ready: starts with the first request"
           }
         }
       }
@@ -18237,6 +18553,16 @@
         }
       }
     },
+    "Questo strumento legge soltanto: Siri AI+ lo usa senza chiedere conferma": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This tool only reads: Siri AI+ uses it without asking for confirmation"
+          }
+        }
+      }
+    },
     "Qui potrai %@ e chiedere a Siri AI+ di lavorarci. Nel frattempo puoi aprire l'app di sistema.": {
       "localizations": {
         "en": {
@@ -18281,6 +18607,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "RECUPERO: %lld conversazioni reinserite"
+          }
+        }
+      }
+    },
+    "RICORDATO: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REMEMBERED: %@"
           }
         }
       }
@@ -18897,6 +19233,16 @@
         }
       }
     },
+    "Ricordato: «%@»": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remembered: «%@»"
+          }
+        }
+      }
+    },
     "Ricordato: «%@».": {
       "localizations": {
         "en": {
@@ -19139,6 +19485,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Rename Group"
+          }
+        }
+      }
+    },
+    "Rinomina il progetto": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename Project"
           }
         }
       }
@@ -19481,16 +19837,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Result"
-          }
-        }
-      }
-    },
-    "Risultato di %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Result of %@"
           }
         }
       }
@@ -19969,6 +20315,16 @@
         }
       }
     },
+    "Salvato nella memoria di Siri AI+": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved in Siri AI+'s memory"
+          }
+        }
+      }
+    },
     "Salvato · Live": {
       "localizations": {
         "en": {
@@ -20005,6 +20361,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Download"
+          }
+        }
+      }
+    },
+    "Scarica (2,6 GB)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download (2.6 GB)"
           }
         }
       }
@@ -20671,12 +21037,12 @@
         }
       }
     },
-    "Server MCP esterni: i loro strumenti diventano disponibili a Siri AI+ e ai Genius. Ogni esecuzione chiede conferma, a meno che tu non scelga «Consenti sempre» per uno strumento.": {
+    "Server MCP esterni: i loro strumenti diventano disponibili a Siri AI+ e ai Genius. Gli strumenti che leggono soltanto partono da soli; quelli che creano, modificano o inviano chiedono conferma, a meno che tu non scelga «Consenti sempre».": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "External MCP servers: their tools become available to Siri AI+ and the Geniuses. Each run asks for confirmation, unless you choose “Always Allow” for a tool."
+            "value": "External MCP servers: their tools become available to Siri AI+ and the Geniuses. Tools that only read run on their own; those that create, change, or send ask for confirmation, unless you choose “Always Allow”."
           }
         }
       }
@@ -20734,6 +21100,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Si sovrappone a «%1$@» (%2$@–%3$@)%4$@."
+          }
+        }
+      }
+    },
+    "Si sta accendendo…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Starting…"
           }
         }
       }
@@ -21181,6 +21557,16 @@
         }
       }
     },
+    "Spente: decidono Apple Intelligence e le parole chiave": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off: Apple Intelligence and keywords decide"
+          }
+        }
+      }
+    },
     "Spiegami come funziona un mutuo a tasso variabile": {
       "localizations": {
         "en": {
@@ -21279,6 +21665,16 @@
         }
       }
     },
+    "Sposta il modello nel Cestino": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move the model to the Trash"
+          }
+        }
+      }
+    },
     "Sposta in": {
       "localizations": {
         "en": {
@@ -21319,6 +21715,16 @@
         }
       }
     },
+    "Sposta nel Cestino (2,6 GB)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move to Trash (2.6 GB)"
+          }
+        }
+      }
+    },
     "Sposta questo evento di un'ora": {
       "localizations": {
         "en": {
@@ -21353,6 +21759,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Spostare %lld elementi nel Cestino?"
+          }
+        }
+      }
+    },
+    "Spostare rizzo-flow nel Cestino?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move rizzo-flow to the Trash?"
           }
         }
       }
@@ -21630,6 +22046,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Next"
+          }
+        }
+      }
+    },
+    "Sui testi lunghi (oltre 12.000 caratteri) rizzo-flow legge inizio, metà e fine: se è sicuro che non ci sono dati personali (codice, manuali, pagine pubbliche) il modello di rizzo-pii non gira. Email, telefoni, IBAN, codici fiscali, carte e i nomi già nascosti nella chat restano comunque nascosti.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On long texts (over 12,000 characters) rizzo-flow reads the beginning, the middle and the end: if it is sure there is no personal data (code, manuals, public pages) the rizzo-pii model does not run. Emails, phone numbers, IBANs, tax codes, cards and the names already hidden in the chat stay hidden anyway."
           }
         }
       }
@@ -22580,6 +23006,16 @@
         }
       }
     },
+    "Usa Auto": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use Auto"
+          }
+        }
+      }
+    },
     "Usa Private Cloud Compute quando disponibile": {
       "localizations": {
         "en": {
@@ -22636,6 +23072,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Use your Mac's location instead of the city"
+          }
+        }
+      }
+    },
+    "Usa le decisioni rapide": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use fast decisions"
           }
         }
       }
@@ -22716,16 +23162,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Value or formula (e.g. =SUM(B2:B6))"
-          }
-        }
-      }
-    },
-    "Valuto il risultato…": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Evaluating the result…"
           }
         }
       }
@@ -24294,6 +24730,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "summary: %@"
+          }
+        }
+      }
+    },
+    "rizzo-flow 4B · Q4_K_M": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "rizzo-flow 4B · Q4_K_M"
+          }
+        }
+      }
+    },
+    "rizzo-flow di Rizzo AI Academy (licenza Apache-2.0) risponde sul Mac a domande chiuse — quale area e quale azione servono, quale modello usa Auto, se un testo va anonimizzato, se una frase va ricordata — in pochi decimi di secondo e con una probabilità. Quando è sicuro, Siri AI+ salta il lavoro di Apple Intelligence; quando non lo è, decide come prima. Gira con llama.cpp (circa 3,7 GB di memoria mentre lavora) e dopo 15 minuti senza richieste libera la memoria.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "rizzo-flow by Rizzo AI Academy (Apache-2.0 license) answers closed questions on your Mac — which area and action are needed, which model Auto uses, whether a text must be anonymized, whether a sentence should be remembered — in a few tenths of a second and with a probability. When it is sure, Siri AI+ skips the work of Apple Intelligence; when it is not, it decides as before. It runs with llama.cpp (about 3.7 GB of memory while working) and frees the memory after 15 minutes without requests."
+          }
+        }
+      }
+    },
+    "rizzo-flow su GitHub": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "rizzo-flow on GitHub"
           }
         }
       }

@@ -40,6 +40,8 @@ extension Assistant {
         if screenAction(prompt) != nil { return true }
         if work.artifactKind != nil, !Self.isArtifactQuestion(prompt), Self.isArtifactCommand(prompt) { return true }
         if Self.literalDocumentText(prompt) != nil { return true }
+        // «Ricordati che…» lo salva l'app con tutti i modelli (prima con ChatGPT e Claude dipendeva dal modello e dallo strumento).
+        if Self.explicitlyRemembers(prompt) { return true }
         return isChangeCommand(prompt)
     }
 

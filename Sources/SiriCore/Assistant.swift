@@ -217,9 +217,21 @@ public struct MCPCallDraft: Sendable, Equatable, Codable {
     /// Richiesta originale dell'utente e chiamate già fatte (i server "a catalogo" richiedono più passaggi).
     public var request: String?
     public var steps: [MCPStep]?
+    /// Lo strumento interno che la chiamata esegue sui servizi «a catalogo» (quote_create dentro execute_write_tool),
+    /// con lo schema letto dal servizio: la scheda mostra quello e i suoi campi.
+    public var inner: MCPToolInfo?
 
-    public init(tool: MCPToolInfo, arguments: JSONValue, request: String? = nil, steps: [MCPStep]? = nil) {
-        self.tool = tool; self.arguments = arguments; self.request = request; self.steps = steps
+    public init(tool: MCPToolInfo, arguments: JSONValue, request: String? = nil, steps: [MCPStep]? = nil, inner: MCPToolInfo? = nil) {
+        self.tool = tool; self.arguments = arguments; self.request = request; self.steps = steps; self.inner = inner
+    }
+
+    /// Il nome da mostrare: lo strumento interno se c'è («quote_create»), altrimenti quello chiamato.
+    public var displayName: String { inner?.name ?? tool.name }
+
+    /// Gli argomenti da mostrare: quelli dello strumento interno se c'è.
+    public var displayArguments: JSONValue {
+        guard inner != nil, let key = Assistant.freeKey(of: tool), let values = arguments[key] else { return arguments }
+        return values
     }
 }
 
@@ -306,6 +318,10 @@ public final class Assistant {
     /// Ricerche web e chiamate ai connettori della richiesta in corso.
     var webSearches = 0
     var mcpCalls = 0
+    /// Fuori dall'app (banco di prova, CLI): chi esegue gli strumenti dei connettori. Nell'app lo passa il registro.
+    public var connectorCaller: ((MCPToolInfo, JSONValue) async throws -> String)?
+    /// Le chiamate fatte ai connettori fuori dall'app («list_tasks», «execute_read_tool:invoices_list»), per i controlli.
+    public var connectorCalls: [String] = []
     /// Ultima richiesta resa autonoma (per le ricerche di ripiego sul web).
     public internal(set) var lastRequest = ""
     /// Calcoli esatti della richiesta in corso (orari, date, conti): entrano nel prompt della risposta.
@@ -449,9 +465,24 @@ public final class Assistant {
         let editingOpen = work.artifactKind != nil && Self.isArtifactCommand(prompt)
         // Il sub-agent smistatore legge la richiesta e sceglie gli strumenti, e dice se il lavoro va a passi; non serve quando
         // l'app sa già cosa fare (comandi su ciò che è sullo schermo o che esiste già, testi da elaborare, saluti).
-        let route: ToolRoute? = shouldRoute(prompt, editingOpen: editingOpen)
-            ? await { status(Language.t("Scelgo gli strumenti…", "Choosing the tools…")); return await routeTools(for: Self.withoutQuotes(prompt), catalog: familyCatalog(), hints: familyHints(for: prompt)) }()
-            : nil
+        // Prima rizzo-flow (area e azione con due domande chiuse); se non è sicuro, lo smistatore di Apple.
+        var route: ToolRoute?
+        var look: FirstLook?
+        if shouldRoute(prompt, editingOpen: editingOpen) {
+            status(Language.t("Scelgo gli strumenti…", "Choosing the tools…"))
+            let request = Self.withoutQuotes(prompt)
+            let catalog = familyCatalog()
+            if let direct = directRoute(request, names: catalog.map(\.name)) {
+                route = direct
+            } else if let quick = await firstLook(request, catalog: catalog, askAction: true) {
+                look = quick
+                route = quick.route
+                Agent.log("SMISTATORE (rizzo-flow): \(quick.route.tools.isEmpty ? "nessuna area" : quick.route.tools.joined(separator: ", "))"
+                          + " · azione \(quick.action?.rawValue ?? "da scegliere") · \(quick.route.milliseconds) ms")
+            } else {
+                route = await routeTools(for: request, catalog: catalog, hints: familyHints(for: prompt))
+            }
+        }
         // Il piano con i sub-agent parte da solo per i compiti complessi: secondo le regole dell'app o secondo lo smistatore.
         // Una richiesta che l'app sa già dividere in comandi («cosa ho domani e scrivi a Marco…») resta divisa: ogni parte ha la sua scheda.
         let routedPlan = route.map { Self.gathersFromRoutedSources(prompt, areas: $0.tools) } == true && Self.splitRequest(prompt).count == 1
@@ -495,6 +526,7 @@ public final class Assistant {
         var plan = if let screenPlan { screenPlan }
             else if let decided { Plan(action: decided, fields: [:]) }
             else if candidates.isEmpty || screenQuestion { Plan(action: .rispondi, fields: [:]) }
+            else if let quick = await quickPlan(look, candidates: candidates, parts: parts.count, prompt: firstPart) { quick }
             else { await makePlan(for: firstPart, allowed: candidates) }
         if screenPlan == nil, !screenQuestion { applyRules(to: &plan, prompt: firstPart, candidates: candidates) }
         // Con un'immagine allegata "cosa c'è in questa foto?" è una domanda sull'immagine, non una richiesta di disegnarne una,
@@ -506,8 +538,11 @@ public final class Assistant {
              + (english ? ["draw", "generate", "create an image", "make an image", "illustration", "make me a picture"] : [])).contains(where: firstPart.lowercased().contains) {
             plan.action = .rispondi
         }
-        if !work.images.isEmpty, plan.action == .cerca_web, !explicitWeb.contains(where: firstPart.lowercased().contains) {
+        // Lo stesso con un documento allegato: «quanto costa la cucina?» con il preventivo si legge nel preventivo.
+        let attached = !work.images.isEmpty || !(work.attachments ?? "").isEmpty
+        if attached, plan.action == .cerca_web, !explicitWeb.contains(where: firstPart.lowercased().contains) {
             plan.action = .rispondi
+            plan.fields = [:]
         }
         // Connettore scelto dal pianificatore senza che la richiesta lo riguardi: si ripianifica senza.
         if plan.action == .strumento_esterno, plan["server"] == nil, namedServer(firstPart.lowercased()) == nil,
@@ -519,7 +554,7 @@ public final class Assistant {
         }
         // Domande di attualità ("chi è il sindaco…", "quanto costa…"): se l'unica azione plausibile è il web, si cerca.
         // Non per i conti e le date che l'app sa calcolare con i dati della domanda.
-        if plan.action == .rispondi, cueCandidates == [.cerca_web], work.webEnabled, turnFacts.isEmpty, work.images.isEmpty, screenFocus == nil,
+        if plan.action == .rispondi, cueCandidates == [.cerca_web], work.webEnabled, turnFacts.isEmpty, !attached, screenFocus == nil,
            !(Calculations.looksArithmetic(prompt) && Calculations.numbers(in: prompt).count >= 2),
            prompt.hasSuffix("?") || (["chi ", "quanto ", "quanti ", "quando ", "dove ", "qual ", "quale ", "cosa succede", "come sta"]
             + (english ? ["who ", "how much", "how many", "when ", "where ", "which ", "what is the", "what's the", "what happened", "how is"] : []))
@@ -528,7 +563,7 @@ public final class Assistant {
             plan.fields["cerca"] = prompt
         }
         // Salute, leggi, soldi: si risponde con le fonti invece che a memoria (non per i conti con tutti i dati nella domanda).
-        if !isSubAgent, plan.action == .rispondi, work.webEnabled, turnFacts.isEmpty, !Self.isTextTask(prompt), responseStyle != .creative, screenFocus == nil,
+        if !isSubAgent, plan.action == .rispondi, work.webEnabled, turnFacts.isEmpty, !attached, !Self.isTextTask(prompt), responseStyle != .creative, screenFocus == nil,
            RiskyDomain.detect(prompt) != nil, !(Calculations.looksArithmetic(prompt) && Calculations.numbers(in: prompt).count >= 2) {
             plan.action = .cerca_web
             plan.fields["cerca"] = prompt
@@ -575,7 +610,8 @@ public final class Assistant {
         // con i campi che il pianificatore ha già estratto (titolo, scadenza, cerca, destinatari).
         // Anche il web scelto solo perché lo smistatore l'aveva messo fra le aree («dove avevo messo il contratto?» è un file).
         let routerOnlyWeb = plan.action == .cerca_web && !cueCandidates.contains(.cerca_web) && !rescued.isEmpty && rescued.first != "web"
-        if plan.action == .rispondi || routerOnlyWeb, screenPlan == nil, decided == nil, !screenQuestion, work.images.isEmpty,
+        // Con un allegato (foto o documento) «rispondi» vuol dire rispondere da quello: niente ripiego sull'area dello smistatore.
+        if plan.action == .rispondi || routerOnlyWeb, screenPlan == nil, decided == nil, !screenQuestion, !attached,
            let action = rescueAction(areas: rescued.filter { $0 != "web" }, prompt: firstPart, withCalculations: !turnFacts.isEmpty) {
             Agent.log("SMISTATORE: rispondi → \(action.rawValue) (area \(rescued.joined(separator: ", ")))")
             plan.action = action
@@ -595,6 +631,14 @@ public final class Assistant {
             }
         }
 
+        // Una ricerca su un nome finita su una fonte non collegata (per esempio la Mail spenta): se un connettore sa cercare,
+        // si chiede a lui invece di rispondere «Mail non è collegata».
+        if let source = Self.readSource(plan.action), !enabled.contains(source), Self.isLookup(firstPart.lowercased()),
+           availableActions.contains(.strumento_esterno),
+           work.mcpTools.contains(where: { $0.isReadOnly && ["search", "find", "cerca", "lookup"].contains(MCPToolInfo.nameWords($0.name).first ?? "") }) {
+            Agent.log("CONNETTORE: \(source.rawValue) non collegato, la ricerca va ai connettori")
+            plan = Plan(action: .strumento_esterno, fields: [:])
+        }
         // «Fai un documento da questa nota», «scrivi a Marco il riassunto di questa email»: il testo sullo schermo è il materiale.
         if plan.action != .rispondi, Self.generative.contains(plan.action), let material = screenMaterial(limit: budget.scaled(2000)) {
             plan.fields["argomento"] = (plan["argomento"] ?? firstPart) + "\n\n" + material
@@ -602,6 +646,18 @@ public final class Assistant {
         }
         return await runLoop(first: plan, prompt: prompt, rawPrompt: rawPrompt, candidates: candidates, parts: parts,
                              enabled: enabled, picked: picked, status: status)
+    }
+
+    /// La fonte da cui legge un'azione di sola lettura (per capire se è collegata).
+    static func readSource(_ action: Action) -> SourceKind? {
+        switch action {
+        case .mail_leggi: .mail
+        case .note: .notes
+        case .messaggi: .messages
+        case .agenda, .eventi: .calendar
+        case .promemoria: .reminders
+        default: nil
+        }
     }
 
     /// Esegue una sola azione del piano e restituisce cosa mostrare. Gli errori degli strumenti diventano un messaggio
@@ -824,6 +880,17 @@ public final class Assistant {
         }
     }
 
+    /// «Ricordati che…», «tieni a mente…», «remember that…»: memoria, non promemoria («ricordami di…», «remember to…»).
+    nonisolated static func explicitlyRemembers(_ prompt: String) -> Bool {
+        let lower = prompt.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if lower.range(of: #"^(ricordati( che| di)?|ricorda che|tieni a mente( che)?|memorizza( che)?|(segnati|annotati|appuntati)( che| questa cosa)?( per dopo)?:?)\s+\S"#,
+                       options: .regularExpression) != nil, !lower.hasPrefix("ricordati di ") { return true }
+        return Language.isEnglish
+            && lower.range(of: #"^(please\s+)?(remember( that)?|keep in mind( that)?|note that|make a note( that)?|memori[sz]e( that)?|don't forget that|for future reference)\s*:?\s+\S"#,
+                           options: .regularExpression) != nil
+            && !lower.hasPrefix("remember to ") && !lower.hasPrefix("please remember to ")
+    }
+
     /// Regole deterministiche dove il modello piccolo sbaglia spesso.
     func applyRules(to plan: inout Plan, prompt rawPrompt: String, candidates: Set<Action> = Set(Action.allCases)) {
         // Stessa stringa per la ricerca e il taglio: con spazi iniziali gli indici non corrispondevano.
@@ -885,6 +952,14 @@ public final class Assistant {
                 plan.action = .modifica_artefatto
                 return
             }
+        }
+        // Un servizio collegato nominato («su Demo OS», «nel CRM», «in Agency OS») vale più delle regole che seguono:
+        // «crea un preventivo su Demo OS» è un preventivo del servizio, non un documento; «il contatto di Bianchi Bike
+        // in Demo CRM» non è un'email da scrivere. Con più azioni da fare decide il piano.
+        if availableActions.contains(.strumento_esterno), let server = namedServer(lower), !Self.mentionsSeveralActions(prompt) {
+            plan.action = .strumento_esterno
+            plan.fields["server"] = server
+            return
         }
         // Eventi, promemoria, note ed email che esistono già: "sposta la riunione…", "inoltra a Giulia…".
         if let action = Self.changeAction(prompt), availableActions.contains(action) {
@@ -950,7 +1025,21 @@ public final class Assistant {
             plan.action = .rispondi
             plan.fields = [:]
         }
+        // «Scrivimi una poesia in quattro righe»: un testo breve si scrive in chat; il documento solo se lo si chiede.
+        if plan.action == .crea_documento, ResponseStyle.detect(prompt) == .creative,
+           lower.range(of: #"\b(?:document[oi]?|pages|file|pdf|relazione|report|stampa|impagina|docs?)\b"#, options: .regularExpression) == nil {
+            plan.action = .rispondi
+            plan.fields = [:]
+            return
+        }
         if webRules(to: &plan, prompt: prompt, lower: lower) { return }
+        // Con un allegato la domanda riguarda quello («quanto costa la cucina?» con il preventivo allegato): si risponde
+        // dall'allegato, non dal web con fonti che non c'entrano. Il web solo se lo si chiede (le regole qui sopra).
+        if plan.action == .cerca_web, !(work.attachments ?? "").isEmpty {
+            plan.action = .rispondi
+            plan.fields = [:]
+            return
+        }
         // "Mi ha scritto…", "email non lette": leggere, non scrivere.
         let incoming = #"(mi ha (scritto|mandato|risposto|inviato)|mi hanno scritto|ho ricevuto|(email|mail|messaggi) (di|da) |non lett|da leggere|in arrivo|arrivat)"#
         let englishIncoming = #"(sent me|wrote to me|emailed me|texted me|messaged me|did i (get|receive)|i (got|received)|(emails?|mails?|messages?|texts?) from |unread|in my inbox|arrived|came in)"#
@@ -984,6 +1073,15 @@ public final class Assistant {
         if plan.action == .rispondi, candidates.contains(.strumento_esterno), let server = strongServerMatch(lower) {
             plan.action = .strumento_esterno
             plan.fields["server"] = server
+            return
+        }
+        // Il pianificatore ha indicato lo strumento di un connettore ma risponderebbe a memoria: per una ricerca
+        // («cerca Rossi», «chi è il referente di…») si chiede al servizio.
+        if plan.action == .rispondi, candidates.contains(.strumento_esterno), Self.isLookup(lower),
+           let tool = plan["strumento"].flatMap({ name in work.mcpTools.first { $0.name == name } }) {
+            plan.action = .strumento_esterno
+            plan.fields["strumento"] = tool.name
+            plan.fields["server"] = tool.serverName
             return
         }
         // Strumento esterno nominato o scelto dal pianificatore → usarlo, qualunque azione abbia indicato.

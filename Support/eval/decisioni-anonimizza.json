@@ -1,0 +1,12 @@
+[
+  {"file": "decisioni-anonimizza/codice.swift", "personali": false},
+  {"file": "decisioni-anonimizza/config.json", "personali": false},
+  {"file": "decisioni-anonimizza/manuale.md", "personali": false},
+  {"file": "decisioni-anonimizza/articolo.txt", "personali": false},
+  {"file": "decisioni-anonimizza/readme-autore.md", "personali": true},
+  {"file": "decisioni-anonimizza/contratto.txt", "personali": true},
+  {"file": "decisioni-anonimizza/cv.txt", "personali": true},
+  {"file": "decisioni-anonimizza/email.txt", "personali": true},
+  {"file": "decisioni-anonimizza/clienti.csv", "personali": true},
+  {"file": "decisioni-anonimizza/log.txt", "personali": true}
+]

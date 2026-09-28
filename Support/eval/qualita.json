@@ -48,6 +48,7 @@
   {"id": "coerenza-nome", "web": false, "categoria": "coerenza", "turni": ["Il mio collega si chiama Federico e lavora a Torino.", "In che città lavora il mio collega?"], "deve": ["torino"]},
   {"id": "coerenza-budget", "web": false, "categoria": "coerenza", "turni": ["Ho un budget di 1.200 euro per un viaggio di 4 giorni.", "Quanto posso spendere al giorno?"], "deve": ["\\b300\\b"]},
 
+  {"id": "allegato-preventivo", "web": false, "categoria": "allegati", "domanda": "Quanto costa la cucina e quando arriva?", "allegato": "preventivo-cucina.txt", "deve": ["4[.,]?800", "6 settimane"]},
   {"id": "vista-scontrino", "web": false, "categoria": "immagini", "domanda": "Quanto ho speso e in quale bar?", "immagine": "scontrino.png", "deve": ["6[,.]20", "roma centro|via del corso"]},
   {"id": "vista-voce", "web": false, "categoria": "immagini", "domanda": "Quanto costava la spremuta in questo scontrino?", "immagine": "scontrino.png", "deve": ["3[,.]50"]},
 

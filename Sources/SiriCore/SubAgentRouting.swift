@@ -123,10 +123,37 @@ public enum SubAgentRouting {
 }
 
 extension Assistant {
+    /// Livelli di difficoltà di un passo, gli stessi che legge Apple Intelligence.
+    nonisolated static let stepLevels = [
+        "Easy: searching the web, reading a file or a page, listing or summarizing data without judging it.",
+        "Medium: putting together or comparing information, writing an ordinary text, following instructions with a few steps.",
+        "Hard: analysis with judgment (risks, strategy, choices), long reasoning or reasoning with numbers, code, important texts to polish.",
+    ]
+
+    /// La difficoltà di ogni passo da rizzo-flow (nil = motore assente o risposta incompleta).
+    nonisolated static func quickStepDifficulties(_ plan: TaskPlan) async -> [StepDifficulty]? {
+        guard !plan.steps.isEmpty, DecisionEngine.isEnabled, DecisionEngine.isInstalled else { return nil }
+        let steps = plan.steps.enumerated().map { DecisionJSON.string("\($0.offset + 1). \($0.element.title): \($0.element.instruction.prefix(280))") }
+        let state = DecisionState([("task", .string(String(plan.goal.prefix(400)))), ("steps", .array(steps))])
+        let questions = plan.steps.indices.map { index in
+            DecisionQuestion.score("step_\(index + 1)", "How demanding is step \(index + 1) of the plan?", levels: stepLevels, policy: .closed)
+        }
+        guard let result = await DecisionEngine.shared.decide(state, questions, priority: .background, budget: 6, label: "difficoltà dei passi")
+        else { return nil }
+        let values = questions.compactMap { result[$0.id]?.value }
+        guard values.count == plan.steps.count else { return nil }
+        return values.map { $0 < 0.6 ? .facile : $0 > 1.4 ? .difficile : .media }
+    }
+
     /// Apple Intelligence valuta la difficoltà di ogni passo in una chiamata sola (sul Mac: niente abbonamento, circa un secondo).
     /// Se non è disponibile o non risponde entro 8 secondi decidono le parole del passo.
     public func stepDifficulties(for plan: TaskPlan) async -> [StepDifficulty] {
         let fallback = plan.steps.map(SubAgentRouting.heuristic)
+        // Prima rizzo-flow: una richiesta sola, il piano come evidenza e un punteggio per passo (i passi condividono lo stato).
+        if let quick = await Self.quickStepDifficulties(plan) {
+            Agent.log("DIFFICOLTÀ DEI PASSI (rizzo-flow): " + quick.map(\.rawValue).joined(separator: ", "))
+            return zip(quick, plan.steps).map { SubAgentRouting.capped($0, for: $1) }
+        }
         guard Agent.availabilityProblem == nil, !plan.steps.isEmpty else { return fallback }
         let count = plan.steps.count
         let english = Language.isEnglish

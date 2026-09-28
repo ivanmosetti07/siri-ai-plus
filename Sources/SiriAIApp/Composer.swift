@@ -64,6 +64,10 @@ struct Composer: View {
                 .focused($focused)
                 .onSubmit { state.send() }
                 .disabled(state.availabilityProblem != nil)
+                // Si comincia a scrivere: se il server delle decisioni rapide dorme, si sveglia adesso e non alla richiesta.
+                .onChange(of: state.input.isEmpty) { _, empty in
+                    if !empty { Task.detached(priority: .utility) { await DecisionEngine.shared.wakeIfNeeded() } }
+                }
             HStack(spacing: 4) {
                 toolsMenu
                 Button {
@@ -329,7 +333,7 @@ struct ModelMenu: View {
                 .font(DS.Fonts.caption).foregroundStyle(.secondary)
                 .help("Per una prova con ChatGPT o Claude usa l'anteprima nella Chat rapida.")
         } else {
-            ModelPicker(current: state.selection, compact: compact, showsTools: true) { state.choose($0) }
+            ModelPicker(current: state.selection, compact: compact, showsTools: true, offersAuto: true) { state.choose($0) }
         }
     }
 }

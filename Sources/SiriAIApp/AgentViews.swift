@@ -264,6 +264,33 @@ struct PrivacyRow: View {
     }
 }
 
+/// «Ricordato: …» sotto la risposta, con Annulla e Modifica (Impostazioni › Memoria).
+struct MemoryNoteRow: View {
+    @Environment(AppState.self) private var state
+    let note: MemoryNote
+    let messageID: UUID
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: note.undone ? "arrow.uturn.backward.circle" : "brain.head.profile")
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(note.undone ? Color.secondary : Color.accentColor)
+            Text(note.undone ? String(localized: "Annullato: «\(note.text)»")
+                 : note.replaced != nil ? String(localized: "Aggiornato: «\(note.text)»") : String(localized: "Ricordato: «\(note.text)»"))
+                .lineLimit(2)
+                .truncationMode(.tail)
+            if !note.undone {
+                Button("Annulla") { state.undoMemory(note, messageID: messageID) }.buttonStyle(.link)
+                Button("Modifica") { state.openSettings("memoria") }.buttonStyle(.link)
+            }
+        }
+        .font(DS.Fonts.caption)
+        .foregroundStyle(.secondary)
+        .help(note.replaced.map { String(localized: "Prima era: «\($0)»") } ?? String(localized: "Salvato nella memoria di Siri AI+"))
+        .accessibilityElement(children: .combine)
+    }
+}
+
 struct TraceRow: View {
     let trace: RequestTrace
     /// `--expand-traces`: aperta subito (per le foto di prova).
@@ -343,7 +370,8 @@ struct TraceRow: View {
                      "naviga": String(localized: "Browser"), "segui_link": String(localized: "Link"), "nuova_chat": String(localized: "Nuova chat"), "crea_agente": String(localized: "Nuovo Genius"),
                      "crea_sito": String(localized: "Pagina web"), "cerca_conversazioni": String(localized: "Conversazioni passate"), "skill": String(localized: "Skill"),
                      "calcolo": String(localized: "Calcolo esatto"), "immagine": String(localized: "Immagine allegata"), "ragionamento": String(localized: "Ragionamento prima della risposta"),
-                     "lettura_a_pezzi": String(localized: "Sub-agent · lettura a pezzi"), "smistatore": String(localized: "Sub-agent · scelta degli strumenti e del piano")]
+                     "lettura_a_pezzi": String(localized: "Sub-agent · lettura a pezzi"), "smistatore": String(localized: "Sub-agent · scelta degli strumenti e del piano"),
+                     "modello": String(localized: "Modello scelto da Auto")]
         if action.hasPrefix("mcp:") { return String(localized: "Connettore · ") + action.dropFirst(4).trimmingCharacters(in: .whitespaces) }
         return names[action] ?? action.replacingOccurrences(of: "_", with: " ").capitalized
     }

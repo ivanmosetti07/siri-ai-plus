@@ -1,0 +1,5 @@
+2026-09-27T10:01:12Z INFO  request id=7f3a method=GET path=/api/orders status=200 ms=42
+2026-09-27T10:01:13Z INFO  request id=7f3b method=POST path=/api/login status=401 ms=12 user=federico.bassi@example.com ip=93.44.12.8
+2026-09-27T10:01:15Z WARN  slow query table=orders ms=1250
+2026-09-27T10:01:20Z INFO  request id=7f3c method=GET path=/health status=200 ms=1
+2026-09-27T10:02:02Z ERROR payment failed order=10233 card=4539 1488 0343 6467 reason=insufficient_funds

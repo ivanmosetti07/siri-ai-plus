@@ -15,6 +15,8 @@ public struct MCPServerConfig: Codable, Sendable, Identifiable, Equatable {
     public var enabled = true
     /// Strumenti che l'utente ha scelto di eseguire senza conferma.
     public var alwaysAllow: Set<String> = []
+    /// true: chiede conferma anche per gli strumenti che leggono soltanto (nil = no: le letture partono da sole).
+    public var confirmReads: Bool?
 
     public init(name: String, transport: Transport) {
         self.name = name; self.transport = transport
@@ -48,10 +50,68 @@ public struct MCPToolInfo: Codable, Sendable, Equatable, Identifiable {
     public let name: String
     public let description: String
     public let inputSchema: JSONValue
+    /// Indicazioni del server (`annotations` di MCP): solo lettura, distruttivo. Nil se non le dichiara.
+    public var readOnlyHint: Bool?
+    public var destructiveHint: Bool?
 
-    public init(serverID: UUID, serverName: String, name: String, description: String, inputSchema: JSONValue) {
+    public init(serverID: UUID, serverName: String, name: String, description: String, inputSchema: JSONValue,
+                readOnlyHint: Bool? = nil, destructiveHint: Bool? = nil) {
         self.serverID = serverID; self.serverName = serverName; self.name = name
         self.description = description; self.inputSchema = inputSchema
+        self.readOnlyHint = readOnlyHint; self.destructiveHint = destructiveHint
+    }
+
+    /// Lo strumento legge soltanto: lo dichiara il server o si capisce dal nome (search, list, get, execute_read_tool…).
+    /// Nel dubbio no: ciò che potrebbe scrivere o inviare resta da confermare.
+    public var isReadOnly: Bool {
+        if destructiveHint == true { return false }
+        if let readOnlyHint { return readOnlyHint }
+        return Self.readsByName(name)
+    }
+
+    /// Le parole del nome («execute_read_tool», «listClients», «get-page») in minuscolo.
+    static func nameWords(_ name: String) -> [String] {
+        var words: [String] = []
+        var current = ""
+        for character in name {
+            if character == "_" || character == "-" || character == "." || character == " " || character == "/" {
+                if !current.isEmpty { words.append(current) }
+                current = ""
+            } else if character.isUppercase, let last = current.last, last.isLowercase {
+                words.append(current)
+                current = String(character)
+            } else {
+                current.append(character)
+            }
+        }
+        if !current.isEmpty { words.append(current) }
+        return words.map { $0.lowercased() }
+    }
+
+    static let readingWords: Set<String> = [
+        "get", "list", "search", "find", "read", "fetch", "query", "describe", "show", "lookup", "view", "whoami", "count",
+        "retrieve", "browse", "inspect", "preview", "check", "status", "info", "schema", "stats", "summary", "summarize",
+        "cerca", "elenca", "leggi", "trova", "mostra", "ottieni", "dettaglio", "dettagli", "conta", "stato", "riepilogo",
+    ]
+    /// Verbi che cambiano qualcosa ovunque compaiano nel nome.
+    static let writingWords: Set<String> = [
+        "create", "add", "update", "edit", "modify", "patch", "delete", "remove", "send", "post", "publish", "write", "set",
+        "put", "move", "archive", "cancel", "approve", "reject", "upload", "insert", "replace", "rename", "assign", "invite",
+        "share", "trash", "critical", "run", "trigger", "deploy", "buy", "pay", "transfer", "submit", "merge", "reply",
+        "forward", "import", "sync", "save", "crea", "aggiungi", "modifica", "aggiorna", "elimina", "cancella", "invia",
+        "sposta", "archivia", "pubblica", "scrivi", "imposta", "assegna", "approva", "salva", "rispondi", "inoltra",
+    ]
+    /// Parole che cambiano qualcosa solo come verbo iniziale («switch_agency», «schedule_meeting»), non dopo «get»/«list».
+    static let actionWords: Set<String> = [
+        "new", "schedule", "complete", "mark", "switch", "close", "open", "start", "stop", "book", "render", "completa",
+    ]
+
+    static func readsByName(_ name: String) -> Bool {
+        let words = nameWords(name)
+        guard let first = words.first, !words.contains(where: writingWords.contains) else { return false }
+        if readingWords.contains(first) { return true }
+        if words.contains(where: actionWords.contains) { return false }
+        return words.contains(where: readingWords.contains)
     }
 }
 
@@ -128,9 +188,12 @@ public actor MCPConnection {
         let result = try await request("tools/list", params: .object([:]))
         tools = (result["tools"]?.array ?? []).compactMap { tool in
             guard let name = tool["name"]?.string else { return nil }
+            let annotations = tool["annotations"]
+            func hint(_ key: String) -> Bool? { if case .bool(let value) = annotations?[key] ?? .null { value } else { nil } }
             return MCPToolInfo(serverID: config.id, serverName: config.name, name: name,
                                description: tool["description"]?.string ?? "",
-                               inputSchema: tool["inputSchema"] ?? .object(["type": .string("object")]))
+                               inputSchema: tool["inputSchema"] ?? .object(["type": .string("object")]),
+                               readOnlyHint: hint("readOnlyHint"), destructiveHint: hint("destructiveHint"))
         }
     }
 

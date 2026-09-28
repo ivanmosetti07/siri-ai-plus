@@ -158,6 +158,7 @@ struct MessageView: View {
         case .mcp(let model): Indented { MCPCallCard(model: model) }
         case .trace(let trace): Indented { TraceRow(trace: trace) }
         case .privacy(let report): Indented { PrivacyRow(report: report) }
+        case .memory(let note): Indented { MemoryNoteRow(note: note, messageID: message.id) }
         }
     }
 

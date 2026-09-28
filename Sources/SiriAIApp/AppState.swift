@@ -145,6 +145,10 @@ final class AppState {
     @ObservationIgnored private var schedulerTask: Task<Void, Never>?
     /// File di progetto da aprire nell'editor (scheda File del progetto).
     var projectFileToOpen: String?
+    /// Richiesta del nome per un progetto nuovo dello spazio Personale (senza cartella sul Mac).
+    var namingProject = false
+    /// Progetto senza cartella sul Mac di cui si sta cambiando il nome.
+    var renamingProject: ProjectModel?
     /// Agente da modificare nel foglio dell'editor (nuovo o esistente).
     var editingAgent: AgentSpec?
     /// Bozza aperta nella chat guidata: ogni nuovo Genius nasce da qui.
@@ -377,6 +381,23 @@ final class AppState {
 
     /// Modello cloud in attesa di conferma (ChatGPT o Claude: i dati escono dal Mac).
     var pendingCloud: ModelSelection?
+    /// Modello cloud che Auto può usare per i compiti difficili (Impostazioni › Modelli). Di serie ChatGPT, scelta di Ivan del 27/9.
+    var autoCloudProvider: ResponseProvider? = {
+        let raw = UserDefaults.standard.string(forKey: "autoCloud") ?? ResponseProvider.chatgpt.rawValue
+        return ResponseProvider(rawValue: raw).flatMap { $0.isLocal ? nil : $0 }
+    }() {
+        didSet { UserDefaults.standard.set(autoCloudProvider?.rawValue ?? "none", forKey: "autoCloud") }
+    }
+    /// Il modello cloud di Auto se si può usare adesso: accesso fatto e, con l'anonimizzazione accesa, il motore installato.
+    var autoCloud: ModelSelection? {
+        guard let provider = autoCloudProvider, !cloudPrivacy || PIIEngine.isInstalled else { return nil }
+        let ready = provider == .chatgpt ? models.codexInstalled && models.codexLoggedIn : models.claudeInstalled && models.claudeLoggedIn
+        return ready ? ModelSelection(provider) : nil
+    }
+    /// Ultimo modello scelto da Auto in ogni chat (le domande che continuano il discorso non scendono a uno più debole).
+    @ObservationIgnored private var lastAutoSelection: [UUID: ModelSelection] = [:]
+    /// La scelta di Auto della risposta in corso, per «Come ho lavorato».
+    @ObservationIgnored private var autoTrace: [UUID: TraceStep] = [:]
     var askCloudConsent: Bool {
         get { pendingCloud != nil }
         set { if !newValue { pendingCloud = nil } }
@@ -426,6 +447,7 @@ final class AppState {
     /// Ultimo modello scelto in uno spazio (o quello generale).
     func defaultSelection(for space: Space) -> ModelSelection {
         let settings = spaceSettings[space]
+        if settings?.auto == true { return .automatic }
         guard let provider = settings?.provider.flatMap(ResponseProvider.init) else { return ModelSelection(defaultProvider) }
         return ModelSelection(provider, model: settings?.model, effort: settings?.effort)
     }
@@ -457,6 +479,11 @@ final class AppState {
 
     /// Nome del modello con versione e ragionamento: «GPT-6-Sol · Alto», «Claude Opus · Massimo», «Gemma 4 E4B».
     func label(for selection: ModelSelection) -> String {
+        if selection.isAuto {
+            // «Auto · Gemma 4 E4B»: il modello che ha scelto per l'ultima risposta della chat aperta.
+            guard let last = current.flatMap({ lastAutoSelection[$0.id] }) else { return String(localized: "Auto") }
+            return String(localized: "Auto · ") + label(for: last)
+        }
         let choice = resolved(selection)
         let option = modelOptions(for: choice.provider).first { $0.id == choice.model }
         let name: String = switch choice.provider {
@@ -476,6 +503,8 @@ final class AppState {
     func choose(_ choice: ModelSelection) {
         let choice = resolved(choice)
         if !choice.provider.isLocal, selection.provider != choice.provider { pendingCloud = choice; return }
+        // Auto può mandare i compiti difficili al suo modello cloud: stesso avviso sulla privacy.
+        if choice.isAuto, autoCloudProvider != nil, !selection.isAuto, selection.provider.isLocal { pendingCloud = choice; return }
         apply(choice)
     }
 
@@ -487,6 +516,7 @@ final class AppState {
         spaceSettings[space, default: SpaceSettings()].provider = choice.provider.rawValue
         spaceSettings[space, default: SpaceSettings()].model = choice.model
         spaceSettings[space, default: SpaceSettings()].effort = choice.effort
+        spaceSettings[space, default: SpaceSettings()].auto = choice.isAuto ? true : nil
         saveSpaces()
         if current?.messages.isEmpty == false { saveConversations() }
         log(icon: Self.symbol(for: choice.provider), title: String(localized: "Modello per le risposte"), detail: label(for: choice), status: .done)
@@ -529,6 +559,20 @@ final class AppState {
     /// Gemma, ds4, ChatGPT e Claude usano gli strumenti dell'app (altrimenti scrivono solo la risposta).
     var externalTools: Bool = UserDefaults.standard.object(forKey: "externalTools") as? Bool ?? true {
         didSet { UserDefaults.standard.set(externalTools, forKey: "externalTools") }
+    }
+    /// rizzo-flow decide se sui testi lunghi serve rizzo-pii (Impostazioni › Modelli › Anonimizzazione; scelta di Ivan del 27/9).
+    var privacyGate: Bool = UserDefaults.standard.object(forKey: PrivacyGate.enabledKey) as? Bool ?? true {
+        didSet { UserDefaults.standard.set(privacyGate, forKey: PrivacyGate.enabledKey) }
+    }
+    /// Decisioni rapide con rizzo-flow (Impostazioni › Modelli): spente, tutto decide come prima.
+    var fastDecisions: Bool = UserDefaults.standard.object(forKey: DecisionEngine.enabledKey) as? Bool ?? true {
+        didSet {
+            UserDefaults.standard.set(fastDecisions, forKey: DecisionEngine.enabledKey)
+            Task { [models] in
+                if fastDecisions { _ = await DecisionEngine.shared.prepare() } else { await DecisionEngine.shared.stop() }
+                await models.refreshDecisions()
+            }
+        }
     }
 
     /// Ricerca sul web consentita (le domande escono dal Mac solo in questo caso).
@@ -673,6 +717,9 @@ final class AppState {
             case "activity": section = .activity
             case "connectors": section = .connectors
             case "project": if let first = projects.first { section = .project(first.id) }
+            // `--section project:Nome` apre il progetto con quel nome.
+            case let value where value.hasPrefix("project:"):
+                if let project = projects.first(where: { $0.name == String(value.dropFirst("project:".count)) }) { openProject(project) }
             default: break
             }
         }
@@ -760,6 +807,10 @@ final class AppState {
         if let index = args.firstIndex(of: "--open-project"), index + 1 < args.count {
             addProject(folder: URL(fileURLWithPath: args[index + 1]))
         }
+        // Diagnostica (solo con --ephemeral): `--new-project "Nome"` crea un progetto senza cartella sul Mac nello spazio aperto;
+        // `--name-project` mostra la richiesta del nome.
+        if let name = AppTesting.value(after: "--new-project") { addManagedProject(name: name) }
+        if AppTesting.ephemeral, args.contains("--name-project") { namingProject = true }
         // Diagnostica: `--project-file CLAUDE.md` apre un file del progetto (nella sezione File, sul posto).
         if let file = AppTesting.value(after: "--project-file") { projectFileToOpen = file }
         // Diagnostica: `--open-preview` apre l'anteprima del progetto di codice aperto, nel Safari della sua sessione.
@@ -767,9 +818,20 @@ final class AppState {
             openPreview(project)
         }
         // A visual diagnostic must not run scheduled agents or connect external services.
-        if !AppPaths.isTestEnvironment, !args.contains("--snapshot"), !args.contains("--ui-review") { mcp.startAll() }
+        if !AppPaths.isTestEnvironment, !args.contains("--snapshot"), !args.contains("--ui-review") {
+            mcp.startAll()
+        } else if AppTesting.ephemeral, args.contains("--demo-connectors") {
+            // Diagnostica (solo istanze di prova): i connettori del profilo di prova partono anche nelle foto.
+            mcp.startAll()
+        }
         Task { await models.refresh() }
         preparePrivacyEngine()
+        // Decisioni rapide (rizzo-flow): il server si accende subito, così anche la prima richiesta le usa.
+        if DecisionEngine.isEnabled, DecisionEngine.isInstalled {
+            Task.detached(priority: .utility) {
+                if await DecisionEngine.shared.prepare() { await Assistant.warmDecisions() }
+            }
+        }
         if persists, !AppPaths.isTestEnvironment { startAgentScheduler() }
         // Aggiornamenti: l'ultima release su GitHub all'avvio e poi ogni 6 ore (senza rete si riprova dopo 15 minuti).
         if persists, !AppPaths.isTestEnvironment { startUpdateChecks() }
@@ -850,6 +912,11 @@ final class AppState {
             let value = { (flag: String) -> String? in args.firstIndex(of: flag).flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil } }
             selectionOverride = resolved(ModelSelection(chosen, model: value("--model"), effort: value("--effort")))
             Agent.log("MODELLO DI PROVA: \(label(for: selectionOverride!))")
+        } else if let index = args.firstIndex(of: "--provider"), index + 1 < args.count, args[index + 1] == "auto" {
+            // Diagnostica: `--provider auto` prova Auto (il modello si sceglie a ogni richiesta).
+            await models.refresh()
+            selectionOverride = .automatic
+            Agent.log("MODELLO DI PROVA: Auto")
         }
         // Diagnostica: `--prompt "testo"` invia subito una richiesta (con `--attach file` allega documenti o immagini);
         // con `--dump-and-quit` scrive la conversazione nel log ed esce.
@@ -1243,8 +1310,9 @@ final class AppState {
         let scope = scope(for: space(of: conversation))
         respondingConversationIDs.insert(conversation.id)
         independentTasks[conversation.id] = Task {
+            if selection.isAuto { context.selection = await autoSelection(for: prompt, in: conversation, files: files, assistant: session) }
             await Self.$independentResponse.withValue(context) {
-                let shield = privacyShield(for: conversation, provider: selection.provider)
+                let shield = privacyShield(for: conversation, provider: context.selection.provider)
                 await PrivacyShield.$current.withValue(shield) {
                     if !cloudRetry {
                         await syncWorkContext(files: files, prompt: prompt)
@@ -1261,12 +1329,7 @@ final class AppState {
                 if let report = shield?.takeReport() { conversation.messages.append(Message(content: .privacy(report))) }
                 if !Task.isCancelled {
                     recordLastTurn(prompt)
-                    if MemoryStore.shared.enabled, Assistant.mayContainMemory(prompt) {
-                        for fact in await assistant.memoryWorthy(prompt) where MemoryStore.shared.add(fact, source: "chat") {
-                            conversation.messages.append(Message(content: .notice(String(localized: "Ricordato: «\(fact)»."))))
-                            memoryRevision += 1
-                        }
-                    }
+                    rememberInBackground(prompt, in: conversation, assistant: assistant)
                     if !cloudRetry {
                         await PrivacyShield.$current.withValue(shield) { await compactIfNeeded() }
                     }
@@ -1394,6 +1457,69 @@ final class AppState {
         newConversation(in: project)
     }
 
+    /// «Nuovo progetto»: nello spazio Personale basta un nome (chat, memoria e file restano nell'app);
+    /// in Lavoro si collega una cartella del Mac.
+    func requestNewProject() {
+        if space == .personale { namingProject = true } else { ProjectPicker.choose { self.addProject(folder: $0) } }
+    }
+
+    /// Progetto senza cartella sul Mac: separa chat e memoria e raccoglie i file (allegati, documenti, immagini) tra i dati dell'app.
+    func addManagedProject(name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let id = UUID()
+        let project = ProjectModel(id: id, name: trimmed, folder: ProjectModel.managedFolder(for: id))
+        project.managed = true
+        project.space = space.rawValue
+        if project.exists { project.files.ensureMemoryFile() }
+        projects.append(project)
+        saveProjects()
+        log(icon: "folder", title: String(localized: "Progetto creato"), detail: trimmed, status: .done)
+        openProject(project)
+        newConversation(in: project)
+    }
+
+    func rename(_ project: ProjectModel, to name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != project.name else { return }
+        let old = project.name
+        project.name = trimmed
+        saveProjects()
+        // I Genius collegati al progetto lo trovano per nome: seguono il nome nuovo.
+        if agents.contains(where: { $0.projectName == old }) {
+            for index in agents.indices where agents[index].projectName == old { agents[index].projectName = trimmed }
+            _ = saveAgents()
+        }
+    }
+
+    /// Copia nel progetto senza cartella sul Mac un file allegato in una sua chat: i file del progetto restano raccolti lì.
+    /// Lo stesso file (stesso nome e stessa dimensione) non si copia due volte.
+    @discardableResult
+    func collect(_ url: URL, into project: ProjectModel) -> URL? {
+        guard project.managed, project.exists else { return nil }
+        let folder = project.folder
+        let size = { (file: URL) in (try? file.resourceValues(forKeys: [.fileSizeKey]))?.fileSize }
+        var target = folder.appending(path: url.lastPathComponent)
+        if FileManager.default.fileExists(atPath: target.path) {
+            if size(target) == size(url) { return target }
+            let stem = url.deletingPathExtension().lastPathComponent, ext = url.pathExtension
+            var counter = 2
+            repeat {
+                target = folder.appending(path: ext.isEmpty ? "\(stem) \(counter)" : "\(stem) \(counter).\(ext)")
+                counter += 1
+            } while FileManager.default.fileExists(atPath: target.path)
+        }
+        do {
+            try FileManager.default.copyItem(at: url, to: target)
+            ProjectGuide.invalidate(folder)
+            projectRevision += 1
+            return target
+        } catch {
+            Agent.log("FILE NON RACCOLTO NEL PROGETTO «\(url.lastPathComponent)»: \(error)")
+            return nil
+        }
+    }
+
     func openProject(_ project: ProjectModel) {
         project.lastOpened = .now
         if project.exists { project.files.ensureMemoryFile() }
@@ -1407,6 +1533,15 @@ final class AppState {
     func removeProject(_ project: ProjectModel) {
         projects.removeAll { $0.id == project.id }
         conversations.removeAll { $0.projectID == project.id }
+        // Memoria e file di un progetto senza cartella sul Mac vanno nel Cestino (si possono recuperare), non si cancellano:
+        // con il nome del progetto, così nel Cestino si riconoscono.
+        if project.managed, FileManager.default.fileExists(atPath: project.folder.path) {
+            var folder = project.folder
+            let named = folder.deletingLastPathComponent().appending(path: ArtifactFactory.safeName(project.name))
+            if !FileManager.default.fileExists(atPath: named.path), (try? FileManager.default.moveItem(at: folder, to: named)) != nil { folder = named }
+            do { try FileManager.default.trashItem(at: folder, resultingItemURL: nil) }
+            catch { Agent.log("PROGETTO NON SPOSTATO NEL CESTINO «\(project.name)»: \(error)") }
+        }
         if current == nil {
             let fresh = Conversation()
             fresh.space = space.rawValue
@@ -1695,6 +1830,8 @@ final class AppState {
         responseSelection = resolved(chosen)
         let scope = scope(for: space(of: conversation))
         responseTask = Task {
+            // Auto: chi risponde si decide adesso, prima dello scrittore, del budget e dello scudo della privacy.
+            if chosen.isAuto { responseSelection = await autoSelection(for: prompt, in: conversation, files: files, assistant: assistant) }
             await syncWorkContext(files: files, prompt: prompt)
             assistant.updateScreen()
             guard !Task.isCancelled else { finishResponse(); return }
@@ -1725,13 +1862,8 @@ final class AppState {
         // Se nel frattempo è stata aperta un'altra chat, la sessione del modello non è più di questa conversazione.
         let stillOpen = conversation.id == assistantConversationID && !Task.isCancelled
         if stillOpen { recordLastTurn(prompt) }
-        // Preferenze dette in chat ("preferisco…", "d'ora in poi…"): si salvano nella memoria, con un avviso discreto.
-        if stillOpen, MemoryStore.shared.enabled, Assistant.mayContainMemory(prompt) {
-            for fact in await assistant.memoryWorthy(prompt) where MemoryStore.shared.add(fact, source: "chat") {
-                conversation.messages.append(Message(content: .notice(String(localized: "Ricordato: «\(fact)». Puoi modificarlo in Attività › Memoria."))))
-                memoryRevision += 1
-            }
-        }
+        // Preferenze, fatti e decisioni detti in chat: si salvano nella memoria dopo la risposta, senza bloccare la chat.
+        if stillOpen { rememberInBackground(prompt, in: conversation, assistant: assistant) }
         if stillOpen, let pending = pendingChat {
             pendingChat = nil
             finishResponse()
@@ -1771,7 +1903,9 @@ final class AppState {
             // Gli scambi usciti dalla finestra entrano nel riassunto senza interrompere la chat: la conversazione continua uguale.
             Agent.log("CHAT: \(result.exchanges) scambi nel riassunto (contesto dal \(Int(result.before * 100))% al \(Int(result.after * 100))%)")
             for fact in result.facts {
-                if let project = currentProject { _ = try? project.files.remember(fact) } else { MemoryStore.shared.add(fact, source: "compattazione") }
+                // La memoria generale solo se è accesa (Impostazioni › Memoria); quella del progetto è del progetto.
+                if let project = currentProject { _ = try? project.files.remember(fact) }
+                else if MemoryStore.shared.enabled { MemoryStore.shared.add(fact, source: "compattazione") }
             }
             if !result.facts.isEmpty { memoryRevision += 1; projectRevision += 1 }
             log(icon: "rectangle.compress.vertical", title: String(localized: "Riassunto della conversazione aggiornato"),
@@ -1871,9 +2005,12 @@ final class AppState {
             self?.setThinking(status)
         }
         guard !Task.isCancelled else { return append(.notice(String(localized: "Risposta interrotta."))) }
-        if var trace = assistant.trace, trace.isInteresting {
-            trace.model = provider == .apple ? provider.label : label(for: activeSelection)
-            append(.trace(trace))
+        if var trace = assistant.trace {
+            noteAuto(in: &trace)
+            if trace.isInteresting {
+                trace.model = provider == .apple ? provider.label : label(for: activeSelection)
+                append(.trace(trace))
+            }
         }
         await present(outcome, prompt: prompt, files: files)
     }
@@ -2083,9 +2220,7 @@ final class AppState {
             append(.fileOp(FileOpCardModel(draft, projectID: currentProject?.id)))
 
         case .mcpCall(let draft):
-            let card = MCPCallCardModel(draft)
-            append(.mcp(card))
-            if mcp.isAlwaysAllowed(draft.tool) { await runMCP(card) }
+            await runConnector(draft)
 
         case .artifactEdit(let edit):
             applyArtifactEdit(edit)
@@ -2471,9 +2606,12 @@ final class AppState {
             if box.messageID == nil, box.all.isEmpty, !text.isEmpty { onText(text) }
             conversation.messages.removeAll { if case .thinking = $0.content { true } else { false } }
             assistant.finishExternal()
-            if var trace = assistant.trace, trace.isInteresting {
-                trace.model = modelLabel
-                conversation.messages.insert(Message(content: .trace(trace)), at: min(traceIndex, conversation.messages.count))
+            if var trace = assistant.trace {
+                noteAuto(in: &trace)
+                if trace.isInteresting {
+                    trace.model = modelLabel
+                    conversation.messages.insert(Message(content: .trace(trace)), at: min(traceIndex, conversation.messages.count))
+                }
             }
             updateExternalUsage(prompt: request, reply: (box.all + [box.text]).joined(separator: "\n"))
             return true
@@ -2496,7 +2634,7 @@ final class AppState {
     /// Esegue lo strumento chiesto dal modello: i dati tornano al modello, le bozze diventano schede da confermare.
     private func runExternalTool(_ name: String, arguments: JSONValue) async -> String {
         Agent.log("STRUMENTO: \(name) \(arguments.compactString.prefix(160))")
-        let result = await assistant.runTool(name, arguments: arguments, enabled: Self.independentResponse?.allowedSources ?? enabledSources, allowedMCP: { [mcp] in mcp.isAlwaysAllowed($0) }) { [weak self] status in
+        let result = await assistant.runTool(name, arguments: arguments, enabled: Self.independentResponse?.allowedSources ?? enabledSources, allowedMCP: { [mcp] in mcp.runsFreely($0) }) { [weak self] status in
             self?.setThinking(status)
         }
         guard let outcome = result.outcome else { return result.text }
@@ -2509,19 +2647,22 @@ final class AppState {
             memoryRevision += 1
             projectRevision += 1
             log(icon: "brain", title: String(localized: "Memoria aggiornata"), detail: fact, status: .done)
-        case .mcpCall(let draft) where mcp.isAlwaysAllowed(draft.tool):
-            // Strumento già consentito dall'utente: si esegue e il risultato torna al modello.
+        case .mcpCall(let draft) where mcp.runsFreely(draft.tool):
+            // Lettura (o strumento consentito dall'utente): si esegue e il risultato, reso leggibile, torna al modello.
             let card = MCPCallCardModel(draft)
             append(.mcp(card))
             card.status = .running
+            let started = Date.now
             do {
                 let text = try await mcp.call(draft.tool, arguments: draft.arguments)
                 card.result = String(text.prefix(4000))
                 card.status = .done
-                return String(text.prefix(contextBudget.scaled(3000)))
+                Agent.log("CONNETTORE: \(draft.tool.serverName) · \(draft.tool.name) → \(text.count) caratteri in \(Int(Date.now.timeIntervalSince(started) * 1000)) ms")
+                return ConnectorResult.readable(text, limit: contextBudget.scaled(3000))
             } catch {
                 card.status = .failed
                 card.error = error.localizedDescription
+                Agent.log("CONNETTORE ERRORE: \(draft.tool.serverName) · \(draft.tool.name) → \(error.localizedDescription.prefix(200))")
                 return String(localized: "Errore: \(error.localizedDescription)")
             }
         case .document(let draft):
@@ -2563,7 +2704,8 @@ final class AppState {
     /// nil con i modelli sul Mac (Apple Intelligence, Gemma, ds4) o se l'anonimizzazione è spenta.
     private func privacyShield(for conversation: Conversation, provider: ResponseProvider) -> PrivacyShield? {
         guard cloudPrivacy, provider == .chatgpt || provider == .claude else { return nil }
-        let shield = PrivacyShield(vault: conversation.privacyVault ?? PIIVault(), destination: provider.name, labels: privacyLabels)
+        let shield = PrivacyShield(vault: conversation.privacyVault ?? PIIVault(), destination: provider.name, labels: privacyLabels,
+                                   chat: conversation.id)
         let id = conversation.id
         shield.onVaultChange = { [weak self] vault in
             Task { @MainActor in self?.conversations.first { $0.id == id }?.privacyVault = vault }
@@ -2572,10 +2714,84 @@ final class AppState {
         return shield
     }
 
+    /// Auto: chi risponde a questa richiesta. rizzo-flow risponde a due domande chiuse (difficoltà, dati privati) e la regola
+    /// di `AutoModel` decide con ciò che c'è sul Mac (Gemma scaricato, accesso al modello cloud).
+    private func autoSelection(for prompt: String, in conversation: Conversation, files: [Attachment], assistant: Assistant) async -> ModelSelection {
+        let started = Date.now
+        let signals = await Language.$scoped.withValue(assistant.language(for: prompt)) {
+            await assistant.autoSignals(for: prompt, attachments: files.map(\.name))
+        }
+        let gemma = (GemmaVariant.variant(gemmaModel)?.isDownloaded ?? false) && models.llamaInstalled
+        let previous = lastAutoSelection[conversation.id]
+        let situation = AutoModel.Situation(gemma: gemma, cloud: autoCloud,
+                                            longInput: files.contains { $0.text.count > 1500 } || prompt.count > 3000,
+                                            previous: previous, continues: previous != nil && Assistant.dependsOnConversation(prompt))
+        let (choice, reason) = AutoModel.choose(signals, situation)
+        let chosen = resolved(choice)
+        lastAutoSelection[conversation.id] = chosen
+        let milliseconds = Int(Date.now.timeIntervalSince(started) * 1000)
+        autoTrace[conversation.id] = TraceStep(action: "modello", detail: reason + (signals.decided ? "" : String(localized: " · dalle parole chiave")),
+                                               result: label(for: chosen), milliseconds: milliseconds, ok: true)
+        Agent.log("MODELLO AUTO: \(label(for: chosen)) · \(reason)\(signals.decided ? "" : " (parole chiave)") · \(milliseconds) ms")
+        return chosen
+    }
+
+    /// Memoria di fine turno (vedi `Assistant.memoryFromTurn`): rizzo-flow decide se c'è qualcosa da ricordare e se è nuovo,
+    /// un doppione o l'aggiornamento di un ricordo; si salva da solo e compare «Ricordato: …» con Annulla (scelta di Ivan del 27/9).
+    private func rememberInBackground(_ prompt: String, in conversation: Conversation, assistant: Assistant) {
+        guard MemoryStore.shared.enabled else { return }
+        let known = MemoryStore.shared.relevant(to: prompt, limit: 5)
+        let previousReply = Self.turns(of: conversation).last { $0.role == .assistant }?.text
+        let language = assistant.language(for: prompt)
+        Task { @MainActor [weak self] in
+            let found = await Language.$scoped.withValue(language) {
+                await assistant.memoryFromTurn(prompt, previousReply: previousReply, known: known.map(\.text))
+            }
+            guard let self, !found.isEmpty else { return }
+            for (fact, replaces) in found {
+                var note: MemoryNote?
+                if let replaces, replaces < known.count {
+                    let old = known[replaces]
+                    MemoryStore.shared.update(old.id, text: fact)
+                    note = MemoryNote(text: fact, factID: old.id, replaced: old.text)
+                    Agent.log("MEMORIA: aggiornato «\(old.text)» → «\(fact)»")
+                } else if let saved = MemoryStore.shared.insert(fact, source: "chat") {
+                    note = MemoryNote(text: fact, factID: saved.id)
+                    Agent.log("MEMORIA: ricordato «\(fact)»")
+                }
+                if let note { conversation.messages.append(Message(content: .memory(note))) }
+            }
+            memoryRevision += 1
+            saveConversations()
+        }
+    }
+
+    /// «Annulla» sotto un ricordo: lo toglie, o rimette il testo di prima se aveva aggiornato un ricordo vecchio.
+    func undoMemory(_ note: MemoryNote, messageID: UUID) {
+        guard !note.undone, let id = note.factID else { return }
+        if let replaced = note.replaced { MemoryStore.shared.update(id, text: replaced) } else { MemoryStore.shared.remove(id) }
+        for conversation in conversations {
+            guard let index = conversation.messages.firstIndex(where: { $0.id == messageID }) else { continue }
+            var undone = note
+            undone.undone = true
+            conversation.messages[index] = Message(content: .memory(undone))
+        }
+        memoryRevision += 1
+        saveConversations()
+        Agent.log("MEMORIA: annullato «\(note.text)»")
+    }
+
+    /// La scelta di Auto come primo passaggio di «Come ho lavorato».
+    private func noteAuto(in trace: inout RequestTrace) {
+        guard let id = Self.independentResponse?.conversation.id ?? responding?.id, let step = autoTrace.removeValue(forKey: id) else { return }
+        trace.steps.insert(step, at: 0)
+    }
+
     /// Con ChatGPT o Claude il motore si carica in anticipo (circa 2 secondi): la prima richiesta non aspetta.
     func preparePrivacyEngine() {
         let chosen = resolved(activeSelection)
-        guard cloudPrivacy, chosen.provider == .chatgpt || chosen.provider == .claude, PIIEngine.isInstalled else { return }
+        let cloud = chosen.provider == .chatgpt || chosen.provider == .claude || (selection.isAuto && autoCloud != nil)
+        guard cloudPrivacy, cloud, PIIEngine.isInstalled else { return }
         Task.detached(priority: .utility) { await PIIEngine.shared.prepare() }
     }
 
@@ -2810,16 +3026,13 @@ final class AppState {
                 return (try await agent.chat.respond(to: prompt, options: agent.responseOptions).content, nil)
             case .message(let text):
                 return (text, nil)
-            case .mcpCall(var draft) where mcp.isAlwaysAllowed(draft.tool):
-                // Strumenti già consentiti: il sub-agent li concatena da solo.
-                var steps: [MCPStep] = []
-                for _ in 0..<4 {
-                    let result = try await mcp.call(draft.tool, arguments: draft.arguments)
-                    steps.append(MCPStep(tool: draft.tool.name, arguments: draft.arguments.compactString, result: String(result.prefix(3000))))
-                    guard let next = await agent.nextMCPStep(after: draft, result: result), mcp.isAlwaysAllowed(next.tool) else { break }
-                    draft = next
-                }
-                return (try await agent.chat.respond(to: agent.mcpAnswerPrompt(request: step.instruction, steps: steps), options: agent.responseOptions).content, nil)
+            case .mcpCall(let draft) where mcp.runsFreely(draft.tool):
+                // Letture e strumenti consentiti: il sub-agent li concatena da solo; una scrittura resta da confermare.
+                let run = await agent.runConnector(draft, confirmed: false, freely: { [mcp] in mcp.runsFreely($0) },
+                                                   call: { [mcp] tool, arguments in try await mcp.call(tool, arguments: arguments) })
+                if let pending = run.pending { return (String(localized: "Preparato: controlla e conferma la scheda qui sotto."), .mcpCall(pending)) }
+                let prompt = run.answerPrompt ?? agent.mcpAnswerPrompt(request: step.instruction, steps: run.steps)
+                return (try await agent.chat.respond(to: prompt, options: agent.responseOptions).content, nil)
             case .unavailable(let source, _):
                 return (String(localized: "Errore: \(source.label) non è disponibile."), nil)
             default:
@@ -3258,7 +3471,9 @@ final class AppState {
         let worker = Assistant()
         worker.isSubAgent = true
         worker.work = work
-        let chosen = resolved(routine?.model ?? agent.model ?? defaultSelection(for: agentSpace))
+        var chosen = resolved(routine?.model ?? agent.model ?? defaultSelection(for: agentSpace))
+        // Genius su Auto: il modello si sceglie a ogni esecuzione sul compito della routine (o sull'obiettivo del Genius).
+        if chosen.isAuto { chosen = await autoSelection(for: work.skillTask ?? agent.goal, in: conversation, files: [], assistant: worker) }
         let context = IndependentResponse(conversation: conversation, assistant: worker, selection: chosen)
         context.allowedSources = enabled
         let shield = privacyShield(for: conversation, provider: chosen.provider)
@@ -3851,37 +4066,59 @@ final class AppState {
         responding = conversation
         responseTask = Task {
             await syncWorkContext()
-            await SpaceScope.$task.withValue(scope) { await runMCP(card) }
+            await SpaceScope.$task.withValue(scope) { await runConnector(card.draft, confirmed: card) }
             conversation?.messages.removeAll { if case .thinking = $0.content { true } else { false } }
             finishResponse()
         }
     }
 
-    /// Esegue la chiamata; se serve un altro passaggio prepara la scheda successiva, altrimenti risponde con tutti i risultati.
-    private func runMCP(_ card: MCPCallCardModel) async {
-        card.status = .running
-        setThinking(String(localized: "Chiedo a \(card.draft.tool.serverName)…"))
-        do {
-            let result = try await mcp.call(card.draft.tool, arguments: card.draft.arguments)
-            card.result = String(result.prefix(4000))
-            card.status = .done
-            log(icon: "puzzlepiece.extension", title: String(localized: "Strumento esterno: \(card.draft.tool.name)"), detail: card.draft.tool.serverName, status: .done)
-            setThinking(String(localized: "Valuto il risultato…"))
-            if let next = await assistant.nextMCPStep(after: card.draft, result: result) {
-                let nextCard = MCPCallCardModel(next)
-                out?.messages.removeAll { if case .thinking = $0.content { true } else { false } }
-                append(.mcp(nextCard))
-                if mcp.isAlwaysAllowed(next.tool) { await runMCP(nextCard) }
-                return
+    /// Chiamate ai connettori: le letture partono da sole e compaiono come righe compatte, una chiamata che scrive aspetta
+    /// la conferma nella sua scheda (`confirmed`: quella appena confermata); alla fine si risponde con tutti i risultati.
+    private func runConnector(_ draft: MCPCallDraft, confirmed card: MCPCallCardModel? = nil) async {
+        var cards: [MCPCallCardModel] = []
+        let run = await assistant.runConnector(draft, confirmed: card != nil, freely: { [mcp] in mcp.runsFreely($0) },
+                                               call: { [mcp] tool, arguments in try await mcp.call(tool, arguments: arguments) },
+                                               onEvent: { event in
+            switch event {
+            case .calling(let call):
+                let model: MCPCallCardModel
+                if let card, card.draft == call, cards.isEmpty {
+                    model = card
+                } else {
+                    model = MCPCallCardModel(call)
+                    out?.messages.removeAll { if case .thinking = $0.content { true } else { false } }
+                    append(.mcp(model))
+                }
+                model.status = .running
+                cards.append(model)
+            case .finished(let call, let result):
+                guard let model = cards.last(where: { $0.draft == call }) else { return }
+                model.result = String(result.prefix(4000))
+                model.error = nil
+                model.status = .done
+                log(icon: "puzzlepiece.extension", title: String(localized: "Strumento esterno: \(call.tool.name)"), detail: call.tool.serverName, status: .done)
+            case .failed(let call, let error):
+                guard let model = cards.last(where: { $0.draft == call }) else { return }
+                model.error = error
+                model.status = .failed
             }
-            let steps = (card.draft.steps ?? []) + [MCPStep(tool: card.draft.tool.name, arguments: card.draft.arguments.compactString, result: String(result.prefix(3000)))]
-            await stream(assistant.mcpAnswerPrompt(request: card.draft.request ?? String(localized: "Risultato di \(card.draft.tool.name)"), steps: steps))
-        } catch {
-            card.status = .failed
-            card.error = error.localizedDescription
-            out?.messages.removeAll { if case .thinking = $0.content { true } else { false } }
-            flash(.error)
+        }, status: { [weak self] text in self?.setThinking(text) })
+        out?.messages.removeAll { if case .thinking = $0.content { true } else { false } }
+        // «Come ho lavorato» era già nella chat: ora ha anche le chiamate ai connettori.
+        if card == nil, var trace = assistant.trace, trace.isInteresting,
+           let index = out?.messages.lastIndex(where: { if case .trace = $0.content { true } else { false } }),
+           case .trace(let shown) = out?.messages[index].content {
+            trace.model = shown.model
+            out?.messages[index].content = .trace(trace)
         }
+        if let pending = run.pending {
+            // Una scrittura: la scheda aspetta la conferma dell'utente.
+            append(.mcp(MCPCallCardModel(pending)))
+            saveConversations()
+            return
+        }
+        if let prompt = run.answerPrompt { await stream(prompt) }
+        if cards.contains(where: { $0.status == .failed }), run.answerPrompt == nil { flash(.error) }
     }
 
     // MARK: - Modifiche AI agli artefatti
@@ -4435,9 +4672,12 @@ final class AppState {
     // MARK: - Allegati
 
     func attach(_ urls: [URL]) {
+        let collecting = currentProject.flatMap { $0.managed ? $0 : nil }
         for url in urls {
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            // Nei progetti dello spazio Personale ogni allegato resta tra i file del progetto.
+            if let collecting { collect(url, into: collecting) }
             // Foto e screenshot: il modello le guarda direttamente (copiate tra i dati dell'app, così restano leggibili).
             if UTType(filenameExtension: url.pathExtension.lowercased())?.conforms(to: .image) == true {
                 if let copy = Self.keepAttachment(url) {
@@ -4533,6 +4773,7 @@ final class AppState {
         case .text(let text): String(localized: "TESTO: \(text.prefix(400).replacingOccurrences(of: "\n", with: " ¶ "))")
         case .notice(let text): String(localized: "AVVISO: \(text)")
         case .privacy(let report): String(localized: "DATI PROTETTI [\(report.destination)]: \(report.total) (\(report.summary))")
+        case .memory(let note): String(localized: "RICORDATO: \(note.text)")
         case .trace(let trace): String(localized: "TRACCIA [\(trace.model)]: ") + trace.steps.map { "\($0.action)(\($0.detail.prefix(80))) → \($0.result.prefix(80))" }.joined(separator: " | ")
         case .agenda(let agenda): String(localized: "SCHEDA agenda: \(agenda.events.count) eventi, \(agenda.reminders.count) promemoria")
         case .event(let m): String(localized: "SCHEDA evento: \(m.draft.title) \(Dates.friendly(m.draft.start))")

@@ -1,0 +1,19 @@
+Siri AI+
+Copyright © 2026 Ivan Mosetti (https://github.com/ivanmosetti07)
+
+This project includes material from third-party projects:
+
+- rizzo-flow (https://github.com/rizzo-ai-academy/rizzo-flow)
+  Copyright 2026 Simone Rizzo — Rizzo AI Academy (https://www.rizzoaiacademy.com)
+  Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+  Ported to Swift in Sources/SiriCore/Decisions: the decision prompt `spark-decisions-v3` and the decoding of typed
+  decisions (candidates, softmax, status and statistics). The smoke fixtures Support/eval/rizzo-flow-smoke.jsonl are
+  copied unchanged from its benchmarks/smoke.jsonl.
+  The rizzo-flow model weights (rizzoaiacademy/rizzo-flow, a LoRA fine-tune of XHToken/Spark-X2.5-4B, Apache-2.0)
+  are downloaded at the user's request and are not redistributed.
+
+- rizzo-pii (https://github.com/Rizzo-AI-Academy/rizzo-pii)
+  Copyright Simone Rizzo — Rizzo AI Academy, MIT License.
+  The model is converted to Core ML on the user's Mac by Support/rizzo-pii/install.sh and is not redistributed.
+
+- llama.cpp (https://github.com/ggml-org/llama.cpp), MIT License, used as an external program installed by the user.

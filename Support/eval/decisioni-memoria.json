@@ -1,0 +1,30 @@
+{
+ "ricordare": [
+  {"frase": "Preferisco le risposte brevi, senza elenchi puntati", "atteso": true},
+  {"frase": "Da oggi lavoro per una nuova agenzia di comunicazione a Torino", "atteso": true},
+  {"frase": "Mia figlia si chiama Sofia e fa la terza elementare", "atteso": true},
+  {"frase": "Sono allergico alle noci", "atteso": true},
+  {"frase": "Il mio commercialista è Luca Bianchi, di solito lo sento il lunedì", "atteso": true},
+  {"frase": "Abbiamo deciso di lanciare il nuovo sito a novembre", "atteso": true},
+  {"frase": "Chiamami Vale, per favore", "atteso": true},
+  {"frase": "I usually go to the gym on Tuesdays and Thursdays", "atteso": true},
+  {"frase": "My partner is vegetarian, keep it in mind for recipes", "atteso": true},
+  {"frase": "Il codice del cancello del magazzino è 4512", "atteso": true},
+  {"frase": "Che tempo fa domani a Roma?", "atteso": false},
+  {"frase": "Scrivimi una mail per Marco sul preventivo", "atteso": false},
+  {"frase": "Quanto fa il 15% di 240?", "atteso": false},
+  {"frase": "Mi piace questa risposta, grazie", "atteso": false},
+  {"frase": "Ricordami di chiamare il dentista domani alle 10", "atteso": false},
+  {"frase": "Riassumi questo testo: il consiglio comunale ha approvato il bilancio", "atteso": false},
+  {"frase": "What's the capital of Australia?", "atteso": false},
+  {"frase": "Can you make it shorter?", "atteso": false},
+  {"frase": "Oggi sono un po' stanco", "atteso": false},
+  {"frase": "Di solito cosa si mangia a Natale in Sicilia?", "atteso": false}
+ ],
+ "confronto": [
+  {"nuovo": "Ivan ora preferisce il caffè al tè", "noti": ["Ivan preferisce il tè al caffè"], "atteso": "update_0"},
+  {"nuovo": "Ivan è allergico alle noci", "noti": ["Ivan è allergico alle noci"], "atteso": "same_0"},
+  {"nuovo": "Il nuovo sito si lancia a dicembre", "noti": ["Il nuovo sito si lancia a novembre", "Ivan preferisce risposte brevi"], "atteso": "update_0"},
+  {"nuovo": "La figlia di Ivan si chiama Sofia", "noti": ["Ivan lavora a Torino", "La figlia di Ivan si chiama Sofia"], "atteso": "same_1"}
+ ]
+}

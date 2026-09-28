@@ -279,9 +279,36 @@ import Testing
         #expect(files.memoryText().contains("- non toccare"))
         #expect(!files.memoryFacts().contains("non toccare"))
     }
+
+    @Test func memoryFileInEnglish() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: "mem-en-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let files = ProjectFiles(root: root)
+        try Language.$scoped.withValue(.en) {
+            files.ensureMemoryFile()
+            try files.remember("The client wants blue")
+        }
+        #expect(files.memoryText().contains("## Siri AI+ memories") && !files.memoryText().contains("Ricordi di"))
+        // Un file in inglese resta in inglese anche quando scrive una richiesta in italiano.
+        try Language.$scoped.withValue(.it) { try files.remember("Il cliente vuole il verde") }
+        #expect(files.memoryFacts().count == 2 && !files.memoryText().contains("Ricordi di"))
+    }
 }
 
 @Suite @MainActor struct ChatRequestTests {
+    @Test func attachedFileAnswersInsteadOfWeb() {
+        let assistant = Assistant()
+        assistant.work.webEnabled = true
+        assistant.work.attachments = "Preventivo cucina: 4.800 euro, consegna in 6 settimane."
+        var plan = Assistant.Plan(action: .cerca_web, fields: ["cerca": "costo cucina"])
+        assistant.applyRules(to: &plan, prompt: "Quanto costa la cucina e quando arriva?")
+        #expect(plan.action == .rispondi)
+        // Il web se lo si chiede.
+        var web = Assistant.Plan(action: .rispondi, fields: [:])
+        assistant.applyRules(to: &web, prompt: "Cerca su internet quanto costa una cucina in rovere")
+        #expect(web.action == .cerca_web)
+    }
+
     @Test func createsGeniusByName() {
         let assistant = Assistant()
         var plan = Assistant.Plan(action: .rispondi, fields: [:])

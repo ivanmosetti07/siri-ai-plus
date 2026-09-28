@@ -87,6 +87,7 @@ I'm convinced that 70% of people can already do most of their everyday tasks wit
 - 📁 **Projects.**
   - Link a folder and the chat uses it as context: AGENTS.md or CLAUDE.md, file maps, daily logs.
   - An Obsidian-style graph shows your notes as a brain.
+  - In the Personal space a project needs no folder: just a name. It keeps its own chats and memory, and collects the attachments, documents and images from its chats.
 - 🛠️ **Coding space, Xcode included.**
   - Create websites, web apps and SwiftUI apps for Mac and iPhone with any model.
   - Live preview in the session's own Safari, showing console errors, with a "Fix" button.
@@ -101,6 +102,8 @@ I'm convinced that 70% of people can already do most of their everyday tasks wit
   - At night they "dream" to learn from their mistakes.
 - ⬇️ **In-app updates.** When you're online, Siri AI+ checks GitHub for a newer release at launch and every few hours. If there is one, a download icon appears at the bottom of the sidebar: one click downloads it, checks its signature and restarts the app. You can also use **Siri AI+ › Check for Updates…**
 - 🧩 **MCP connectors.** Local or remote servers (with OAuth login), which you can import from Claude Desktop.
+  - Tools that only read run on their own, like reading your calendar; anything that creates, changes or sends shows a card for you to confirm.
+  - The chat picks the right service even when you don't name it ("which clients are paused?"), chains the calls that catalog-style services need, and turns their JSON into something the model can read.
 - 🧠 **A harness built for small models.**
   - A sub-agent picks the right tools for every request.
   - Complex tasks become plans that sub-agents run in parallel.
@@ -154,8 +157,19 @@ I'm convinced that 70% of people can already do most of their everyday tasks wit
 | **ds4** by [@antirez](https://github.com/antirez) | On your Mac | 🔒 Nothing leaves the Mac | Very powerful models (DeepSeek V4 Flash) on high-end hardware: 96 GB or more of unified memory |
 | **ChatGPT** | OpenAI cloud, with your subscription (Codex CLI) | 🛡️ Personal data anonymized first | Pick version and reasoning for each chat |
 | **Claude** | Anthropic cloud, with your subscription (Claude Code CLI) | 🛡️ Personal data anonymized first | Pick version and reasoning for each chat |
+| **Auto** ✨ | Picks for every request | 🔒/🛡️ Like the model it picks | Apple Intelligence for simple things, Gemma for private, medium or long ones, ChatGPT (or Claude) for hard reasoning and code. The reason for each choice is in «How I worked» |
 
-Every chat remembers its model. Whatever model answers, Apple Intelligence picks the tools for each request, on your Mac and for free.
+Every chat remembers its model. Whatever model answers, the tools for each request are picked on your Mac, for free: first by rizzo-flow (below), then by Apple Intelligence when rizzo-flow isn't sure.
+
+### ⚡ Fast decisions, thanks to rizzo-flow
+
+Most of what an assistant decides before answering is a closed question: which app should I look in? Which action? Which model? Does this file contain personal data? Is this worth remembering? Siri AI+ used to ask a small generative model, one question at a time. Now it asks [rizzo-flow](https://github.com/rizzo-ai-academy/rizzo-flow), the open source *System One* by Simone Rizzo ([@simone-rizzo](https://github.com/simone-rizzo)) and Rizzo AI Academy: a local model that doesn't write a single word, it just reads the probability of each answer. It takes a few tenths of a second, and when it isn't sure, Siri AI+ decides as before.
+
+- **Faster answers.** It picks the area and the action on its own, so Apple Intelligence's planner is skipped when there's nothing to fill in. On my benchmarks the median time went from 3.9 to 2.4 s for planning, from 6.8 to 4.4 s for everyday questions and from 8.5 to 6.5 s for connectors, with the same scores.
+- **Auto model.** Two closed questions (how hard, how private) pick the model for every request.
+- **Memory that thinks.** It saves only lasting facts (no more false alarms on «I like this answer»), spots duplicates and updates old facts. You see «Remembered: …» with Undo.
+- **Anonymization only where it's needed.** On long texts it tells code and manuals from documents with people in them, and skips rizzo-pii only when it's sure (emails, phone numbers, IBANs and names already hidden stay hidden anyway).
+- **Optional.** It's a 2.6 GB download (Settings › Models), it runs with llama.cpp on your Mac, and it frees the memory after 15 minutes without requests.
 
 #### 🙏 A note on ds4
 
@@ -296,7 +310,7 @@ Third-party credits and licenses are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOT
 
 - Apple, for the Foundation Models framework.
 - Salvatore Sanfilippo ([@antirez](https://github.com/antirez)), for [ds4](https://github.com/antirez/ds4).
-- Simone Rizzo ([@simone-rizzo](https://github.com/simone-rizzo)) and Rizzo AI Academy, for [rizzo-pii](https://github.com/Rizzo-AI-Academy/rizzo-pii).
+- Simone Rizzo ([@simone-rizzo](https://github.com/simone-rizzo)) and Rizzo AI Academy, for [rizzo-pii](https://github.com/Rizzo-AI-Academy/rizzo-pii) and [rizzo-flow](https://github.com/rizzo-ai-academy/rizzo-flow).
 - Google, for [Gemma](https://ai.google.dev/gemma), and [ggml-org](https://github.com/ggml-org/llama.cpp), for llama.cpp.
 - [Open-Meteo](https://open-meteo.com), for the weather data.
 - OpenAI Codex and Anthropic Claude Code, for letting your subscription do the heavy lifting.
@@ -345,6 +359,7 @@ Sono convinto che il 70% delle persone possa già fare la maggior parte delle at
 - 📁 **Progetti.**
   - Colleghi una cartella e la chat la usa come contesto: AGENTS.md o CLAUDE.md, mappe dei file, registri del giorno.
   - Un grafo in stile Obsidian mostra le tue note come un cervello.
+  - Nello spazio Personale un progetto non ha bisogno di una cartella: basta un nome. Tiene separate le sue chat e la sua memoria e raccoglie allegati, documenti e immagini delle sue chat.
 - 🛠️ **Spazio di programmazione, Xcode incluso.**
   - Siti, app web e app SwiftUI per Mac e iPhone, con qualunque modello.
   - Anteprima dal vivo nel Safari della sessione, con gli errori della console e il pulsante «Correggi».
@@ -359,6 +374,8 @@ Sono convinto che il 70% delle persone possa già fare la maggior parte delle at
   - Di notte «sognano» per imparare dagli errori.
 - ⬇️ **Aggiornamenti nell'app.** Quando sei online, Siri AI+ controlla su GitHub se c'è una release più nuova all'apertura e ogni qualche ora. Se c'è, in fondo alla barra laterale compare l'icona per scaricarla: con un clic la scarica, ne controlla la firma e riavvia l'app. C'è anche **Siri AI+ › Controlla aggiornamenti…**
 - 🧩 **Connettori MCP.** Server locali o remoti (con login OAuth), che puoi importare da Claude Desktop.
+  - Gli strumenti che leggono soltanto partono da soli, come la lettura del calendario; ciò che crea, modifica o invia arriva come scheda da confermare.
+  - La chat sceglie il servizio giusto anche se non lo nomini («quali clienti sono in pausa?»), concatena le chiamate che servono ai servizi «a catalogo» e trasforma il loro JSON in qualcosa che il modello riesce a leggere.
 - 🧠 **Un harness pensato per i modelli piccoli.**
   - Un sub-agent sceglie gli strumenti giusti per ogni richiesta.
   - I compiti complessi diventano piani eseguiti dai sub-agent in parallelo.
@@ -412,8 +429,19 @@ Sono convinto che il 70% delle persone possa già fare la maggior parte delle at
 | **ds4** di [@antirez](https://github.com/antirez) | Sul tuo Mac | 🔒 Niente esce dal Mac | Modelli molto potenti (DeepSeek V4 Flash) su hardware di fascia alta: servono 96 GB o più di memoria unificata |
 | **ChatGPT** | Cloud di OpenAI, con il tuo abbonamento (CLI Codex) | 🛡️ Dati personali anonimizzati prima | Versione e ragionamento per ogni chat |
 | **Claude** | Cloud di Anthropic, con il tuo abbonamento (CLI Claude Code) | 🛡️ Dati personali anonimizzati prima | Versione e ragionamento per ogni chat |
+| **Auto** ✨ | Sceglie a ogni richiesta | 🔒/🛡️ Come il modello che sceglie | Apple Intelligence per le cose semplici, Gemma per quelle private, medie o lunghe, ChatGPT (o Claude) per ragionamenti difficili e codice. Il perché di ogni scelta è in «Come ho lavorato» |
 
-Ogni chat ricorda il suo modello. Qualunque modello risponda, gli strumenti per ogni richiesta li sceglie Apple Intelligence, sul Mac e gratis.
+Ogni chat ricorda il suo modello. Qualunque modello risponda, gli strumenti per ogni richiesta si scelgono sul Mac e gratis: prima con rizzo-flow (qui sotto), poi con Apple Intelligence quando rizzo-flow non è sicuro.
+
+### ⚡ Decisioni rapide, grazie a rizzo-flow
+
+Quasi tutto quello che un assistente decide prima di rispondere è una domanda chiusa: in quale app guardo? Quale azione faccio? Quale modello uso? Questo file ha dati personali? Vale la pena ricordarlo? Prima Siri AI+ lo chiedeva a un piccolo modello generativo, una domanda alla volta. Ora lo chiede a [rizzo-flow](https://github.com/rizzo-ai-academy/rizzo-flow), il *System One* open source di Simone Rizzo ([@simone-rizzo](https://github.com/simone-rizzo)) e della Rizzo AI Academy: un modello locale che non scrive una parola, legge solo la probabilità di ogni risposta. Ci mette pochi decimi di secondo, e quando non è sicuro Siri AI+ decide come prima.
+
+- **Risposte più veloci.** Sceglie da solo area e azione, così il pianificatore di Apple Intelligence si salta quando non c'è niente da riempire. Sui miei banchi di prova il tempo mediano è sceso da 3,9 a 2,4 s per la pianificazione, da 6,8 a 4,4 s per le domande di tutti i giorni e da 8,5 a 6,5 s per i connettori, con gli stessi punteggi.
+- **Modello Auto.** Due domande chiuse (quanto è difficile, quanto è privata) scelgono il modello a ogni richiesta.
+- **Una memoria che ragiona.** Salva solo i fatti che durano (niente più falsi allarmi su «mi piace questa risposta»), riconosce i doppioni e aggiorna i ricordi vecchi. Vedi «Ricordato: …» con Annulla.
+- **Anonimizzazione solo dove serve.** Sui testi lunghi distingue codice e manuali dai documenti con delle persone dentro, e salta rizzo-pii solo quando è sicuro (email, telefoni, IBAN e nomi già nascosti restano nascosti comunque).
+- **Facoltativo.** Si scarica a parte (2,6 GB, Impostazioni › Modelli), gira con llama.cpp sul Mac e libera la memoria dopo 15 minuti senza richieste.
 
 #### 🙏 Una nota su ds4
 
@@ -554,7 +582,7 @@ Crediti e licenze dei componenti di terzi sono in [THIRD_PARTY_NOTICES.md](THIRD
 
 - Ad Apple, per il framework Foundation Models.
 - A Salvatore Sanfilippo ([@antirez](https://github.com/antirez)), per [ds4](https://github.com/antirez/ds4).
-- A Simone Rizzo ([@simone-rizzo](https://github.com/simone-rizzo)) e alla Rizzo AI Academy, per [rizzo-pii](https://github.com/Rizzo-AI-Academy/rizzo-pii).
+- A Simone Rizzo ([@simone-rizzo](https://github.com/simone-rizzo)) e alla Rizzo AI Academy, per [rizzo-pii](https://github.com/Rizzo-AI-Academy/rizzo-pii) e [rizzo-flow](https://github.com/rizzo-ai-academy/rizzo-flow).
 - A Google, per [Gemma](https://ai.google.dev/gemma), e a [ggml-org](https://github.com/ggml-org/llama.cpp), per llama.cpp.
 - A [Open-Meteo](https://open-meteo.com), per i dati del meteo.
 - A OpenAI Codex e Anthropic Claude Code, che fanno lavorare il tuo abbonamento.

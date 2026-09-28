@@ -13,12 +13,21 @@ public struct ModelSelection: Codable, Sendable, Hashable {
     public var model: String?
     /// Livello di ragionamento («low»…«max»), solo per i modelli che lo prevedono. nil = quello predefinito del modello.
     public var effort: String?
+    /// «Auto»: il modello si sceglie a ogni richiesta (vedi `AutoModel`); `provider` resta il ripiego.
+    /// Un campo e non un nuovo `ResponseProvider`: le versioni precedenti dell'app leggono la scelta come Apple Intelligence
+    /// invece di scartare Genius e sessioni di codice che la contengono.
+    public var auto: Bool?
 
-    public init(_ provider: ResponseProvider, model: String? = nil, effort: String? = nil) {
+    public init(_ provider: ResponseProvider, model: String? = nil, effort: String? = nil, auto: Bool? = nil) {
         self.provider = provider
         self.model = model
         self.effort = effort
+        self.auto = auto
     }
+
+    /// La scelta «Auto» (con Apple Intelligence come ripiego).
+    public static let automatic = ModelSelection(.apple, auto: true)
+    public var isAuto: Bool { auto == true }
 }
 
 /// Una versione di un modello nel menu, con i livelli di ragionamento che accetta (vuoto: nessuna scelta).

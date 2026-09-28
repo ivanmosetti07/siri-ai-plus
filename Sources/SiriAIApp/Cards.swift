@@ -928,15 +928,25 @@ struct MCPCallCard: View {
     let model: MCPCallCardModel
 
     var body: some View {
-        Card(title: model.draft.tool.name, subtitle: String(localized: "Connettore «\(model.draft.tool.serverName)»") + ((model.draft.steps ?? []).isEmpty ? "" : String(localized: " · passo \((model.draft.steps ?? []).count + 1)")), status: model.status,
+        // Le letture partite da sole: una riga, con argomenti e risultato a richiesta.
+        if model.status != .awaiting, model.status != .cancelled, state.mcp.runsFreely(model.draft.tool) {
+            MCPReadRow(model: model)
+        } else {
+            card
+        }
+    }
+
+    private var card: some View {
+        Card(title: model.draft.displayName, subtitle: String(localized: "Connettore «\(model.draft.tool.serverName)»") + ((model.draft.steps ?? []).isEmpty ? "" : String(localized: " · passo \((model.draft.steps ?? []).count + 1)")), status: model.status,
              ) {
             Image(systemName: "puzzlepiece.extension.fill").font(.system(size: 15)).foregroundStyle(.purple).frame(width: 26)
         } content: {
             VStack(alignment: .leading, spacing: 10) {
-                if !model.draft.tool.description.isEmpty {
-                    Text(model.draft.tool.description).font(DS.Fonts.caption).foregroundStyle(.secondary).lineLimit(3)
+                if !toolDescription.isEmpty {
+                    Text(toolDescription).font(DS.Fonts.caption).foregroundStyle(.secondary).lineLimit(3)
                 }
-                Text(model.draft.arguments.compactString)
+                // I campi come righe «chiave: valore» (sui servizi a catalogo quelli dello strumento interno): si vede cosa si conferma.
+                Text(ConnectorResult.readable(model.draft.displayArguments.compactString, limit: 1500))
                     .font(.system(size: 11.5, design: .monospaced))
                     .textSelection(.enabled)
                     .padding(8)
@@ -944,8 +954,11 @@ struct MCPCallCard: View {
                     .background(Color.surfaceSubtle, in: RoundedRectangle(cornerRadius: 8))
                 if model.status == .awaiting {
                     CardActions(primary: String(localized: "Esegui"), cancel: { model.status = .cancelled }, secondary: {
-                        Button("Consenti sempre") { state.approve(model, always: true) }
-                            .help("Non chiederò più conferma per questo strumento")
+                        // Sui servizi a catalogo varrebbe per tutto ciò che scrive (execute_write_tool), non solo per questo strumento.
+                        if model.draft.inner == nil {
+                            Button("Consenti sempre") { state.approve(model, always: true) }
+                                .help("Non chiederò più conferma per questo strumento")
+                        }
                     }) { state.approve(model, always: false) }
                 } else if let error = model.error {
                     Text(error).font(DS.Fonts.caption).foregroundStyle(.red)
@@ -958,6 +971,59 @@ struct MCPCallCard: View {
                 }
             }
         }
+    }
+
+    private var toolDescription: String {
+        if let inner = model.draft.inner, !inner.description.isEmpty { return inner.description }
+        return model.draft.tool.description
+    }
+}
+
+/// Una lettura da un connettore, partita senza chiedere: «Agency OS · search_tools · 12 elementi».
+struct MCPReadRow: View {
+    let model: MCPCallCardModel
+    @State private var open = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button { withAnimation(.snappy(duration: 0.2)) { open.toggle() } } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: "puzzlepiece.extension.fill").font(.system(size: 11)).foregroundStyle(.purple)
+                    Text("\(model.draft.tool.serverName) · \(model.draft.displayName)").font(DS.Fonts.caption).foregroundStyle(.secondary)
+                    switch model.status {
+                    case .running:
+                        ProgressView().controlSize(.mini)
+                    case .failed:
+                        Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 10)).foregroundStyle(.orange)
+                    default:
+                        if let result = model.result {
+                            Text(ConnectorResult.summary(result)).font(DS.Fonts.caption).foregroundStyle(.tertiary)
+                        }
+                    }
+                    Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(.tertiary)
+                        .rotationEffect(.degrees(open ? 90 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "Lettura da \(model.draft.tool.serverName): \(model.draft.displayName)"))
+            if open {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(model.draft.arguments.compactString)
+                        .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
+                    if let error = model.error {
+                        Text(error).font(DS.Fonts.caption).foregroundStyle(.orange).textSelection(.enabled)
+                    } else if let result = model.result {
+                        Text(ConnectorResult.readable(result, limit: 4000))
+                            .font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(8)
+                .background(Color.surfaceSubtle, in: RoundedRectangle(cornerRadius: 8))
+            }
+        }
+        .padding(.vertical, 2)
     }
 }
 

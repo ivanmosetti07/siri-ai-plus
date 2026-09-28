@@ -1,0 +1,14 @@
+CURRICULUM VITAE
+Marco Esposito
+Telefono: +39 333 123 4567 · Email: marco.esposito@example.com
+Nato a Napoli il 2 febbraio 1992
+
+ESPERIENZA
+2019–oggi: Sviluppatore iOS presso Studio Pixel S.r.l., Milano. Sviluppo di app in Swift e SwiftUI.
+2016–2019: Sviluppatore web junior presso Agenzia Blu, Napoli.
+
+FORMAZIONE
+Laurea magistrale in Ingegneria Informatica, Università Federico II, 2016.
+
+LINGUE
+Italiano (madrelingua), inglese (C1).

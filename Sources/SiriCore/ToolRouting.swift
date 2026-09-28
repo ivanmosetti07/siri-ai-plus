@@ -142,6 +142,15 @@ extension Assistant {
         "agenti": "creating a Genius that works on its own (also at set times) or opening a new chat",
     ]
 
+    /// Consigli, spiegazioni, «come posso…»: si ragiona, non si legge nelle app.
+    nonisolated static func asksAdvice(_ prompt: String) -> Bool {
+        let lower = withoutQuotes(prompt).lowercased()
+        return lower.range(of: #"^(?:come (?:posso|potrei|faccio|si |mai)|cosa mi consigli|mi consigli|consigli|perch[eé] |spiegami|che cos)"#,
+                           options: .regularExpression) != nil
+            || (Language.isEnglish && lower.range(of: #"^(?:how (?:can|could|do|should|would) (?:i|we)|what do you (?:suggest|recommend)|any (?:advice|tips|ideas)|give me (?:an? |some )?(?:idea|ideas|tips?|advice|suggestions?)|suggest |why |explain|what is a|what's a)"#,
+                                                  options: .regularExpression) != nil)
+    }
+
     /// L'azione ovvia di un'area trovata dallo smistatore: leggere se si chiede, preparare se si chiede di fare.
     /// Niente per consigli, spiegazioni e testi creativi, né con un documento o un elemento aperto (la domanda è su quello),
     /// né per il calendario da creare (servono date). `withCalculations`: la richiesta ha date o conti fatti dall'app,
@@ -150,10 +159,7 @@ extension Assistant {
         let lower = Self.withoutQuotes(prompt).lowercased()
         // Nemmeno per i problemi di logica e le scelte con i dati nella domanda («quale giorno mi conviene?»): si ragiona, non si legge.
         let english = Language.isEnglish
-        let advice = lower.range(of: #"^(?:come (?:posso|potrei|faccio|si |mai)|cosa mi consigli|mi consigli|consigli|perch[eé] |spiegami|che cos)"#,
-                                 options: .regularExpression) != nil
-            || (english && lower.range(of: #"^(?:how (?:can|could|do|should|would) (?:i|we)|what do you (?:suggest|recommend)|any (?:advice|tips|ideas)|give me (?:an? |some )?(?:idea|ideas|tips?|advice|suggestions?)|suggest |why |explain|what is a|what's a)"#,
-                                       options: .regularExpression) != nil)
+        let advice = Self.asksAdvice(prompt)
         guard !areas.isEmpty, work.artifactKind == nil, screenFocus == nil, ResponseStyle.detect(prompt) != .creative,
               !Self.isAnswerOnlyInstruction(prompt), !conversationCovers(prompt),
               !Self.needsReasoning(prompt), !advice else { return nil }
@@ -217,8 +223,7 @@ extension Assistant {
         if let tools {
             entries += ToolRegistry.catalog(tools).filter { $0.name.hasPrefix("connettore_") }
         } else if available.contains(.strumento_esterno) {
-            let servers = Set(work.mcpTools.map(\.serverName)).sorted().joined(separator: ", ")
-            entries.append(ToolCatalogEntry(name: "connettori", summary: Language.t("servizi collegati: ", "connected services: ") + servers))
+            entries.append(ToolCatalogEntry(name: "connettori", summary: Language.t("servizi collegati dell'utente: ", "the user's connected services: ") + connectorSummary()))
         }
         return entries
     }
@@ -237,7 +242,16 @@ extension Assistant {
 
     /// Lo smistatore per un modello esterno: famiglie dal catalogo dei suoi strumenti, poi i nomi degli strumenti.
     public func routeExternalTools(for prompt: String, tools: [ToolSpec]) async -> ToolRoute {
-        var route = await routeTools(for: prompt, catalog: familyCatalog(tools: tools), hints: familyHints(for: prompt))
+        let catalog = familyCatalog(tools: tools)
+        var route: ToolRoute
+        // Prima rizzo-flow (una domanda chiusa, meno di un secondo); se non è sicuro, lo smistatore di Apple.
+        if directRoute(prompt, names: catalog.map(\.name)) == nil,
+           let look = await firstLook(Self.withoutQuotes(prompt), catalog: catalog, askAction: false) {
+            route = look.route
+            Agent.log("SMISTATORE (rizzo-flow): \(route.tools.isEmpty ? "nessuna area" : route.tools.joined(separator: ", ")) · \(route.milliseconds) ms")
+        } else {
+            route = await routeTools(for: prompt, catalog: catalog, hints: familyHints(for: prompt))
+        }
         route.tools = Self.tools(inFamilies: route.tools)
         return route
     }
@@ -262,28 +276,31 @@ extension Assistant {
         return lines.joined(separator: "\n")
     }
 
-    /// Il sub-agent smistatore. `catalog`: gli strumenti tra cui scegliere (le azioni di Apple Intelligence o gli strumenti dei
-    /// modelli esterni). Una sessione nuova per ogni richiesta: niente cronologia, niente altro nella sua finestra.
-    public func routeTools(for prompt: String, catalog: [ToolCatalogEntry], hints: [String] = []) async -> ToolRoute {
-        let started = Date.now
-        guard !catalog.isEmpty, Agent.availabilityProblem == nil else { return ToolRoute() }
-        let names = catalog.map(\.name)
-        // Domande personali con una sorgente inequivocabile: il modello piccolo può dimenticare la famiglia
-        // anche quando gli indizi la indicano. Queste forme si instradano prima di chiamarlo.
+    /// Domande personali con una sorgente inequivocabile: il modello piccolo può dimenticare la famiglia
+    /// anche quando gli indizi la indicano. Queste forme si instradano prima di chiamarlo.
+    func directRoute(_ prompt: String, names: [String], started: Date = .now) -> ToolRoute? {
         let lower = prompt.lowercased().folding(options: .diacriticInsensitive, locale: .current)
         let english = Language.isEnglish
         let appointments = ["impegni", "appuntamenti", "riunioni", "meeting"].contains { lower.contains($0) }
             || (english && ["appointments", "my schedule", "my calendar"].contains { lower.contains($0) })
         let incoming = lower.contains("mi e arrivato") || lower.contains("ho ricevuto") || lower.contains("nella posta")
             || (english && ["did i get", "did i receive", "i received", "in my inbox", "in the mail"].contains { lower.contains($0) })
-        let direct: String? = appointments && names.contains("calendario") ? "calendario"
-            : incoming && names.contains("email") ? "email" : nil
-        if let direct {
-            var route = ToolRoute(tools: [direct], note: "Sorgente esplicita nella richiesta", decided: true,
-                                  milliseconds: Int(Date.now.timeIntervalSince(started) * 1000))
-            route.areas = [direct]
-            return route
-        }
+        guard let direct = appointments && names.contains("calendario") ? "calendario"
+                : incoming && names.contains("email") ? "email" : nil else { return nil }
+        var route = ToolRoute(tools: [direct], note: "Sorgente esplicita nella richiesta", decided: true,
+                              milliseconds: Int(Date.now.timeIntervalSince(started) * 1000))
+        route.areas = [direct]
+        return route
+    }
+
+    /// Il sub-agent smistatore. `catalog`: gli strumenti tra cui scegliere (le azioni di Apple Intelligence o gli strumenti dei
+    /// modelli esterni). Una sessione nuova per ogni richiesta: niente cronologia, niente altro nella sua finestra.
+    public func routeTools(for prompt: String, catalog: [ToolCatalogEntry], hints: [String] = []) async -> ToolRoute {
+        let started = Date.now
+        guard !catalog.isEmpty, Agent.availabilityProblem == nil else { return ToolRoute() }
+        let names = catalog.map(\.name)
+        if let direct = directRoute(prompt, names: names, started: started) { return direct }
+        let english = Language.isEnglish
         // Righe corte: la finestra dello smistatore è quella piccola di Apple Intelligence, e meno testo da leggere è più veloce.
         let width = catalog.count > 40 ? 60 : 90
         let list = catalog.map { "- \($0.name): \(Self.shortened($0.summary, to: width))" }.joined(separator: "\n")
@@ -427,9 +444,10 @@ extension ToolRegistry {
             }
         }
         for server in servers {
-            let names = server.tools.prefix(10).joined(separator: ", ")
+            let names = server.tools.prefix(12).joined(separator: ", ")
             entries.append(ToolCatalogEntry(name: "connettore_\(server.name)",
-                                            summary: "servizio collegato \(server.name.replacingOccurrences(of: "_", with: " ")) (\(names)\(server.tools.count > 10 ? "…" : ""))"))
+                                            summary: Language.t("servizio collegato dell'utente ", "the user's connected service ")
+                                                + "\(server.name.replacingOccurrences(of: "_", with: " ")) (\(names)\(server.tools.count > 12 ? "…" : ""))"))
         }
         return entries
     }

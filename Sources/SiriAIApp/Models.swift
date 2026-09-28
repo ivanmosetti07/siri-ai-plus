@@ -82,6 +82,8 @@ struct Message: Identifiable {
         case trace(RequestTrace)
         /// Dati sostituiti con i segnaposto prima di inviare a ChatGPT o Claude.
         case privacy(PrivacyReport)
+        /// Un ricordo salvato dopo la risposta («Ricordato: …», con Annulla).
+        case memory(MemoryNote)
 
         /// Modello della scheda (per sapere in quale conversazione si trova).
         var card: AnyObject? {
@@ -523,6 +525,8 @@ struct ChatLink: Codable, Equatable {
     var connectorIDs: Set<UUID>?
     /// Spazio del progetto (nil = lavoro).
     var space: String?
+    /// Progetto senza cartella sul Mac (spazio Personale): separa chat, memoria e file, che stanno tra i dati dell'app.
+    var managed = false
 
     init(id: UUID = UUID(), name: String, folder: URL, pinned: Bool = false, created: Date = .now, lastOpened: Date = .now, allowWrite: Bool = true) {
         self.id = id
@@ -535,7 +539,14 @@ struct ChatLink: Codable, Equatable {
     }
 
     var files: ProjectFiles { ProjectFiles(root: folder) }
-    var exists: Bool { FileManager.default.fileExists(atPath: folder.path) }
+    var exists: Bool {
+        // La cartella di un progetto senza cartella sul Mac si ricrea se manca: c'è sempre.
+        if managed { try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true) }
+        return FileManager.default.fileExists(atPath: folder.path)
+    }
+
+    /// Dove stanno memoria e file di un progetto senza cartella sul Mac.
+    static func managedFolder(for id: UUID) -> URL { AppPaths.support("Progetti").appending(path: id.uuidString) }
 }
 
 struct StoredProject: Codable {
@@ -552,6 +563,7 @@ struct StoredProject: Codable {
     var memorySignature: String?
     var connectorIDs: [UUID]?
     var space: String?
+    var managed: Bool?
 }
 
 extension ProjectModel {
@@ -559,12 +571,15 @@ extension ProjectModel {
         StoredProject(id: id, name: name, folder: folder.path, pinned: pinned, created: created, lastOpened: lastOpened,
                       allowWrite: allowWrite, agentsDigest: agentsDigest, agentsSignature: agentsSignature,
                       memoryDigest: memoryDigest, memorySignature: memorySignature,
-                      connectorIDs: connectorIDs.map { Array($0) }, space: space)
+                      connectorIDs: connectorIDs.map { Array($0) }, space: space, managed: managed ? true : nil)
     }
 
     convenience init(_ stored: StoredProject) {
-        self.init(id: stored.id, name: stored.name, folder: URL(fileURLWithPath: stored.folder), pinned: stored.pinned,
-                  created: stored.created, lastOpened: stored.lastOpened, allowWrite: stored.allowWrite ?? true)
+        // La cartella interna si ricalcola: segue i dati dell'app anche se cambiano posto.
+        let managed = stored.managed == true
+        self.init(id: stored.id, name: stored.name, folder: managed ? Self.managedFolder(for: stored.id) : URL(fileURLWithPath: stored.folder),
+                  pinned: stored.pinned, created: stored.created, lastOpened: stored.lastOpened, allowWrite: stored.allowWrite ?? true)
+        self.managed = managed
         agentsDigest = stored.agentsDigest
         agentsSignature = stored.agentsSignature
         memoryDigest = stored.memoryDigest
@@ -687,6 +702,7 @@ enum StoredMessage: Codable {
     case website(draft: WebsiteDraft, projectID: UUID?, status: ItemStatus, savedFolder: String?)
     case trace(RequestTrace)
     case privacy(PrivacyReport)
+    case memory(MemoryNote)
 }
 
 extension ItemStatus {
@@ -773,6 +789,7 @@ extension Message {
         case .website(let m): .website(draft: m.draft, projectID: m.projectID, status: m.status, savedFolder: m.savedFolder)
         case .trace(let trace): .trace(trace)
         case .privacy(let report): .privacy(report)
+        case .memory(let note): .memory(note)
         }
     }
 
@@ -842,6 +859,7 @@ extension Message {
             self.init(content: .website(m))
         case .trace(let trace): self.init(content: .trace(trace))
         case .privacy(let report): self.init(content: .privacy(report))
+        case .memory(let note): self.init(content: .memory(note))
         case .note(let draft, let status, let error):
             let m = NoteCardModel(draft)
             m.status = status.restored

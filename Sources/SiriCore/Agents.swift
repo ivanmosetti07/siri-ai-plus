@@ -700,8 +700,22 @@ extension Assistant {
         .required("motivo", .string, "In one sentence, why act or not"),
     ])
 
+    nonisolated static let heartbeatQuestion = DecisionQuestion.boolean(
+        "act", "Given the agent's goal, does the situation contain something new that really needs the agent's work now?",
+        yes: "Yes. There is something new that needs the agent now.", no: "No. Nothing new needs the agent now.", policy: .closed)
+
     /// Heartbeat: guarda la situazione (agenda, promemoria, posta non letta) e decide se vale la pena avviare l'agente.
     public func shouldAct(_ agent: AgentSpec, snapshot: String) async -> (act: Bool, reason: String) {
+        // Prima rizzo-flow (una domanda chiusa, sul Mac, meno di un secondo); Apple Intelligence solo se è incerto.
+        let lastSeen = agent.lastRun.map { Dates.format($0) } ?? "never"
+        let state = DecisionState([("agent_goal", .string(agent.goal)), ("last_run", .string(lastSeen)),
+                                   ("situation_now", .string(String(snapshot.prefix(2500))))])
+        if let answer = await DecisionEngine.shared.decide(state, Self.heartbeatQuestion, priority: .background, label: "heartbeat"),
+           answer.confident(0.85), let act = answer.flag {
+            let percent = Int((answer.top * 100).rounded())
+            return (act, act ? Language.t("c'è qualcosa di nuovo per il suo obiettivo (rizzo-flow, \(percent)%)", "something new for its goal (rizzo-flow, \(percent)%)")
+                             : Language.t("niente di nuovo che richieda il suo lavoro (rizzo-flow, \(percent)%)", "nothing new that needs its work (rizzo-flow, \(percent)%)"))
+        }
         let english = Language.isEnglish
         let session = LanguageModelSession(model: Agent.model, instructions: english
             ? "Decide whether an automatic agent should work now. Be cautious: act only if there is something new and relevant to its goal."

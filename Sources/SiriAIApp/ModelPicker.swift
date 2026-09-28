@@ -10,6 +10,8 @@ struct ModelPicker: View {
     var compact = false
     /// Nella chat: l'interruttore degli strumenti per i modelli diversi da Apple Intelligence.
     var showsTools = false
+    /// La riga «Auto» (il modello si sceglie a ogni richiesta): chat e Genius, non la Programmazione.
+    var offersAuto = false
     let choose: (ModelSelection) -> Void
     @State private var open = false
     @State private var hovering = false
@@ -18,7 +20,7 @@ struct ModelPicker: View {
         let chosen = state.resolved(current)
         Button { open.toggle() } label: {
             HStack(spacing: 6) {
-                ModelGlyph(provider: chosen.provider, size: 17)
+                if chosen.isAuto { AutoGlyph(size: 17) } else { ModelGlyph(provider: chosen.provider, size: 17) }
                 Text(state.shortLabel(for: chosen))
                     .font(DS.Fonts.caption)
                     .lineLimit(1)
@@ -48,7 +50,7 @@ struct ModelPicker: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .popover(isPresented: $open, arrowEdge: .top) {
-            ModelPickerPanel(current: chosen, showsTools: showsTools) { choice, keepOpen in
+            ModelPickerPanel(current: chosen, showsTools: showsTools, offersAuto: offersAuto) { choice, keepOpen in
                 if !keepOpen { open = false }
                 choose(choice)
             } close: { open = false }
@@ -85,11 +87,27 @@ struct ModelGlyph: View {
     }
 }
 
+/// L'icona di «Auto»: una scintilla viola, non l'icona di un modello.
+struct AutoGlyph: View {
+    var size: CGFloat = 26
+
+    var body: some View {
+        Image(systemName: "sparkles")
+            .font(.system(size: size * 0.5, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(LinearGradient(colors: [Color(hex: 0xA78BFA), Color(hex: 0x6D28D9)], startPoint: .top, endPoint: .bottom),
+                        in: RoundedRectangle(cornerRadius: size * 0.3, style: .continuous))
+            .accessibilityHidden(true)
+    }
+}
+
 /// Il pannello dei modelli.
 struct ModelPickerPanel: View {
     @Environment(AppState.self) private var state
     let current: ModelSelection
     let showsTools: Bool
+    var offersAuto = false
     /// La scelta e se il pannello resta aperto (versione e ragionamento dello stesso modello sì, un modello nuovo no:
     /// per ChatGPT e Claude può comparire la richiesta di conferma sulla privacy).
     let choose: (ModelSelection, Bool) -> Void
@@ -102,6 +120,7 @@ struct ModelPickerPanel: View {
         VStack(alignment: .leading, spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
+                    if offersAuto { autoRow }
                     group(Language.t("Sul Mac · privati", "On your Mac · private"), providers: local)
                     group(Language.t("Cloud · con il tuo abbonamento", "Cloud · with your subscription"), providers: cloud)
                 }
@@ -144,9 +163,39 @@ struct ModelPickerPanel: View {
         }
     }
 
+    /// «Auto»: a ogni richiesta sceglie il modello (rizzo-flow più la regola di `AutoModel`).
+    private var autoRow: some View {
+        let selected = current.isAuto
+        let cloud = state.autoCloudProvider?.name
+        return Button {
+            if !selected { choose(.automatic, false) }
+        } label: {
+            HStack(spacing: 10) {
+                AutoGlyph(size: 28)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Auto").font(DS.Fonts.bodyStrong)
+                    Text(cloud.map { Language.t("Sceglie a ogni richiesta: Apple per le cose semplici, Gemma per quelle private o lunghe, \($0) per quelle difficili",
+                                                "Picks for every request: Apple for simple things, Gemma for private or long ones, \($0) for hard ones") }
+                         ?? Language.t("Sceglie a ogni richiesta tra Apple Intelligence e Gemma, sul Mac", "Picks for every request between Apple Intelligence and Gemma, on your Mac"))
+                        .font(DS.Fonts.micro)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 4)
+                if selected { Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.accentColor).font(.system(size: 15)) }
+            }
+            .padding(8)
+            .background(selected ? Color.accentColor.opacity(0.09) : .clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Auto\(selected ? Language.t(", scelto", ", selected") : "")")
+    }
+
     @ViewBuilder
     private func row(_ provider: ResponseProvider) -> some View {
-        let selected = current.provider == provider
+        let selected = current.provider == provider && !current.isAuto
         let problem = state.pickerProblem(for: provider)
         VStack(alignment: .leading, spacing: 10) {
             Button {
@@ -242,6 +291,7 @@ struct ModelPickerPanel: View {
 extension AppState {
     /// Nome breve per il pulsante: «GPT-6-Sol», «Claude Opus», «Gemma 4 E4B», «Apple Intelligence».
     func shortLabel(for selection: ModelSelection) -> String {
+        if selection.isAuto { return label(for: selection) }
         let choice = resolved(selection)
         let option = modelOptions(for: choice.provider).first { $0.id == choice.model }
         switch choice.provider {
@@ -254,6 +304,7 @@ extension AppState {
 
     /// Il ragionamento accanto al nome, solo quando c'è una scelta («Alto», «Ragiona» per Gemma).
     func effortBadge(for selection: ModelSelection) -> String? {
+        guard !selection.isAuto else { return nil }
         let choice = resolved(selection)
         if choice.provider == .gemma { return choice.effort == "on" ? Language.t("Ragiona", "Thinking") : nil }
         return choice.effort.map(ModelCatalog.effortLabel)
@@ -293,16 +344,27 @@ extension AppState {
 
 /// Per i Genius come nella chat: ChatGPT e Claude si usano solo dopo l'avviso sulla privacy.
 private struct CloudConsent: ViewModifier {
+    @Environment(AppState.self) private var state
     @Binding var pending: ModelSelection?
     let apply: (ModelSelection) -> Void
 
     func body(content: Content) -> some View {
         content.alert("La privacy è a rischio", isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } }), presenting: pending) { cloud in
-            Button("Usa \(cloud.provider.name)", role: .destructive) { apply(cloud) }
+            Button(cloud.isAuto ? String(localized: "Usa Auto") : String(localized: "Usa \(cloud.provider.name)"), role: .destructive) { apply(cloud) }
             Button("Annulla", role: .cancel) {}
         } message: { cloud in
-            Text("Con \(cloud.provider.name) le risposte non sono più generate sul Mac: la richiesta, la conversazione recente e i dati usati per rispondere (calendario, file, pagine, connettori) vengono inviati a \(cloud.provider.company). Continuare?")
+            Text(state.cloudConsentMessage(for: cloud))
         }
+    }
+}
+
+extension AppState {
+    /// Il testo dell'avviso sulla privacy per un modello cloud o per Auto (che manda i compiti difficili al suo modello cloud).
+    func cloudConsentMessage(for choice: ModelSelection) -> String {
+        if choice.isAuto, let cloud = autoCloudProvider {
+            return String(localized: "Con Auto i compiti difficili li svolge \(cloud.name): la richiesta, la conversazione recente e i dati usati per rispondere (calendario, file, pagine, connettori) vengono inviati a \(cloud.company), con i dati personali anonimizzati sul Mac. Continuare?")
+        }
+        return String(localized: "Con \(choice.provider.name) le risposte non sono più generate sul Mac: la richiesta, la conversazione recente e i dati usati per rispondere (calendario, file, pagine, connettori) vengono inviati a \(choice.provider.company). Continuare?")
     }
 }
 
@@ -315,6 +377,8 @@ extension View {
 extension ModelSelection {
     /// Serve l'avviso sulla privacy passando da `previous` a questo modello (un cloud diverso da quello già scelto).
     func needsCloudConsent(after previous: ModelSelection?) -> Bool {
-        !provider.isLocal && previous?.provider != provider
+        // Auto (con un modello cloud nelle impostazioni) chiede il consenso se prima si restava sul Mac.
+        if isAuto { return previous?.isAuto != true && previous?.provider.isLocal != false }
+        return !provider.isLocal && previous?.provider != provider
     }
 }

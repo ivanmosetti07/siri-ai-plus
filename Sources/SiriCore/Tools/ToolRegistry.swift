@@ -156,9 +156,11 @@ public enum ToolRegistry {
         tools.append(ToolSpec(name: "crea_documento", description: "Crea un documento (Pages) con titolo e testo in Markdown (## per le sezioni).",
                               parameters: object(["titolo": ("string", "Titolo"), "testo": ("string", "Contenuto in Markdown")], required: ["titolo", "testo"]), kind: .draft))
         // Connettori: ogni strumento con il suo schema.
+        // Quelli che leggono soltanto partono subito e il risultato torna al modello; gli altri diventano schede da confermare.
         for tool in work.mcpTools.prefix(40) {
-            tools.append(ToolSpec(name: mcpName(tool), description: "[\(tool.serverName)] " + String(tool.description.prefix(300)),
-                                  parameters: tool.inputSchema.object == nil ? object([:]) : tool.inputSchema, kind: .draft))
+            let access = tool.isReadOnly ? "" : Language.t(" (modifica il servizio: l'utente conferma nella scheda)", " (changes the service: the user confirms in a card)")
+            tools.append(ToolSpec(name: mcpName(tool), description: "[\(tool.serverName)] " + String(tool.description.prefix(300)) + access,
+                                  parameters: tool.inputSchema.object == nil ? object([:]) : tool.inputSchema, kind: tool.isReadOnly ? .read : .draft))
         }
         return tools
     }

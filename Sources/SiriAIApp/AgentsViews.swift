@@ -821,7 +821,7 @@ struct AgentEditor: View {
                 }
                 HStack {
                     Text(Language.t("Modello del Genius", "Genius model"))
-                    ModelPicker(current: draft.model ?? state.defaultSelection(for: Space(rawValue: draft.space) ?? .lavoro)) {
+                    ModelPicker(current: draft.model ?? state.defaultSelection(for: Space(rawValue: draft.space) ?? .lavoro), offersAuto: true) {
                         let choice = state.resolved($0)
                         if choice.needsCloudConsent(after: draft.model ?? state.defaultSelection(for: Space(rawValue: draft.space) ?? .lavoro)) {
                             pendingCloud = choice
@@ -990,7 +990,7 @@ struct RoutinesEditor: View {
                         .lineLimit(1...3)
                     HStack(spacing: 8) {
                         Text(Language.t("Modello", "Model")).font(DS.Fonts.caption).foregroundStyle(.secondary)
-                        ModelPicker(current: routine.model ?? geniusModel ?? state.defaultSelection(for: state.space), compact: true) {
+                        ModelPicker(current: routine.model ?? geniusModel ?? state.defaultSelection(for: state.space), compact: true, offersAuto: true) {
                             let choice = state.resolved($0)
                             if choice.needsCloudConsent(after: routine.model ?? geniusModel ?? state.defaultSelection(for: state.space)) {
                                 pendingRoutine = routine.id

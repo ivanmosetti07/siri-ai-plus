@@ -21,6 +21,8 @@ public struct EvalCase: Codable, Sendable {
     public var minLines: Int?
     /// Immagine allegata (percorso relativo al file delle domande).
     public var image: String?
+    /// Documento di testo allegato (percorso relativo al file delle domande), come un file trascinato nella chat.
+    public var attachment: String?
     /// La domanda si fa dentro un progetto di prova (file e cartelle come in `selftest.sh`).
     public var inProject: Bool
     /// Documento aperto al centro durante la domanda: tipo (documento, foglio, presentazione), titolo e contenuto.
@@ -28,11 +30,17 @@ public struct EvalCase: Codable, Sendable {
     /// Ciò che l'utente vede nella scheda davanti: app, tipo (email, nota, evento, promemoria, contatto, conversazione, file,
     /// registrazione), titolo, dettagli, testo, riferimento, nome, telefono, email, inizio/fine (eventi, ISO 8601).
     public var screen: [String: String]?
+    /// Connettori finti collegati durante la domanda (`Support/eval/connettori/<nome>.py`): «crm», «catalogo».
+    public var connectors: [String]
+    /// Strumenti dei connettori che devono essere stati eseguiti («list_tasks», «execute_read_tool:invoices_list»).
+    public var calls: [String]
+    /// true: nessuna chiamata ai connettori (la domanda non li riguarda).
+    public var noCalls: Bool
 
     enum CodingKeys: String, CodingKey {
         case id, category = "categoria", prompt = "domanda", turns = "turni", expected = "deve", forbidden = "vieta"
-        case outcomes = "esiti", needsWeb = "web", minLines = "righe", image = "immagine", inProject = "progetto", artifact = "artefatto"
-        case screen = "schermo"
+        case outcomes = "esiti", needsWeb = "web", minLines = "righe", image = "immagine", attachment = "allegato", inProject = "progetto", artifact = "artefatto"
+        case screen = "schermo", connectors = "connettori", calls = "chiamate", noCalls = "senza_chiamate"
     }
 
     public init(from decoder: Decoder) throws {
@@ -50,9 +58,13 @@ public struct EvalCase: Codable, Sendable {
         needsWeb = try c.decodeIfPresent(Bool.self, forKey: .needsWeb)
         minLines = try c.decodeIfPresent(Int.self, forKey: .minLines)
         image = try c.decodeIfPresent(String.self, forKey: .image)
+        attachment = try c.decodeIfPresent(String.self, forKey: .attachment)
         inProject = try c.decodeIfPresent(Bool.self, forKey: .inProject) ?? false
         artifact = try c.decodeIfPresent([String: String].self, forKey: .artifact)
         screen = try c.decodeIfPresent([String: String].self, forKey: .screen)
+        connectors = try c.decodeIfPresent([String].self, forKey: .connectors) ?? []
+        calls = try c.decodeIfPresent([String].self, forKey: .calls) ?? []
+        noCalls = try c.decodeIfPresent(Bool.self, forKey: .noCalls) ?? false
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -66,9 +78,13 @@ public struct EvalCase: Codable, Sendable {
         try c.encodeIfPresent(needsWeb, forKey: .needsWeb)
         try c.encodeIfPresent(minLines, forKey: .minLines)
         try c.encodeIfPresent(image, forKey: .image)
+        try c.encodeIfPresent(attachment, forKey: .attachment)
         if inProject { try c.encode(inProject, forKey: .inProject) }
         try c.encodeIfPresent(artifact, forKey: .artifact)
         try c.encodeIfPresent(screen, forKey: .screen)
+        if !connectors.isEmpty { try c.encode(connectors, forKey: .connectors) }
+        if !calls.isEmpty { try c.encode(calls, forKey: .calls) }
+        if noCalls { try c.encode(noCalls, forKey: .noCalls) }
     }
 }
 
@@ -201,6 +217,17 @@ extension Assistant {
                 return HeadlessAnswer(text: applied(edit), outcome: kind, usedWeb: false)
             case .document(let draft) where draft.body != nil:
                 return HeadlessAnswer(text: draft.body ?? "", outcome: "scheda:documento", usedWeb: false)
+            case .mcpCall(let draft):
+                // Come nell'app: le letture partono da sole, una scrittura resta una scheda da confermare (mai eseguita qui).
+                guard let caller = connectorCaller else { return HeadlessAnswer(text: "[scheda:connettore \(draft.tool.name)]", outcome: kind, usedWeb: false) }
+                let run = await runConnector(draft, confirmed: false, freely: { $0.isReadOnly }, call: caller) { [weak self] event in
+                    if case .calling(let call) = event { self?.connectorCalls.append(Self.callLabel(call)) }
+                }
+                if let pending = run.pending {
+                    return HeadlessAnswer(text: "[scheda:connettore \(Self.callLabel(pending)) \(pending.arguments.compactString.prefix(200))]",
+                                          outcome: "scheda:connettore", usedWeb: false)
+                }
+                return HeadlessAnswer(text: try await headlessText(run.answerPrompt ?? request, provider: provider), outcome: "connettore", usedWeb: false)
             case .taskPlan(let plan):
                 let done = await runHeadless(plan, enabled: enabled) { Agent.log($0) }
                 let text = try await headlessText(taskSynthesisPrompt(done), provider: provider)
@@ -215,8 +242,52 @@ extension Assistant {
     }
 }
 
+extension Assistant {
+    /// «list_tasks», o per i servizi a catalogo «execute_read_tool:invoices_list».
+    static func callLabel(_ call: MCPCallDraft) -> String {
+        if let inner = call.arguments["tool_name"]?.string { return "\(call.tool.name):\(inner)" }
+        return call.tool.name
+    }
+}
+
 @MainActor
 public enum Evaluation {
+    /// Connettori finti già avviati (uno per nome), condivisi tra le domande del banco.
+    static var connections: [String: MCPConnection] = [:]
+
+    /// Avvia (una volta) i connettori finti chiesti dal caso e ne restituisce gli strumenti.
+    static func testConnectors(_ names: [String], folder: URL?) async -> [(MCPConnection, [MCPToolInfo])] {
+        var result: [(MCPConnection, [MCPToolInfo])] = []
+        for name in names {
+            if connections[name] == nil {
+                let script = (folder ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)).appending(path: "connettori/\(name).py")
+                var config = MCPServerConfig(name: ["crm": "Demo CRM", "catalogo": "Demo OS"][name] ?? name, transport: .stdio)
+                config.command = "python3"
+                config.args = [script.path]
+                let connection = MCPConnection(config: config)
+                do {
+                    try await connection.start()
+                    connections[name] = connection
+                } catch {
+                    Agent.log("VALUTAZIONE connettore \(name) non avviato: \(error)")
+                    continue
+                }
+            }
+            if let connection = connections[name] { result.append((connection, await connection.tools)) }
+        }
+        return result
+    }
+
+    /// I controlli sulle chiamate ai connettori.
+    static func connectorFailures(_ test: EvalCase, calls: [String]) -> [String] {
+        var failures: [String] = []
+        for expected in test.calls where !calls.contains(where: { $0 == expected || $0.hasPrefix(expected + ":") }) {
+            failures.append("non ha chiamato \(expected)")
+        }
+        if test.noCalls, !calls.isEmpty { failures.append("ha usato il connettore: \(calls.joined(separator: ", "))") }
+        return failures
+    }
+
     /// Schermo di prova (come lo descrivono le app): «schermo» nei casi del banco.
     static func testScreen(_ fields: [String: String]) -> ScreenItem? {
         guard let kind = ScreenItem.Kind(rawValue: [
@@ -285,6 +356,15 @@ public enum Evaluation {
                 }
             }
             work.screen = test.screen.flatMap(testScreen)
+            if !test.connectors.isEmpty {
+                let connected = await testConnectors(test.connectors, folder: folder)
+                work.mcpTools = connected.flatMap(\.1)
+                let byServer = Dictionary(uniqueKeysWithValues: connected.compactMap { connection, tools in tools.first.map { ($0.serverID, connection) } })
+                assistant.connectorCaller = { tool, arguments in
+                    guard let connection = byServer[tool.serverID] else { throw MCPError.notRunning }
+                    return try await connection.call(tool.name, arguments: arguments)
+                }
+            }
             assistant.work = work
             assistant.updateScreen()
             assistant.budget = provider == .apple ? ContextBudget.apple : ContextBudget.of(provider)
@@ -302,12 +382,19 @@ public enum Evaluation {
                 }
                 assistant.work.images = provider == .apple ? [url] : []
             }
+            // Documento allegato come nell'app: il suo testo accompagna la richiesta.
+            if let path = test.attachment, let folder, let text = try? String(contentsOf: folder.appending(path: path), encoding: .utf8) {
+                let name = (path as NSString).lastPathComponent
+                assistant.work.attachments = Language.t("Allegato «\(name)»:\n", "Attachment «\(name)»:\n") + String(text.prefix(assistant.budget.scaled(1200)))
+            }
+            // Con i connettori finti il banco è chiuso su sé stesso: niente Mail, Calendario o Note veri, solo i connettori e il web.
+            let sources = test.connectors.isEmpty ? enabled : []
             for turn in test.turns {
                 // Come nell'app: ogni turno nella lingua in cui è scritto (regole, risposta, compattazione).
                 await Language.$scoped.withValue(assistant.language(for: turn)) {
-                    let outcome = await assistant.handle(turn, enabled: enabled, picked: []) { _ in }
+                    let outcome = await assistant.handle(turn, enabled: sources, picked: []) { _ in }
                     action = assistant.lastAction?.rawValue ?? ""
-                    answer = await assistant.headlessAnswer(for: outcome, request: turn, enabled: enabled, provider: provider)
+                    answer = await assistant.headlessAnswer(for: outcome, request: turn, enabled: sources, provider: provider)
                     assistant.record(user: turn, reply: answer.text)
                     if test.turns.count > 1, turn != test.turns.last {
                         Agent.log("VALUTAZIONE \(test.id) turno: \(turn.prefix(80)) ⟶ \(answer.outcome) · \(answer.text.prefix(160).replacingOccurrences(of: "\n", with: " ¶ "))")
@@ -320,6 +407,8 @@ public enum Evaluation {
             }
             let seconds = Date.now.timeIntervalSince(started)
             let failures = check(answer.text, test: test, outcome: answer.outcome, usedWeb: answer.usedWeb)
+                + connectorFailures(test, calls: assistant.connectorCalls)
+            if !assistant.connectorCalls.isEmpty { action += " → " + assistant.connectorCalls.joined(separator: " → ") }
             let result = EvalResult(id: test.id, category: test.category, prompt: test.turns.joined(separator: " ⟶ "), answer: answer.text,
                                     outcome: answer.outcome, action: action, usedWeb: answer.usedWeb, seconds: seconds, failures: failures)
             results.append(result)
@@ -572,7 +661,11 @@ public enum Evaluation {
         }
         let probe = Assistant()
         let tokens = try? await Agent.model.tokenCount(for: Instructions(probe.chatInstructions()))
-        print("Valuto \(cases.count) domande con \(provider.label)" + (tokens.map { " · istruzioni \($0) token su \(Agent.model.contextSize)" } ?? ""))
+        // Decisioni rapide (rizzo-flow): il server si accende prima, così anche il primo caso le usa.
+        // `SIRIAI_NO_DECISIONS=1` le spegne per il confronto.
+        let decisions = DecisionEngine.isEnabled && DecisionEngine.isInstalled ? await DecisionEngine.shared.prepare() : false
+        print("Valuto \(cases.count) domande con \(provider.label)" + (tokens.map { " · istruzioni \($0) token su \(Agent.model.contextSize)" } ?? "")
+              + (decisions ? " · decisioni rapide accese" : " · decisioni rapide spente"))
         let results = await run(cases, provider: provider, web: web, folder: file.deletingLastPathComponent())
 
         try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)

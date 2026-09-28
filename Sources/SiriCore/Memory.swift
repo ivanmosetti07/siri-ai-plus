@@ -105,6 +105,12 @@ public final class MemoryStore {
         return true
     }
 
+    /// Come `add`, ma restituisce il ricordo salvato (nil se era un doppione): serve il suo id per «Annulla».
+    @discardableResult
+    public func insert(_ text: String, source: String) -> MemoryFact? {
+        add(text, source: source) ? facts.first : nil
+    }
+
     public func update(_ id: UUID, text: String) {
         guard let index = facts.firstIndex(where: { $0.id == id }) else { return }
         facts[index].text = text

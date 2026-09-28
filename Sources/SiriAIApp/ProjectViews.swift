@@ -3,6 +3,7 @@ import SiriCore
 import SwiftUI
 
 /// Progetto al centro: task, file della cartella, istruzioni AGENTS.md, memoria.
+/// Un progetto senza cartella sul Mac (spazio Personale) ha solo chat, file raccolti e memoria.
 struct ProjectView: View {
     @Environment(AppState.self) private var state
     let project: ProjectModel
@@ -50,6 +51,15 @@ struct ProjectView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 16) {
             PageHeader(eyebrow: String(localized: "Progetto"), title: project.name) {
+                if project.managed {
+                    Button {
+                        state.renamingProject = project
+                    } label: {
+                        Image(systemName: "pencil")
+                    }
+                    .buttonStyle(.glass)
+                    .iconHelp(String(localized: "Rinomina il progetto"))
+                }
                 Button {
                     state.togglePin(project)
                 } label: {
@@ -65,20 +75,26 @@ struct ProjectView: View {
                 .buttonStyle(.glassProminent)
                 .fixedSize()
             }
-            Button {
-                NSWorkspace.shared.activateFileViewerSelecting([project.folder])
-            } label: {
-                Label(project.folder.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"), systemImage: "folder")
-                    .font(.system(size: 12.5, weight: .medium))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .padding(.horizontal, 10).padding(.vertical, 5)
+            if !project.managed {
+                Button {
+                    NSWorkspace.shared.activateFileViewerSelecting([project.folder])
+                } label: {
+                    Label(project.folder.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"), systemImage: "folder")
+                        .font(.system(size: 12.5, weight: .medium))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .padding(.horizontal, 10).padding(.vertical, 5)
+                }
+                .buttonStyle(.plain)
+                .glassEffect(.regular.interactive(), in: .capsule)
+                .help("Mostra nel Finder")
+                .padding(.top, -6)
             }
-            .buttonStyle(.plain)
-            .glassEffect(.regular.interactive(), in: .capsule)
-            .help("Mostra nel Finder")
-            .padding(.top, -6)
-            GlassPills(items: [
+            GlassPills(items: project.managed ? [
+                GlassPill(id: "0", title: String(localized: "Chat"), symbol: "bubble.left.and.bubble.right.fill", colors: Hue.blue),
+                GlassPill(id: "1", title: String(localized: "File"), symbol: "doc.on.doc.fill", colors: Hue.teal),
+                GlassPill(id: "3", title: String(localized: "Memoria"), symbol: "brain.head.profile", colors: Hue.purple),
+            ] : [
                 GlassPill(id: "0", title: String(localized: "Chat"), symbol: "bubble.left.and.bubble.right.fill", colors: Hue.blue),
                 GlassPill(id: "1", title: String(localized: "File"), symbol: "doc.on.doc.fill", colors: Hue.teal),
                 GlassPill(id: "5", title: String(localized: "Grafo"), symbol: "brain", colors: Hue.purple),
@@ -100,7 +116,9 @@ struct ProjectTasks: View {
                 let tasks = state.tasks(for: project)
                 if tasks.allSatisfy({ $0.messages.isEmpty }) {
                     GlassEmptyState(symbol: "bubble.left.and.bubble.right.fill", title: String(localized: "Le chat del progetto"),
-                                    message: String(localized: "Ogni chat è dedicata a questo progetto: Siri AI+ usa AGENTS.md, la sua memoria e i suoi file. Scrivi a destra per iniziare."),
+                                    message: project.managed
+                                        ? String(localized: "Ogni chat è dedicata a questo progetto: Siri AI+ usa la sua memoria e i suoi file. Allegati, documenti e immagini delle sue chat restano raccolti in File. Scrivi a destra per iniziare.")
+                                        : String(localized: "Ogni chat è dedicata a questo progetto: Siri AI+ usa AGENTS.md, la sua memoria e i suoi file. Scrivi a destra per iniziare."),
                                     colors: Hue.blue, actionTitle: String(localized: "Nuova chat")) { state.newConversation(in: project) }
                 }
                 ForEach(tasks) { task in
@@ -438,8 +456,10 @@ struct ProjectMemoryView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("MEMORY.md").font(DS.Fonts.section)
-                    Text("La memoria del progetto, nella cartella come AGENTS.md: Siri AI+ la legge in ogni task (se è lunga ne usa una sintesi) e aggiunge sotto «Ricordi di Siri AI+» ciò che le chiedi di ricordare.")
+                    Text(project.managed ? String(localized: "Memoria") : "MEMORY.md").font(DS.Fonts.section)
+                    Text(project.managed
+                         ? String(localized: "La memoria di questo progetto, separata da quella delle altre chat: Siri AI+ la legge in ogni chat del progetto (se è lunga ne usa una sintesi) e aggiunge sotto «Ricordi di Siri AI+» ciò che le chiedi di ricordare.")
+                         : String(localized: "La memoria del progetto, nella cartella come AGENTS.md: Siri AI+ la legge in ogni task (se è lunga ne usa una sintesi) e aggiunge sotto «Ricordi di Siri AI+» ciò che le chiedi di ricordare."))
                         .font(DS.Fonts.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
@@ -485,5 +505,34 @@ struct ProjectMemoryView: View {
         try? project.files.remember(fact)
         newFact = ""
         state.projectRevision += 1
+    }
+}
+
+/// Il nome di un progetto nuovo dello spazio Personale e il cambio di nome: un campo solo.
+struct ProjectNameDialogs: ViewModifier {
+    @Environment(AppState.self) private var state
+    @State private var name = ""
+
+    func body(content: Content) -> some View {
+        @Bindable var state = state
+        content
+            .alert("Nuovo progetto", isPresented: $state.namingProject) {
+                TextField("Nome del progetto", text: $name)
+                Button("Crea") { state.addManagedProject(name: name); name = "" }
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                Button("Annulla", role: .cancel) { name = "" }
+            } message: {
+                Text("Chat, memoria e file del progetto restano insieme dentro Siri AI+, separati dal resto. Nessuna cartella sul Mac.")
+            }
+            .alert("Rinomina il progetto", isPresented: Binding(get: { state.renamingProject != nil }, set: { if !$0 { state.renamingProject = nil } })) {
+                TextField("Nome del progetto", text: $name)
+                Button("Rinomina") {
+                    if let project = state.renamingProject { state.rename(project, to: name) }
+                    name = ""
+                }
+                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                Button("Annulla", role: .cancel) { name = "" }
+            }
+            .onChange(of: state.renamingProject?.id) { _, _ in name = state.renamingProject?.name ?? "" }
     }
 }

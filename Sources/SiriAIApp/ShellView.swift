@@ -109,11 +109,12 @@ struct ShellView: View {
         .sheet(item: $state.creatingGenius) { draft in GeniusCreationChat(initial: draft) }
         .sheet(item: $state.newCodeTemplate) { template in NewCodeProjectSheet(template: template) }
         .alert("La privacy è a rischio", isPresented: $state.askCloudConsent, presenting: state.pendingCloud) { cloud in
-            Button("Usa \(cloud.provider.name)", role: .destructive) { state.apply(cloud) }
+            Button(cloud.isAuto ? String(localized: "Usa Auto") : String(localized: "Usa \(cloud.provider.name)"), role: .destructive) { state.apply(cloud) }
             Button("Annulla", role: .cancel) {}
         } message: { cloud in
-            Text("Con \(cloud.provider.name) le risposte non sono più generate sul Mac: la richiesta, la conversazione recente e i dati usati per rispondere (calendario, file, pagine, connettori) vengono inviati a \(cloud.provider.company). Continuare?")
+            Text(state.cloudConsentMessage(for: cloud))
         }
+        .modifier(ProjectNameDialogs())
     }
 }
 

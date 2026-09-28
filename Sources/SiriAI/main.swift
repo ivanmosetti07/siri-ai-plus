@@ -44,6 +44,45 @@ if let index = CommandLine.arguments.firstIndex(of: "--anonimizza-prova"), index
     exit(0)
 }
 
+// Decisioni rapide (rizzo-flow): `--decidi richiesta.json` (formato nativo di rizzo-flow) e
+// `--decisioni-smoke [file.jsonl]` (le fixture di rizzo-flow, per controllare il port).
+if let index = CommandLine.arguments.firstIndex(of: "--decidi"), index + 1 < CommandLine.arguments.count {
+    print(await DecisionDiagnostics.decide(file: URL(fileURLWithPath: CommandLine.arguments[index + 1])))
+    exit(0)
+}
+if let index = CommandLine.arguments.firstIndex(of: "--decisioni-smoke") {
+    let path = index + 1 < CommandLine.arguments.count ? CommandLine.arguments[index + 1] : "Support/eval/rizzo-flow-smoke.jsonl"
+    print(await DecisionDiagnostics.smoke(file: URL(fileURLWithPath: path)))
+    exit(0)
+}
+
+if let index = CommandLine.arguments.firstIndex(of: "--decisioni-banco"), index + 1 < CommandLine.arguments.count {
+    print(await DecisionDiagnostics.routing(file: URL(fileURLWithPath: CommandLine.arguments[index + 1])))
+    exit(0)
+}
+
+if let index = CommandLine.arguments.firstIndex(of: "--decisioni-auto") {
+    let path = index + 1 < CommandLine.arguments.count ? CommandLine.arguments[index + 1] : "Support/eval/decisioni-auto.json"
+    print(await DecisionDiagnostics.auto(file: URL(fileURLWithPath: path)))
+    exit(0)
+}
+
+if let index = CommandLine.arguments.firstIndex(of: "--decisioni-memoria") {
+    let path = index + 1 < CommandLine.arguments.count ? CommandLine.arguments[index + 1] : "Support/eval/decisioni-memoria.json"
+    print(await DecisionDiagnostics.memory(file: URL(fileURLWithPath: path)))
+    exit(0)
+}
+
+if let index = CommandLine.arguments.firstIndex(of: "--decisioni-anonimizza") {
+    let path = index + 1 < CommandLine.arguments.count ? CommandLine.arguments[index + 1] : "Support/eval/decisioni-anonimizza.json"
+    print(await DecisionDiagnostics.privacy(manifest: URL(fileURLWithPath: path)))
+    exit(0)
+}
+if let index = CommandLine.arguments.firstIndex(of: "--anonimizza-tempi"), index + 1 < CommandLine.arguments.count {
+    print(await DecisionDiagnostics.privacyTiming(file: URL(fileURLWithPath: CommandLine.arguments[index + 1])))
+    exit(0)
+}
+
 // Diagnostica: `--grafo <cartella> [sottocartella]` costruisce il grafo delle note (solo lettura) e ne misura i tempi.
 if let index = CommandLine.arguments.firstIndex(of: "--grafo"), index + 1 < CommandLine.arguments.count {
     let guide = ProjectGuide.shared(for: URL(fileURLWithPath: CommandLine.arguments[index + 1]))

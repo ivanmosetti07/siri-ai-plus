@@ -755,7 +755,7 @@ struct HomeDashboard: View {
                 calendarCard
                 remindersCard
                 if !state.spaceAgents.isEmpty { agentsCard }
-                if state.space == .lavoro || !state.sortedProjects.isEmpty { projectsCard }
+                if state.space != .codice { projectsCard }
                 createCard
                 if !state.allArtifacts.isEmpty { documentsCard }
             }
@@ -874,8 +874,10 @@ struct HomeDashboard: View {
         DashCard(title: String(localized: "Progetti"), symbol: "folder.fill", tint: Color(red: 0.4, green: 0.7, blue: 1)) {
             if state.sortedProjects.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Collega una cartella per lavorare con AGENTS.md, memoria e task dedicate.").font(.system(size: 13)).foregroundStyle(.secondary)
-                    Button("Nuovo progetto…") { ProjectPicker.choose { state.addProject(folder: $0) } }.buttonStyle(.glass)
+                    Text(state.space == .personale
+                         ? String(localized: "Crea un progetto per tenere insieme chat, memoria e file di un argomento, separati dal resto.")
+                         : String(localized: "Collega una cartella per lavorare con AGENTS.md, memoria e task dedicate.")).font(.system(size: 13)).foregroundStyle(.secondary)
+                    Button("Nuovo progetto…") { state.requestNewProject() }.buttonStyle(.glass)
                 }
             } else {
                 VStack(alignment: .leading, spacing: 10) {

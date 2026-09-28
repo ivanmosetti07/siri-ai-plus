@@ -37,6 +37,7 @@ struct SidebarView: View {
         var message: String {
             switch self {
             case .conversation: String(localized: "La conversazione e le sue schede verranno cancellate.")
+            case .project(let p) where p.managed: String(localized: "Le chat del progetto verranno cancellate; la sua memoria e i suoi file finiscono nel Cestino.")
             case .project: String(localized: "Le chat del progetto verranno cancellate. La cartella e i suoi file restano sul Mac.")
             case .agent: String(localized: "Chat, registro, anima, skill dedicate e programmazioni del Genius verranno cancellati.")
             }
@@ -248,7 +249,9 @@ struct SidebarView: View {
                 Label("Home", systemImage: "house").tag(SidebarItem.home)
             }
 
-            if state.space == .lavoro || (state.space == .personale && !state.sortedProjects.isEmpty) {
+            // Lavoro: progetti collegati a una cartella del Mac. Personale: progetti senza cartella, per tenere separate
+            // chat, memoria e file. Programmazione ha i suoi progetti di codice (sopra).
+            if state.space != .codice {
             Section {
                 ForEach(state.sortedProjects) { project in
                     DisclosureGroup(isExpanded: expansion(for: project)) {
@@ -291,14 +294,18 @@ struct SidebarView: View {
                         .contextMenu {
                             Button(project.pinned ? String(localized: "Togli dai fissati") : String(localized: "Fissa in alto")) { state.togglePin(project) }
                             Button("Nuova chat nel progetto") { state.newConversation(in: project) }
-                            Button("Mostra nel Finder") { NSWorkspace.shared.activateFileViewerSelecting([project.folder]) }
+                            if project.managed {
+                                Button("Rinomina…") { state.renamingProject = project }
+                            } else {
+                                Button("Mostra nel Finder") { NSWorkspace.shared.activateFileViewerSelecting([project.folder]) }
+                            }
                             Divider()
                             Button("Rimuovi progetto…", role: .destructive) { deletion = .project(project) }
                         }
                     }
                 }
                 Button {
-                    ProjectPicker.choose { state.addProject(folder: $0) }
+                    state.requestNewProject()
                 } label: {
                     Label("Nuovo progetto…", systemImage: "folder.badge.plus")
                 }

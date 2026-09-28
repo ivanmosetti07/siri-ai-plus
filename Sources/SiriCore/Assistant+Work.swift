@@ -27,7 +27,16 @@ extension Assistant {
                             + (Language.isEnglish ? ["project", "decid", "decision", "memory", "status", "progress", "where are we"] : []))
             .contains { prompt.lowercased().contains($0) }
         var projectFacts = Self.relevantFacts(work.projectMemory, to: words, limit: 4)
-        if projectFacts.isEmpty, aboutProject { projectFacts = Array(work.projectMemory.suffix(2)) }
+        if projectFacts.isEmpty, aboutProject {
+            // «A che punto siamo?» con una memoria lunga: la sintesi di MEMORY.md (calcolata a ogni modifica e prima mai usata),
+            // non solo gli ultimi due ricordi.
+            if let digest = work.memoryDigest, !digest.isEmpty, work.projectMemory.count > 6 {
+                projectFacts = digest.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+                    .map { $0.hasPrefix("- ") ? String($0.dropFirst(2)) : $0 }.filter { !$0.isEmpty }.prefix(6).map { $0 }
+            } else {
+                projectFacts = Array(work.projectMemory.suffix(2))
+            }
+        }
         if !projectFacts.isEmpty {
             lines.append(t("Memoria del progetto:", "Project memory:") + "\n" + projectFacts.map { "- \($0.prefix(160))" }.joined(separator: "\n"))
         }

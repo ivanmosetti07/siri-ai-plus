@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 import Foundation
 import Observation
 import SiriCore
@@ -154,6 +155,82 @@ final class ModelManager {
 
     func cancelDownload(_ variant: GemmaVariant) {
         downloadTasks[variant.id]?.cancel()
+    }
+
+    // MARK: Decisioni rapide (rizzo-flow)
+
+    static let decisionModelID = "rizzo-flow"
+    /// Stato del motore delle decisioni, letto senza svegliare il server.
+    var decisionStatus: DecisionEngine.Status = .stopped
+    var decisionLatency: Int?
+
+    func refreshDecisions() async {
+        decisionStatus = await DecisionEngine.shared.status()
+        decisionLatency = await DecisionEngine.shared.lastMilliseconds
+    }
+
+    /// Scarica il modello di rizzo-flow dalla revisione fissata e lo tiene solo se lo sha256 è quello pubblicato.
+    func downloadDecisionModel() {
+        let id = Self.decisionModelID
+        guard downloads[id] == nil else { return }
+        errors[id] = nil
+        try? FileManager.default.createDirectory(at: DecisionEngine.folder, withIntermediateDirectories: true)
+        downloads[id] = 0
+        let destination = DecisionEngine.modelURL
+        let task = URLSession.shared.downloadTask(with: DecisionEngine.downloadURL) { [weak self] temporary, response, error in
+            // Il file temporaneo va controllato e spostato subito, prima che il sistema lo cancelli.
+            var failure = error?.localizedDescription
+            if let temporary, failure == nil {
+                if let code = (response as? HTTPURLResponse)?.statusCode, code != 200 {
+                    failure = String(localized: "Hugging Face ha risposto con errore \(code).")
+                } else if Self.sha256(of: temporary) != DecisionEngine.modelSHA256 {
+                    failure = String(localized: "Il file scaricato non è quello pubblicato (sha256 diverso): riprova.")
+                } else {
+                    try? FileManager.default.removeItem(at: destination)
+                    do { try FileManager.default.moveItem(at: temporary, to: destination) } catch { failure = error.localizedDescription }
+                }
+            }
+            Task { @MainActor in
+                guard let self else { return }
+                self.downloads[id] = nil
+                self.downloadTasks[id] = nil
+                if let failure, !failure.contains("cancel") { self.errors[id] = failure }
+                self.revision += 1
+                if failure == nil {
+                    Agent.log("DECISIONI: modello rizzo-flow scaricato e verificato")
+                    _ = await DecisionEngine.shared.prepare()
+                }
+                await self.refreshDecisions()
+            }
+        }
+        downloadTasks[id] = task
+        task.resume()
+        Task {
+            while let task = downloadTasks[id], task.state == .running {
+                downloads[id] = task.progress.fractionCompleted
+                try? await Task.sleep(for: .milliseconds(500))
+            }
+        }
+    }
+
+    func cancelDecisionDownload() { downloadTasks[Self.decisionModelID]?.cancel() }
+
+    /// Ferma il server delle decisioni e mette il modello nel Cestino (si può recuperare).
+    func removeDecisionModel() async {
+        await DecisionEngine.shared.stop()
+        do { try FileManager.default.trashItem(at: DecisionEngine.modelURL, resultingItemURL: nil) }
+        catch { errors[Self.decisionModelID] = error.localizedDescription }
+        revision += 1
+        await refreshDecisions()
+    }
+
+    /// SHA-256 di un file grande, a blocchi (2,6 GB in pochi secondi).
+    nonisolated static func sha256(of url: URL) -> String? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        var hasher = SHA256()
+        while let chunk = try? handle.read(upToCount: 8 << 20), !chunk.isEmpty { hasher.update(data: chunk) }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     func delete(_ variant: GemmaVariant) {
