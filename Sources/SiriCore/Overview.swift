@@ -53,6 +53,7 @@ public enum Overview {
     }
 
     public static func events(from start: Date, to end: Date) -> [EventItem] {
+        if let world = FixtureWorld.active { return world.events(from: start, to: end) }
         let ek = Store.shared.ek
         // Solo i calendari dello spazio in uso.
         var calendars: [EKCalendar]?
@@ -77,6 +78,7 @@ public enum Overview {
 
     /// Promemoria da completare, prima quelli con scadenza.
     public static func openReminders(limit: Int = 40, list: String? = nil) async -> [ReminderItem] {
+        if let world = FixtureWorld.active { return world.openReminders(limit: limit, list: list) }
         let ek = Store.shared.ek
         // Solo le liste dello spazio, anche quando la richiesta ne nomina una.
         let scoped = SpaceScope.current.reminderLists.map { names in ek.calendars(for: .reminder).filter { names.contains($0.title) } }
@@ -110,6 +112,7 @@ public enum Overview {
 
     /// Quanti promemoria (delle liste dello spazio) sono stati completati da `start` a ora: i progressi della giornata.
     public static func completedReminders(since start: Date) async -> Int {
+        if FixtureWorld.active != nil { return 0 }
         let ek = Store.shared.ek
         let calendars = SpaceScope.current.reminderLists.map { names in ek.calendars(for: .reminder).filter { names.contains($0.title) } }
         if calendars?.isEmpty == true { return 0 }
@@ -120,6 +123,7 @@ public enum Overview {
     }
 
     public static func setCompleted(reminderID: String, _ completed: Bool) throws {
+        if let refused = FixtureWorld.refuse("Promemoria: completamento") { throw refused }
         let ek = Store.shared.ek
         guard let reminder = ek.calendarItem(withIdentifier: reminderID) as? EKReminder else { return }
         reminder.isCompleted = completed

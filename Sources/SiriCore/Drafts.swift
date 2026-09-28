@@ -269,10 +269,14 @@ public enum EventKitService {
 
     /// Tutti i calendari modificabili, senza i filtri dello spazio (per le impostazioni).
     public static func allWritableCalendars() -> [String] {
-        ek.calendars(for: .event).filter(\.allowsContentModifications).map(\.title)
+        if let world = FixtureWorld.active { return world.calendars }
+        return ek.calendars(for: .event).filter(\.allowsContentModifications).map(\.title)
     }
 
-    public static func allReminderLists() -> [String] { ek.calendars(for: .reminder).map(\.title) }
+    public static func allReminderLists() -> [String] {
+        if let world = FixtureWorld.active { return world.reminderLists }
+        return ek.calendars(for: .reminder).map(\.title)
+    }
 
     /// Calendari dello spazio in uso (tutti se lo spazio non ne sceglie).
     public static func writableCalendars() -> [String] {
@@ -285,6 +289,7 @@ public enum EventKitService {
     public static var defaultCalendar: String {
         let calendars = writableCalendars()
         if let preferred = SpaceScope.current.defaultCalendar, calendars.contains(preferred) { return preferred }
+        if FixtureWorld.active != nil { return calendars.first ?? "" }
         if let system = ek.defaultCalendarForNewEvents?.title, calendars.contains(system) { return system }
         return calendars.first ?? ek.defaultCalendarForNewEvents?.title ?? ""
     }
@@ -297,12 +302,14 @@ public enum EventKitService {
     }
 
     public static func reminderListColors() -> [String: RGB] {
-        Dictionary(ek.calendars(for: .reminder).map { ($0.title, RGB($0.cgColor)) }, uniquingKeysWith: { a, _ in a })
+        if FixtureWorld.active != nil { return [:] }
+        return Dictionary(ek.calendars(for: .reminder).map { ($0.title, RGB($0.cgColor)) }, uniquingKeysWith: { a, _ in a })
     }
 
     public static var defaultReminderList: String {
         let lists = reminderLists()
         if let preferred = SpaceScope.current.defaultReminderList, lists.contains(preferred) { return preferred }
+        if FixtureWorld.active != nil { return lists.first ?? "" }
         if let system = ek.defaultCalendarForNewReminders()?.title, lists.contains(system) { return system }
         return lists.first ?? ""
     }
@@ -315,6 +322,7 @@ public enum EventKitService {
 
     @discardableResult
     public static func save(_ draft: EventDraft) throws -> String {
+        if let refused = FixtureWorld.refuse("Calendario: nuovo evento") { throw refused }
         writeLock.lock(); defer { writeLock.unlock() }
         let event = EKEvent(eventStore: ek)
         event.title = draft.title
@@ -430,6 +438,7 @@ public enum EventKitService {
 
     /// L'occorrenza che inizia in quel momento (per gli eventi che si ripetono) o l'evento con quell'identificativo.
     static func occurrence(identifier: String, start: Date) -> EKEvent? {
+        if FixtureWorld.active != nil { return nil }
         let predicate = ek.predicateForEvents(withStart: start.addingTimeInterval(-1), end: start.addingTimeInterval(1), calendars: nil)
         return ek.events(matching: predicate).first { ($0.eventIdentifier ?? $0.calendarItemIdentifier) == identifier && $0.startDate == start }
             ?? ek.events(matching: predicate).first { ($0.eventIdentifier ?? $0.calendarItemIdentifier) == identifier }
@@ -444,6 +453,7 @@ public enum EventKitService {
     /// Applica i valori di `draft` all'evento (solo questa occorrenza). Restituisce il nuovo inizio, per ritrovarlo e annullare.
     @discardableResult
     public static func update(identifier: String, start: Date, to draft: EventDraft, expected: EventDraft? = nil) throws -> Date {
+        if let refused = FixtureWorld.refuse("Calendario: modifica") { throw refused }
         writeLock.lock(); defer { writeLock.unlock() }
         guard let event = occurrence(identifier: identifier, start: start) else {
             throw NSError(domain: AppInfo.name, code: 1, userInfo: [NSLocalizedDescriptionKey: Language.t("L'evento non esiste più o è stato spostato.", "The event no longer exists or has been moved.")])
@@ -474,6 +484,11 @@ public enum EventKitService {
 
     /// Promemoria com'è adesso, con la sua lista.
     public static func reminder(identifier: String) -> (draft: ReminderDraft, list: String)? {
+        if let world = FixtureWorld.active {
+            return world.openReminders(limit: 300, list: nil).first { $0.id == identifier }.map {
+                (ReminderDraft(title: $0.title, due: $0.due, dueHasTime: $0.dueHasTime, highPriority: $0.highPriority), $0.list)
+            }
+        }
         guard let reminder = ek.calendarItem(withIdentifier: identifier) as? EKReminder else { return nil }
         let due = reminder.dueDateComponents.flatMap { Calendar.current.date(from: $0) }
         return (ReminderDraft(title: reminder.title ?? "", due: due, dueHasTime: reminder.dueDateComponents?.hour != nil,
@@ -483,6 +498,7 @@ public enum EventKitService {
     /// Nuovo testo, scadenza, priorità o lista di un promemoria. La notifica segue la scadenza.
     public static func update(reminder identifier: String, to draft: ReminderDraft, list: String,
                               expected: ReminderDraft? = nil, expectedList: String? = nil) throws {
+        if let refused = FixtureWorld.refuse("Promemoria: modifica") { throw refused }
         writeLock.lock(); defer { writeLock.unlock() }
         guard let reminder = ek.calendarItem(withIdentifier: identifier) as? EKReminder else {
             throw NSError(domain: AppInfo.name, code: 2, userInfo: [NSLocalizedDescriptionKey: Language.t("Il promemoria non esiste più.", "The reminder no longer exists.")])

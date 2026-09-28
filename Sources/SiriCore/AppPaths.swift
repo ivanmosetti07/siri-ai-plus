@@ -11,8 +11,14 @@ public enum AppInfo {
 }
 
 public enum AppPaths {
+    /// Banchi di prova della CLI: radice isolata e cartella vera dei modelli (rizzo-flow, rizzo-pii), impostate all'avvio
+    /// prima di ogni altro accesso (`BenchIsolation`).
+    nonisolated(unsafe) public static var rootOverride: URL?
+    nonisolated(unsafe) public static var modelsOverride: URL?
+
     /// I test possono usare una radice isolata senza toccare i dati personali dell'app.
     private static var testRoot: URL? {
+        if let rootOverride { return rootOverride }
         guard let path = ProcessInfo.processInfo.environment["SIRIAI_TEST_DATA_ROOT"], !path.isEmpty else { return nil }
         return URL(fileURLWithPath: path, isDirectory: true)
     }
@@ -42,7 +48,7 @@ public enum AppPaths {
         return ensure(FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Logs")).appending(path: "\(AppInfo.folderName).log")
     }
 
-    public static var models: URL { ensure(support("Models")) }
+    public static var models: URL { modelsOverride ?? ensure(support("Models")) }
     public static var backups: URL { ensure(support("Backup")) }
 }
 

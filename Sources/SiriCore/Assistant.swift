@@ -320,6 +320,12 @@ public final class Assistant {
     var mcpCalls = 0
     /// Fuori dall'app (banco di prova, CLI): chi esegue gli strumenti dei connettori. Nell'app lo passa il registro.
     public var connectorCaller: ((MCPToolInfo, JSONValue) async throws -> String)?
+    /// Gli strumenti offerti al modello esterno in questa richiesta (nil sulla strada di Apple Intelligence): cambiano le
+    /// istruzioni e il preambolo («cerca con cerca_web» invece di «ammetti di non sapere»).
+    public var offeredTools: Set<String>?
+    /// Ciò che gli strumenti hanno letto in questa richiesta: prima di una scrittura consentita per sempre si controlla
+    /// che non contenga istruzioni per l'assistente.
+    var turnReads: [String] = []
     /// Le chiamate fatte ai connettori fuori dall'app («list_tasks», «execute_read_tool:invoices_list»), per i controlli.
     public var connectorCalls: [String] = []
     /// Ultima richiesta resa autonoma (per le ricerche di ripiego sul web).
@@ -756,7 +762,9 @@ public final class Assistant {
                 default: .messages
                 }
                 if let blocked = check(source) { return blocked }
-                return try await handleApps(plan, prompt: prompt, status: status)
+                // Posta e Messaggi si fanno da riserva a vicenda solo se l'utente li ha collegati e scelti entrambi.
+                let readable = Set([SourceKind.mail, .messages].filter { check($0) == nil })
+                return try await handleApps(plan, prompt: prompt, readable: readable, status: status)
 
             case .agenda, .eventi, .promemoria:
                 let wantsEvents = plan.action != .promemoria
@@ -785,13 +793,18 @@ public final class Assistant {
                     return .message(Language.t("Come vuoi chiamare l'evento?", "What do you want to call the event?"))
                 }
                 // Il modello a volte mette l'orario in dal/al invece che in inizio/fine.
-                guard let start = Dates.parse(plan["inizio"]) ?? Dates.parse(plan["dal"]) ?? Dates.parse(plan["scadenza"]) else {
+                guard let planned = Dates.parse(plan["inizio"]) ?? Dates.parse(plan["dal"]) ?? Dates.parse(plan["scadenza"]) else {
                     remember("Stavo creando l'evento «\(title)»: mancano data e ora.")
                     return .message(Language.t("Per quando vuoi fissare «\(title)»?", "When do you want to schedule «\(title)»?"))
                 }
+                // «Giovedì alle 15» è il giovedì che calcola l'app, non quello della settimana dopo: inizio e fine si spostano insieme.
+                let shift = Self.weekCorrection(for: planned.date, request: trace?.request ?? prompt)
+                if shift != 0 { Agent.log("DATA: \(Dates.format(planned.date)) spostata di \(shift) giorni (il giorno detto nella richiesta)") }
+                func said(_ date: Date) -> Date { Calendar.current.date(byAdding: .day, value: shift, to: date) ?? date }
+                let start = (date: said(planned.date), hasTime: planned.hasTime)
                 let begin = start.hasTime ? start.date : Calendar.current.startOfDay(for: start.date)
-                let endHint = Dates.parse(plan["fine"]) ?? Dates.parse(plan["al"]).flatMap { $0.hasTime ? $0 : nil }
-                var end = endHint?.date ?? begin.addingTimeInterval(start.hasTime ? 3600 : 86_399)
+                let endHint = (Dates.parse(plan["fine"]) ?? Dates.parse(plan["al"]).flatMap { $0.hasTime ? $0 : nil }).map { said($0.date) }
+                var end = endHint ?? begin.addingTimeInterval(start.hasTime ? 3600 : 86_399)
                 if end <= begin { end = begin.addingTimeInterval(3600) }
                 let calendar = plan["lista"].flatMap { name in
                     EventKitService.writableCalendars().first { $0.localizedCaseInsensitiveContains(name) }
@@ -802,7 +815,8 @@ public final class Assistant {
             case .crea_promemoria:
                 if let blocked = check(.reminders) { return blocked }
                 guard let title = plan["titolo"] else { return .message(Language.t("Cosa vuoi che ti ricordi?", "What do you want me to remind you about?")) }
-                let due = Dates.parse(plan["scadenza"]) ?? Dates.parse(plan["al"]) ?? Dates.parse(plan["inizio"])
+                let due = Self.dayAsSaid(Dates.parse(plan["scadenza"]) ?? Dates.parse(plan["al"]) ?? Dates.parse(plan["inizio"]),
+                                         request: trace?.request ?? prompt)
                 return .reminderDrafts([ReminderDraft(title: title, due: due?.date, dueHasTime: due?.hasTime ?? false)],
                                        list: reminderList(plan["lista"]))
 
@@ -880,6 +894,76 @@ public final class Assistant {
         }
     }
 
+    /// Il titolo contiene la ricerca, o tutte le sue parole significative («riunione con Marco» trova «Riunione con Marco Bianchi»,
+    /// «appuntamento con il commercialista» trova «Commercialista»).
+    nonisolated static func titleMatches(_ title: String, _ query: String) -> Bool {
+        if title.localizedCaseInsensitiveContains(query) { return true }
+        let folded = title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        let skip: Set<String> = ["appuntamento", "appointment", "evento", "event", "meeting"]
+        let words = query.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            .split { !$0.isLetter && !$0.isNumber }.map(String.init).filter { $0.count >= 4 && !skip.contains($0) }
+        return !words.isEmpty && words.allSatisfy(folded.contains)
+    }
+
+    /// «Quando ho il dentista?», «when is my dentist appointment?» → «dentista»: il nome dell'evento da cercare.
+    /// nil per le domande sul tempo libero o sui giorni («quando sono libero?», «quando ho tempo?»).
+    nonisolated static func eventLookup(_ prompt: String) -> String? {
+        let lower = prompt.lowercased().trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "?!.")))
+        let patterns = [
+            #"^(?:e\s+)?quando\s+(?:ho|c'è|c'e|è|e'|avrò|avro|devo andare (?:da|dal|dalla|al|alla|allo))\s+(?:il|lo|la|l'|i|gli|le|un|uno|una|un')?\s*(.{3,60})$"#,
+            #"^(?:and\s+)?when(?:'s| is| do i have| have i got| am i seeing)\s+(?:my|the|a|an)?\s*(.{3,60})$"#,
+        ]
+        for pattern in patterns {
+            guard let match = Calculations.matches(pattern, in: lower).first, !match[1].isEmpty else { continue }
+            let wanted = match[1].replacingOccurrences(of: #"\b(appointment|appuntamento)\b"#, with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespaces)
+            let generic = ["tempo", "libero", "libera", "impegni", "da fare", "free", "time", "busy", "prossimo impegno", "next appointment"]
+            guard wanted.count >= 3, !generic.contains(where: wanted.contains) else { return nil }
+            return wanted
+        }
+        return nil
+    }
+
+    /// «Ricordami di rispondergli venerdì»: il giorno detto a parole lo calcola l'app. Con due venerdì nel calendario del pianificatore
+    /// il modello piccolo a volte sceglie quello della settimana dopo. Se la richiesta nomina un solo giorno e il modello ha scelto lo
+    /// stesso giorno della settimana in un'altra settimana, restituisce i giorni da aggiungere per tornare a quello detto (0 altrimenti).
+    /// «Venerdì prossimo» resta al modello: è ambiguo.
+    nonisolated static func weekCorrection(for date: Date, request: String, now: Date = .now) -> Int {
+        let days = DateExpressions.days(in: request, now: now)
+        guard days.count == 1, let day = days.first else { return 0 }
+        let said = DateExpressions.substring(DateExpressions.normalized(request), day.range)
+        guard said.range(of: #"prossim|scors|next|following|last"#, options: .regularExpression) == nil else { return 0 }
+        let calendar = Calendar.current
+        guard let difference = calendar.dateComponents([.day], from: calendar.startOfDay(for: date), to: calendar.startOfDay(for: day.date)).day,
+              difference != 0, difference % 7 == 0 else { return 0 }
+        return difference
+    }
+
+    /// Una data scelta dal modello, riportata al giorno detto nella richiesta (`weekCorrection`).
+    nonisolated static func dayAsSaid(_ parsed: (date: Date, hasTime: Bool)?, request: String?) -> (date: Date, hasTime: Bool)? {
+        guard let parsed, let request else { return parsed }
+        let shift = weekCorrection(for: parsed.date, request: request)
+        guard shift != 0, let date = Calendar.current.date(byAdding: .day, value: shift, to: parsed.date) else { return parsed }
+        Agent.log("DATA: \(Dates.format(parsed.date)) → \(Dates.format(date)) (il giorno detto nella richiesta)")
+        return (date, parsed.hasTime)
+    }
+
+    /// «Disegna un gatto che legge un libro», «crea un'immagine di…», «draw a…»: un'immagine da fare con Image Playground sul Mac.
+    /// Restituisce cosa disegnare, nil per le altre richieste (anche «disegna una tabella», «disegna un piano»).
+    nonisolated static func imageRequest(_ prompt: String) -> String? {
+        let text = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = text.lowercased()
+        let italian = #"^(?:per favore\s+|puoi\s+)?(?:disegna(?:mi|re)?|(?:genera|crea|fai|fa')(?:mi)?\s+(?:un'|una\s+|un\s+)?(?:immagine|illustrazione|disegno|ritratto|schizzo|sfondo)(?:\s+(?:di|del|della|dello|dei|delle|con|che))?|fammi\s+(?:un\s+disegno|un'immagine|un\s+ritratto|uno\s+schizzo)(?:\s+(?:di|del|della|dello|dei|delle|con))?)\s+"#
+        let english = #"^(?:please\s+|can you\s+)?(?:draw|sketch|(?:generate|create|make)(?:\s+me)?\s+(?:an?\s+)?(?:image|picture|illustration|drawing|portrait|wallpaper)(?:\s+(?:of|with|showing))?)\s+"#
+        guard let range = lower.range(of: italian, options: .regularExpression)
+                ?? (Language.isEnglish ? lower.range(of: english, options: .regularExpression) : nil) else { return nil }
+        // Dalla stringa in minuscolo, su cui è stata fatta la ricerca (gli indici non valgono sull'originale).
+        let subject = String(lower[range.upperBound...]).trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ".!?")))
+        let notPictures = #"\b(?:tabell\w*|grafic\w*|fogli\w*|presentazion\w*|slide|document\w*|strategi\w*|piano|piani|table|chart|graph|spreadsheet|diagram|plan|strategy)\b"#
+        guard subject.count >= 3, subject.lowercased().range(of: notPictures, options: .regularExpression) == nil else { return nil }
+        return subject
+    }
+
     /// «Ricordati che…», «tieni a mente…», «remember that…»: memoria, non promemoria («ricordami di…», «remember to…»).
     nonisolated static func explicitlyRemembers(_ prompt: String) -> Bool {
         let lower = prompt.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -922,6 +1006,24 @@ public final class Assistant {
         if Self.isAnswerOnlyInstruction(prompt) {
             plan.action = .rispondi
             plan.fields = [:]
+            return
+        }
+        // «Disegna un gatto che legge un libro»: l'immagine la fa Image Playground sul Mac, con qualunque modello.
+        if candidates.contains(.genera_immagine), let subject = Self.imageRequest(prompt) {
+            plan.action = .genera_immagine
+            plan.fields = ["argomento": subject]
+            return
+        }
+        // «Quando ho il dentista?»: un evento cercato per nome, non gli impegni di oggi (il pianificatore mette oggi come date).
+        // Se la conversazione ne ha appena parlato (un verbale incollato: «prossima riunione il 26 settembre»), si risponde da lì.
+        if [.agenda, .eventi].contains(plan.action), let wanted = Self.eventLookup(prompt) {
+            if conversationCovers(prompt) {
+                plan.action = .rispondi
+                plan.fields = [:]
+            } else {
+                plan.action = .eventi
+                plan.fields = ["cerca": wanted]
+            }
             return
         }
         // «Dove devo salvare un appunto?», «come chiamo il report?»: domande, non richieste di creare qualcosa.
@@ -1000,9 +1102,10 @@ public final class Assistant {
             }
         }
         // «Ci sono novità dal commercialista?», «any news from the accountant?»: notizie da una persona si leggono nella posta, non sul web.
-        if availableActions.contains(.mail_leggi), Self.asksNewsFromSomeone(lower) {
+        // Si cerca chi deve aver scritto; se nessuna email lo nomina, la posta mostra le ultime ricevute (`handleApps`).
+        if availableActions.contains(.mail_leggi), let role = Self.newsFromSomeone(lower) {
             plan.action = .mail_leggi
-            plan.fields = [:]
+            plan.fields = ["cerca": role]
             return
         }
         if chatRules(to: &plan, prompt: prompt, lower: lower) { return }
@@ -1041,12 +1144,12 @@ public final class Assistant {
             return
         }
         // "Mi ha scritto…", "email non lette": leggere, non scrivere.
-        let incoming = #"(mi ha (scritto|mandato|risposto|inviato)|mi hanno scritto|ho ricevuto|(email|mail|messaggi) (di|da) |non lett|da leggere|in arrivo|arrivat)"#
+        // «L'ultima email della banca», «il messaggio dell'avvocato»: anche con le preposizioni articolate.
+        let incoming = #"(mi ha (scritto|mandato|risposto|inviato)|mi hanno scritto|ho ricevuto|(email|mail|messaggi|messaggio) (?:(?:di|da|del|dello|della|dei|degli|delle|dal|dallo|dalla|dai|dagli|dalle) |dell'|dall')|non lett|da leggere|in arrivo|arrivat)"#
         let englishIncoming = #"(sent me|wrote to me|emailed me|texted me|messaged me|did i (get|receive)|i (got|received)|(emails?|mails?|messages?|texts?) from |unread|in my inbox|arrived|came in)"#
         if lower.range(of: incoming, options: .regularExpression) != nil || (english && lower.range(of: englishIncoming, options: .regularExpression) != nil) {
-            let mail = ["mail", "email", "posta"].contains(where: lower.contains) || (english && lower.contains("inbox"))
-            let texts = ["messaggi", "messaggio", "imessage", "sms"].contains(where: lower.contains)
-                || (english && ["message", "texted", "text from", "texts from"].contains(where: lower.contains))
+            let mail = Self.namesMail(lower)
+            let texts = Self.namesTexts(lower)
             if mail && availableActions.contains(.mail_leggi) { plan.action = .mail_leggi; return }
             if texts && !mail { plan.action = .messaggi; return }
         }
@@ -1120,7 +1223,7 @@ public final class Assistant {
         .genera_immagine: ["immagine", "disegna", "illustrazione", "foto di", "genera un'", "logo", "icona", "sfondo", "ritratto", "schizzo"],
         .agenda: ["oggi", "domani", "settimana", "giornata", "agenda", "impegni", "programma", "cosa ho", "cosa devo", "libero", "calendario", "mese", "weekend", "pomeriggio", "mattina", "stasera", "dopodomani", "prossim"],
         .elimina_evento: ["elimina", "cancella", "rimuovi", "togli"],
-        .completa_promemoria: ["fatto", "completa", "segna", "spunta", "finito"],
+        .completa_promemoria: ["fatto", "completa", " segna", "spunta", "finito"],  // « segna»: non «disegna»
         .piano: ["organizza", "pianifica", "prepara tutto", "piano"],
         .eventi: ["evento", "eventi", "riunion", "appuntament", "calendario", "meeting", "call", "incontr"],
         .promemoria: ["promemoria", "da fare", "todo", "to-do", "scadenz", "attività"],
@@ -1176,15 +1279,44 @@ public final class Assistant {
         .crea_agente: ["agent", "genius", "every morning", "every day", "every week", "every monday", "every evening", "automatically", "continuously"],
     ]
 
-    /// «Novità dal commercialista?», «heard back from the lawyer?»: notizie attese da una persona o da un ufficio (non da un'azienda o un tema).
-    static func asksNewsFromSomeone(_ lower: String) -> Bool {
-        let italianRoles = #"(?:commercialista|avvocat[oa]|notaio|medico|dottor\w*|dentista|banca|client[ei]|fornitor\w*|capo|ufficio|agenzia delle entrate|assicurazion\w*|amministrator\w*|condominio|scuola|professor\w*|idraulico|elettricista|architett[oa]|geometra|consulente)"#
+    /// «Novità dal commercialista?», «heard back from the lawyer?»: notizie attese da una persona o da un ufficio (non da un'azienda
+    /// o un tema). Restituisce chi deve aver scritto («commercialista», «lawyer»), nil per le altre richieste.
+    static func newsFromSomeone(_ lower: String) -> String? {
+        let italianRoles = #"(commercialista|avvocat[oa]|notaio|medico|dottor\w*|dentista|banca|client[ei]|fornitor\w*|capo|ufficio|agenzia delle entrate|assicurazion\w*|amministrator\w*|condominio|scuola|professor\w*|idraulico|elettricista|architett[oa]|geometra|consulente)"#
         let italian = #"\b(?:novit[aà]|notizie|aggiornamenti|risposte?)\s+(?:da|dal|dalla|dallo|dall'|dai|dagli|dalle)\s*(?:mi[aoei]\s+|nostr[aoei]\s+)?"# + italianRoles + #"\b"#
-        if lower.range(of: italian, options: .regularExpression) != nil { return true }
-        guard Language.isEnglish else { return false }
-        let englishRoles = #"(?:accountant|lawyer|attorney|notary|doctor|dentist|bank|client|customer|supplier|vendor|boss|manager|office|tax office|insurance|insurer|landlord|school|teacher|plumber|electrician|architect|consultant)"#
-        let english = #"\b(?:any )?(?:news|word|updates?|reply|response|answer)\s+from\s+(?:the |my |our )?"# + englishRoles + #"\b|\bheard (?:back )?from\s+(?:the |my |our )?"# + englishRoles + #"\b"#
-        return lower.range(of: english, options: .regularExpression) != nil
+        if let role = Calculations.matches(italian, in: lower).first?[1], !role.isEmpty { return role }
+        guard Language.isEnglish else { return nil }
+        let englishRoles = #"(accountant|lawyer|attorney|notary|doctor|dentist|bank|client|customer|supplier|vendor|boss|manager|office|tax office|insurance|insurer|landlord|school|teacher|plumber|electrician|architect|consultant)"#
+        let english = #"\b(?:(?:any )?(?:news|word|updates?|reply|response|answer)\s+|heard (?:back )?)from\s+(?:the |my |our )?"# + englishRoles + #"\b"#
+        if let role = Calculations.matches(english, in: lower).first?[1], !role.isEmpty { return role }
+        return nil
+    }
+
+    /// «accountant» ↔ «commercialista»: chi deve aver scritto, nell'altra lingua dell'app (le email possono essere in italiano
+    /// o in inglese, qualunque sia la lingua della richiesta). La parola italiana è la radice, come per la ricerca nella posta.
+    nonisolated static func roleInOtherLanguage(_ word: String) -> String? {
+        let pairs = [("commercialist", "accountant"), ("avvocat", "lawyer"), ("avvocat", "attorney"), ("notai", "notary"), ("dottor", "doctor"),
+                     ("medic", "doctor"), ("banca", "bank"), ("assicura", "insurance"), ("assicura", "insurer"), ("fornitor", "supplier"),
+                     ("fornitor", "vendor"), ("scuola", "school"), ("professor", "teacher"), ("idraulic", "plumber"),
+                     ("elettricist", "electrician"), ("architett", "architect"), ("consulent", "consultant"), ("amministrator", "manager"),
+                     ("agenzia delle entrate", "tax office")]
+        let lower = word.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        for (italian, english) in pairs {
+            if lower.hasPrefix(italian) { return english }
+            if lower == english || lower == english + "s" { return italian }
+        }
+        return nil
+    }
+
+    /// La richiesta dice di guardare nella posta («email», «posta», «inbox»).
+    static func namesMail(_ lower: String) -> Bool {
+        ["mail", "email", "posta"].contains(where: lower.contains) || (Language.isEnglish && lower.contains("inbox"))
+    }
+
+    /// La richiesta dice di guardare nei Messaggi («messaggio», «sms», «iMessage», «texted»).
+    static func namesTexts(_ lower: String) -> Bool {
+        ["messaggi", "messaggio", "imessage", "sms"].contains(where: lower.contains)
+            || (Language.isEnglish && ["message", "texted", "text from", "texts from"].contains(where: lower.contains))
     }
 
     /// Rete di sicurezza: il modello piccolo tende a scegliere una sola azione anche quando la richiesta ne elenca diverse.
@@ -1272,13 +1404,13 @@ public final class Assistant {
     public func chatInstructions() -> String {
         let base = Language.isEnglish ? """
         You are Siri AI+, \(Self.userFirstName.map { "\($0)'s" } ?? "the user's") assistant on the Mac. It is now \(Dates.format(.now)). Always answer in English, clearly and warmly.
-        Gladly answer general knowledge, history, science, advice, ideas and code questions from your own knowledge, thoroughly when needed. You can also search the web, use Calendar, Reminders, Mail, Notes, Messages and project files, and create documents, spreadsheets, presentations and images.
+        Gladly answer general knowledge, history, science, advice, ideas and code questions from your own knowledge, thoroughly when needed.\(offeredTools == nil ? " You can also search the web, use Calendar, Reminders, Mail, Notes, Messages and project files, and create documents, spreadsheets, presentations and images." : "")
         When you receive data (web, files, tools, calculations already done) rely only on it and don't make things up. Cite sources with [1], [2] only if you receive numbered web results; otherwise never write numbers in square brackets.
         \(Self.untrustedRule)
         Stay consistent with what was already said in the conversation and don't repeat what you already explained.
         """ : """
         Sei Siri AI+, l'assistente di \(Self.userFirstName ?? "chi usa questo Mac") sul Mac. Adesso è \(Dates.format(.now)). Rispondi in italiano, chiaro e cordiale.
-        Rispondi volentieri alle domande di cultura generale, storia, scienza, consigli, idee e codice con le tue conoscenze, in modo completo quando serve. Sai anche cercare sul web, usare Calendario, Promemoria, Mail, Note, Messaggi e i file dei progetti, creare documenti, fogli, presentazioni e immagini.
+        Rispondi volentieri alle domande di cultura generale, storia, scienza, consigli, idee e codice con le tue conoscenze, in modo completo quando serve.\(offeredTools == nil ? " Sai anche cercare sul web, usare Calendario, Promemoria, Mail, Note, Messaggi e i file dei progetti, creare documenti, fogli, presentazioni e immagini." : "")
         Quando ricevi dati (web, file, strumenti, calcoli già fatti) basati solo su quelli e non inventare. Cita le fonti con [1], [2] solo se ricevi risultati web numerati; altrimenti non scrivere mai numeri tra parentesi quadre.
         \(Self.untrustedRule)
         Resta coerente con quanto già detto nella conversazione e non ripetere ciò che hai già spiegato.
@@ -1337,8 +1469,11 @@ public final class Assistant {
 
     /// Nome di chi usa il Mac (dal nome dell'account), per rivolgersi a lui nelle istruzioni.
     public nonisolated static var userFirstName: String? {
-        NSFullUserName().split(separator: " ").first.map(String.init).flatMap { $0.isEmpty ? nil : $0 }
+        (userNameOverride ?? NSFullUserName()).split(separator: " ").first.map(String.init).flatMap { $0.isEmpty ? nil : $0 }
     }
+
+    /// Banchi di prova: il nome dell'utente inventato al posto di quello dell'account del Mac.
+    nonisolated(unsafe) public static var userNameOverride: String?
 
     /// Chi usa il Mac nei prompt: il nome dell'account («Ivan»), altrimenti «l'utente» / «the user».
     public nonisolated static var userLabel: String { userFirstName ?? Language.t("l'utente", "the user") }
@@ -1614,13 +1749,15 @@ public final class Assistant {
     private func buildAgenda(_ plan: Plan, events: Bool, reminders: Bool) async -> Agenda {
         let cal = Calendar.current
         let today = cal.startOfDay(for: .now)
-        let from = Dates.parse(plan["dal"]).map { cal.startOfDay(for: $0.date) } ?? today
-        var to = Dates.parse(plan["al"]).map { cal.startOfDay(for: $0.date) } ?? from
+        // Un evento cercato per nome senza date: dal mese scorso ai prossimi sei mesi («quando ho il dentista?»).
+        let searching = plan["cerca"] != nil && plan["dal"] == nil && plan["al"] == nil
+        let from = Dates.parse(plan["dal"]).map { cal.startOfDay(for: $0.date) } ?? (searching ? cal.date(byAdding: .day, value: -30, to: today)! : today)
+        var to = Dates.parse(plan["al"]).map { cal.startOfDay(for: $0.date) } ?? (searching ? cal.date(byAdding: .day, value: 180, to: today)! : from)
         if to < from { to = from }
         let endExclusive = cal.date(byAdding: .day, value: 1, to: to)!
 
         var eventItems = events ? Overview.events(from: from, to: endExclusive) : []
-        if let query = plan["cerca"] { eventItems = eventItems.filter { $0.title.localizedCaseInsensitiveContains(query) } }
+        if let query = plan["cerca"] { eventItems = eventItems.filter { Self.titleMatches($0.title, query) } }
 
         let allReminders = plan.action == .promemoria && plan["al"] == nil
         var inRange: [ReminderItem] = []

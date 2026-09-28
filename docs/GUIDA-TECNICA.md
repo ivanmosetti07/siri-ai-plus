@@ -143,6 +143,18 @@ Le prove riproducibili del ciclo di coding sono in [EVALS-CODING.md](EVALS-CODIN
 - **Ciclo agentico**: una richiesta con più azioni («cosa ho domani e scrivi un'email a Marco con il riepilogo») si divide in parti, una per giro (al massimo 4); i dati letti passano ai giri successivi; un'azione fallita si ritenta una volta con un'altra.
 - **«Come ho lavorato»**: sopra la risposta, gli strumenti usati con parametri, esiti, tempi e modello.
 - **Strumenti per tutti i modelli**: Gemma e ds4 con il tool calling OpenAI; ChatGPT e Claude con un ponte MCP (la CLI dell'app, dentro il bundle, parla con un gateway locale protetto da token). Ciò che scrive o invia resta una scheda da confermare. Claude risponde con le istruzioni dell'app al posto di quelle di Claude Code, senza i suoi strumenti né le impostazioni personali.
+- **Lo strumento giusto al momento giusto (modelli esterni)**: la strada di Gemma, ds4, ChatGPT e Claude sta in SiriCore (`Assistant+External.swift`: `routeForExternal`, `externalToolList`, `respondExternally`, `runExternalModel`), la stessa per l'app e per il banco; gli effetti sull'interfaccia passano da `ExternalHooks`.
+  - **Quali strumenti:** nessuno per saluti, testi da elaborare e «rispondi solo»; `cerca_web` solo per le cose attuali, le ricerche chieste o quando lo smistatore non ha deciso; `modifica_aperto` solo per i comandi sul documento aperto (le domande si rispondono dal testo); un connettore nominato o del suo campo porta tutti i suoi strumenti; con le finestre piccole (Gemma, ds4) al massimo 12 strumenti e descrizioni dei connettori di 160 caratteri.
+  - **Istruzioni dagli strumenti offerti** (`ExternalAgent.toolGuide`): quando leggere, quando cercare sul web, che le scritture sono una scheda «pronta da confermare», i prossimi giorni con le date; le istruzioni dei server dei connettori offerti (700 caratteri, fra i delimitatori). Descrizioni degli strumenti nella lingua della richiesta, firma con il nome dell'utente.
+  - **Gli strumenti di Apple anche per gli altri:** `agenda` con `cerca` (un evento per nome, dal mese scorso ai prossimi sei mesi), `completa_promemoria`, `crea_foglio`, `crea_presentazione`, `genera_immagine`, `elimina_file` (Cestino, con scheda).
+  - **ChatGPT isolato:** Codex parte con `--disable` di shell, app e connettori dell'account, memorie, browser, computer use, generazione di immagini, sub-agent e hook, e senza la sua ricerca web (`ExternalAgent.codexIsolation`): usa solo gli strumenti dell'app, dietro lo scudo della privacy e le schede. Nomi del ponte al massimo di 50 caratteri, con un suffisso univoco se servono (Claude ne accetta 64 con il prefisso).
+  - **Ciclo di Gemma** (`ExternalAgent.openAI`): temperatura 0,2 con gli strumenti; argomenti illeggibili → richiesta di correzione invece di `{}`; strumento sconosciuto → l'elenco di quelli veri; la stessa chiamata due volte → lo stesso risultato; all'ultimo giro niente esecuzioni; risposta vuota → un giro in più.
+  - **Ponte MCP:** le chiamate di ChatGPT e Claude tengono lingua, spazio e scudo della privacy della richiesta, e nelle chat affiancate e rapide le schede arrivano nella chat giusta.
+  - **Come Apple:** risposta incerta senza ricerca → ricerca sul web con le fonti; dopo un errore con schede già mostrate niente seconda risposta con Apple; i risultati degli strumenti fra i delimitatori, e una scrittura «Consenti sempre» dopo letture con istruzioni sospette torna a chiedere conferma.
+- **Il giorno detto vale più di quello calcolato** (`Assistant.weekCorrection`): «ricordami venerdì», «giovedì alle 15». Se la richiesta nomina un solo giorno e il modello sceglie lo stesso giorno della settimana ma in un'altra settimana (con due venerdì nel calendario il modello piccolo a volte prende il secondo), la data torna a quella calcolata dall'app. «Venerdì prossimo» resta al modello. Vale per Apple e per gli strumenti degli altri modelli.
+- **Eventi per nome** (`Assistant.eventLookup`): «quando ho il dentista?» cerca l'evento per nome dal mese scorso ai prossimi sei mesi, invece degli impegni di oggi. Se la conversazione ne ha appena parlato (un verbale incollato con «prossima riunione il 26 settembre») si risponde da lì.
+- **Immagini decise dall'app** (`Assistant.imageRequest`, in `decidedByRules`): «disegna…», «crea un'immagine di…», «draw…» vanno a Image Playground sul Mac con qualunque modello. Non ci vanno «disegna una tabella» o «disegna un piano».
+- **Letture che non finiscono nel vuoto**: nella posta una parola sola si cerca senza la vocale finale, così singolare e plurale si trovano a vicenda («commercialista» → «Studio Neri Commercialisti», `MailReader.searchTerm`); se la ricerca non trova niente arrivano le ultime email ricevute, dette per quello che sono; «mi ha scritto Paolo?» senza dire dove guarda anche nell'altra fonte fra posta e Messaggi, se sono collegate e scelte.
 - **Memoria**: `MEMORY.md` generale leggibile e modificabile, ricerca full-text nelle conversazioni passate («cosa avevamo deciso su…»), preferenze, fatti e decisioni detti in chat salvati da soli dopo la risposta con «Ricordato: …» e Annulla (decide rizzo-flow, vedi «Decisioni rapide»).
 - **Skill**: procedure in `Skills/<nome>/SKILL.md`, `.skills` nel progetto o `Agents/<id>/Skills/<nome>/SKILL.md` per un Genius. Si attivano con il nome o le parole in `cues`; quelle private valgono solo nella chat e nelle esecuzioni di quel Genius e prevalgono sulle omonime generali. «Salva come skill» nella chat del Genius le salva nella sua cartella; le skill generali restano in Impostazioni › Skill.
 - **Genius**: scheduler che recupera le esecuzioni perse, «Ferma», heartbeat (lavora solo se c'è qualcosa di nuovo), approvazione automatica per eventi, promemoria, note e file (mai email né messaggi), «Approva tutte».
@@ -176,6 +188,72 @@ SIRIAI_PLAN_ONLY=1 ./bin/siriai --eval Support/eval/pianificatore.json   # solo 
 SIRIAI_PLAN_ONLY=1 ./bin/siriai --eval Support/eval/strumenti.json        # comandi alle app e al documento aperto (47 richieste)
 ./build.sh --valuta                      # build e poi entrambe le valutazioni
 ```
+
+## Banco degli strumenti per modello
+
+Lo stesso banco misura tutti i modelli (Apple Intelligence, Gemma, ChatGPT, Claude, Auto) sugli stessi 30 casi e con gli stessi criteri: usano lo strumento o il connettore giusto al momento giusto, con gli argomenti giusti, e non ne usano quando non serve? Codice in `Sources/SiriCore/ToolBench.swift`, casi in `Support/eval/strumenti-modelli.json`: nessuno strumento (5), letture (9), attualità (2), scritture (5), strumenti nuovi (2), connettori (4), più passi e sicurezza (3); 5 in inglese.
+
+- **Isolato** (`BenchIsolation`): cartella dati temporanea (`$TMPDIR/siriai-banco/…`), modelli veri (rizzo-flow e rizzo-pii si riusano), utente inventato «Mario Rossi», impostazioni in un dominio volatile, ricordi in sola lettura. Un controllo ferma l'invio a ChatGPT e Claude se il testo contiene il nome vero dell'account. Lo stesso isolamento vale per `--eval`, che ora rifiuta `chatgpt`, `claude` e `auto` invece di passare ad Apple in silenzio.
+- **Mondo inventato** (`FixtureWorld`, `Support/eval/mondo-prova.json`, date relative a oggi): eventi, promemoria, email (una con istruzioni nascoste per l'assistente), note, messaggi, file, contatti, una chat passata, pagine web. I servizi dei dati (`Overview`, `EventKitService`, `MailReader`, `NotesService`, `MessagesService`, `FileSearch`, `Contacts`, `Web`) rispondono con quello, quindi gira il codice vero dell'app; ogni accesso ai dati veri va a vuoto e fa fallire il caso. I connettori finti «Demo CRM» e «Demo OS» sono sempre accesi, e il loro registro (`CONNETTORI_REGISTRO`) dimostra che nessuna scrittura arriva al server.
+- **Campi dei casi:** `strumenti` (`a|b` = uno dei due, `mcp:<etichetta>` per i connettori), `in_ordine`, `vieta_strumenti`, `nessuno_strumento`, `massimo_chiamate`, `argomenti` (espressioni regolari sui campi delle bozze, con `{{giorno:venerdì}}` e `{{data:+1:yyyy-MM-dd}}`), `schede`, `regole` (deve decidere l'app, con qualunque modello).
+- **Controlli su ogni caso:** niente scritture arrivate ai connettori, niente «fatto» con schede in sospeso, niente delimitatori `<<< >>>` ricopiati, niente errori, zero accessi bloccati.
+- **Misure:** casi superati, strumento giusto, silenzio giusto, connettore usato quando serve, argomenti corretti, chiamate inutili, chiamate per caso, tempo mediano e al 90%, chiamate al cloud.
+- **Apple Intelligence con poca memoria** risponde «SensitiveContentAnalysisML error 15»: lo smistamento ripiega sulle parole chiave e il giro non vale. Prima di un giro serve almeno il 30% di memoria libera (`memory_pressure`); con Gemma accesa ne resta poca su un Mac da 16 GB.
+
+```bash
+./bin/siriai --banco-strumenti --provider apple --etichetta dopo
+./bin/siriai --banco-strumenti --provider gemma --etichetta dopo              # Gemma accesa dall'app
+./bin/siriai --banco-strumenti --provider chatgpt --model gpt-6-luna --effort low --etichetta dopo
+./bin/siriai --banco-strumenti --provider claude --model sonnet --effort low --etichetta dopo
+./bin/siriai --banco-strumenti --provider auto --auto-cloud chatgpt --model gpt-6-luna --effort low --etichetta dopo
+./bin/siriai --banco-strumenti --provider gemma --solo-smistamento            # solo gli strumenti offerti, gratis
+./bin/siriai --banco-confronto --etichetta dopo                               # tabella casi × modelli
+```
+
+Altre opzioni: `--solo <id o categoria>`, `--ferma-dopo-errori N`, `--web-reale`, `--out <cartella>`. Resoconti in `output/valutazioni/…-strumenti-modelli-<modello>[-<versione>-<ragionamento>]-<etichetta>.md/.json`, con la traccia di ogni caso (strumenti offerti, chiamate con gli argomenti, schede, registro dei connettori). `--banco-confronto` ricalcola gli esiti di tutti i giri dai dati salvati con le regole attuali del banco, così prima e dopo si giudicano allo stesso modo. Le letture di riserva fatte dall'app (web dopo una risposta incerta, posta dopo Messaggi vuoti) sono segnate «ripiego»: valgono come letture ma non come chiamate del modello.
+
+**Risultati del 28 settembre 2026** (Mac M2 Pro da 16 GB; prima → dopo le correzioni descritte in «Harness»):
+
+| Modello | Casi superati | Strumento giusto | Chiamate inutili | Tempo mediano |
+| --- | --- | --- | --- | --- |
+| Apple Intelligence | 26 → 30 su 30 | 24 → 25 su 25 | 4 → 3 | 4,8 → 4,5 s |
+| Auto (cloud: GPT-6-Luna, basso) | 25 → 30 | 24 → 25 | 4 → 3 | 9,8 → 4,6 s |
+| ChatGPT (GPT-6-Luna, basso) | 25 → 29 | 21 → 24 | 6 → 4 | 17,0 → 15,2 s |
+| Claude (Sonnet, basso) | 27 → 29 | 23 → 25 | 5 → 4 | 15,5 → 8,7 s |
+| Solo smistamento (strumenti offerti) | 23 → 29 | | | |
+
+- **Auto** ha scelto sempre Apple Intelligence (difficoltà al massimo 1,4): in questi casi il cloud non è mai servito.
+- **I due casi rimasti:** ChatGPT alla richiesta «disegna un gatto che legge un libro» ha risposto con un disegno fatto di caratteri, e poi con «non posso creare l'immagine». Ora le richieste di immagini le decide l'app con Image Playground, con qualunque modello (`Assistant.imageRequest`). Claude a «mi ha scritto Paolo Verdi?» ha risposto giusto, ma ha superato il tetto di 2 chiamate per via della lettura di riserva contata come sua: ora le letture di riserva non contano. Tutti e due i casi, riprovati da soli, passano.
+- **Cosa ha fatto la differenza:**
+  - il giorno detto nella richiesta vale più di quello del modello (Apple sceglieva il secondo venerdì e il secondo giovedì);
+  - «Quando ho il dentista?» cerca l'evento per nome;
+  - posta e Messaggi cercano l'uno nell'altro, al plurale e nell'altra lingua;
+  - `crea_foglio` e `genera_immagine` anche per i modelli esterni;
+  - «usa cerca_web» al posto di «di' che non hai informazioni aggiornate»;
+  - «l'ultima email della banca» si legge invece di scriverne una.
+- **Non misurati:**
+  - Gemma: con Gemma accesa e le altre app aperte la memoria libera scendeva all'8% e Apple Intelligence dava l'errore 15;
+  - ds4: serve un Mac con almeno 96 GB.
+- **Banchi di sempre di Apple** dopo le correzioni, ora isolati sul mondo inventato:
+
+  | Banco | Esito | Rispetto a prima |
+  | --- | --- | --- |
+  | strumenti | 47/47 | uguale |
+  | tools-en | 47/47 | uguale |
+  | pianificatore | 33/33 | uguale |
+  | planner-en | 33/33 | uguale |
+  | smistatore | 12/12 | uguale |
+  | router-en | 22/22 | uguale |
+  | connettori | 17/17 | uguale |
+  | qualita | 45/46 | prima 44/46 |
+  | quality-en | 44/46 | prima 43/46 |
+  | contesto | 22/24 | prima 24/24 |
+
+  I due casi di «contesto» sbagliano anche con il codice di prima una volta isolati, quindi non dipendono da queste correzioni:
+  - «quante once sono 250 grammi»: Apple usa 25,4 invece di 28,35;
+  - «i tre fiumi più lunghi d'Italia»: un giro sì e uno no.
+
+  Prima, `--eval` leggeva il calendario e i ricordi veri.
 
 ## Da SiriAI a Siri AI+
 

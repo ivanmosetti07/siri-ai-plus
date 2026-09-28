@@ -15,6 +15,15 @@ if let index = CommandLine.arguments.firstIndex(of: "--eval") {
     exit(await Evaluation.main(Array(CommandLine.arguments.dropFirst(index + 1))))
 }
 
+// MARK: - Banco degli strumenti per modello (dati inventati, cartella dati temporanea) e confronto fra modelli
+
+if let index = CommandLine.arguments.firstIndex(of: "--banco-strumenti") {
+    exit(await ToolBench.main(Array(CommandLine.arguments.dropFirst(index + 1))))
+}
+if let index = CommandLine.arguments.firstIndex(of: "--banco-confronto") {
+    exit(ToolBench.compare(Array(CommandLine.arguments.dropFirst(index + 1))))
+}
+
 // MARK: - Guida di un progetto: quali file aprirebbe la chat per ogni richiesta (solo lettura)
 
 if let index = CommandLine.arguments.firstIndex(of: "--guida-progetto"), index + 2 < CommandLine.arguments.count {
@@ -125,6 +134,10 @@ if takeFlag("-h", "--help") {
       -y, --yes       approva automaticamente creazioni/modifiche
       --eval [file]   valuta la qualità delle risposte (Support/eval/qualita.json)
                       --provider apple|gemma, --solo <id o categoria>, --senza-web
+      --banco-strumenti [file]  strumenti e connettori per modello (Support/eval/strumenti-modelli.json)
+                      --provider apple|gemma|chatgpt|claude|auto, --model, --effort, --etichetta prima|dopo,
+                      --solo-smistamento, --ferma-dopo-errori N, --web-reale
+      --banco-confronto [strumenti-modelli] [--etichetta prima|dopo]  tabella fra modelli
     """)
     exit(0)
 }

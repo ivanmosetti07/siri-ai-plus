@@ -42,6 +42,8 @@ extension Assistant {
         if Self.literalDocumentText(prompt) != nil { return true }
         // «Ricordati che…» lo salva l'app con tutti i modelli (prima con ChatGPT e Claude dipendeva dal modello e dallo strumento).
         if Self.explicitlyRemembers(prompt) { return true }
+        // «Disegna un gatto»: l'immagine la fa Image Playground sul Mac (un modello cloud a volte dice che non può).
+        if Self.imageRequest(prompt) != nil { return true }
         return isChangeCommand(prompt)
     }
 

@@ -4,7 +4,8 @@ import FoundationModels
 extension Assistant {
     // MARK: - Note, Mail, File, Messaggi
 
-    func handleApps(_ plan: Plan, prompt: String, status: @escaping @MainActor (String) -> Void) async throws -> Outcome {
+    /// `readable`: le fonti fra Mail e Messaggi che si possono leggere in questa richiesta (per cercare nell'altra quando una è vuota).
+    func handleApps(_ plan: Plan, prompt: String, readable: Set<SourceKind> = [], status: @escaping @MainActor (String) -> Void) async throws -> Outcome {
         let lower = prompt.lowercased()
         let query = plan["cerca"].flatMap { $0.isEmpty ? nil : $0 }
         let wantsContent = ["riassumi", "leggi", "cosa dice", "cosa c'è scritto", "contenuto", "di cosa parla", "spiega"].contains(where: lower.contains)
@@ -31,7 +32,31 @@ extension Assistant {
             status(query.map { Language.t("Cerco «\($0)» nella posta…", "Searching mail for «\($0)»…") } ?? Language.t("Leggo la posta in arrivo…", "Reading the inbox…"))
             let unreadOnly = lower.contains("non lett") || lower.contains("da leggere")
                 || (Language.isEnglish && ["unread", "not read", "haven't read", "have not read", "to read", "new emails", "new mail"].contains(where: lower.contains))
-            let items = try await MailReader.inbox(query: query ?? plan["destinatari"], unreadOnly: unreadOnly)
+            let search = query ?? plan["destinatari"]
+            var items = try await MailReader.inbox(query: search, unreadOnly: unreadOnly)
+            // «Any news from my accountant?» con la posta in italiano: chi scrive, cercato anche nell'altra lingua.
+            if items.rows.isEmpty, !unreadOnly, let search, let other = Self.roleInOtherLanguage(search),
+               var found = try? await MailReader.inbox(query: other), !found.rows.isEmpty {
+                found.title = MailReader.listTitle(query: search, unreadOnly: false, account: SpaceScope.current.mailAccount)
+                items = found
+            }
+            if items.rows.isEmpty, !unreadOnly, let search, !search.isEmpty {
+                // «Mi ha scritto Giulia?» senza dire dove: niente nella posta, si guarda nei Messaggi.
+                if !Self.namesMail(lower), readable.contains(.messages),
+                   let texts = try? MessagesService.recent(matching: search), !texts.rows.isEmpty {
+                    FixtureWorld.active?.recordRead("leggi_messaggi", search: search)
+                    remember(texts.digest)
+                    return .items(texts, prompt: grounded(prompt, texts.digest))
+                }
+                // Nessuna email con quelle parole: le ultime ricevute, dette per quello che sono, così il modello riconosce chi ha
+                // scritto con un altro nome o in un'altra lingua («accountant» → «Studio Neri Commercialisti»).
+                var latest = try await MailReader.inbox(query: nil)
+                if !latest.rows.isEmpty {
+                    latest.title = Language.t("Nessuna email con «\(search)» nell'oggetto o nel mittente. Le ultime ricevute",
+                                              "No email with «\(search)» in the subject or sender. The latest received")
+                    items = latest
+                }
+            }
             // "Rispondi alla prima", "inoltrala a Giulia": le email appena mostrate.
             recentMails = items.rows.map { MailMessage(id: $0.id, subject: $0.title, sender: $0.subtitle, date: "") }
             recentMail = nil
@@ -53,7 +78,17 @@ extension Assistant {
 
         case .messaggi:
             status(Language.t("Leggo i Messaggi…", "Reading Messages…"))
-            let items = try MessagesService.recent(matching: plan["destinatari"] ?? query)
+            let search = plan["destinatari"] ?? query
+            let items = try MessagesService.recent(matching: search)
+            // «Mi ha scritto Paolo Verdi?» senza dire dove: nessun messaggio, ma forse un'email.
+            if items.rows.isEmpty, let search, !search.isEmpty, !Self.namesTexts(lower), readable.contains(.mail),
+               let mail = try? await MailReader.inbox(query: search), !mail.rows.isEmpty {
+                FixtureWorld.active?.recordRead("leggi_email", search: search)
+                recentMails = mail.rows.map { MailMessage(id: $0.id, subject: $0.title, sender: $0.subtitle, date: "") }
+                recentMail = nil
+                remember(mail.digest)
+                return .items(mail, prompt: grounded(prompt, mail.digest))
+            }
             remember(items.digest)
             return .items(items, prompt: grounded(prompt, items.digest))
 

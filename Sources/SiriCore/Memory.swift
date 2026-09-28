@@ -141,7 +141,7 @@ public final class MemoryStore {
     }
 
     /// Istanze di prova e valutazioni: i ricordi valgono per la sessione ma non si scrivono nel file di Ivan.
-    nonisolated static let readOnly = ProcessInfo.processInfo.arguments.contains { $0 == "--ephemeral" || $0 == "--eval" }
+    nonisolated static let readOnly = ProcessInfo.processInfo.arguments.contains { ["--ephemeral", "--eval", "--banco-strumenti"].contains($0) }
 
     private func save() {
         guard !Self.readOnly else { return }

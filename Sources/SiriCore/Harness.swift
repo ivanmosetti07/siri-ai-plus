@@ -59,6 +59,8 @@ extension Assistant {
         projectReads = []
         projectContextCache = nil
         folderInstructionsSent = []
+        offeredTools = nil
+        turnReads = []
     }
 
     /// I conti fatti dall'app compaiono in «Come ho lavorato» (senza la riga "Oggi è…", ovvia).
@@ -97,7 +99,7 @@ extension Assistant {
     }
 
     /// Esiti che portano dati da cui si può proseguire.
-    static func isObservation(_ outcome: Outcome) -> Bool {
+    public static func isObservation(_ outcome: Outcome) -> Bool {
         switch outcome {
         case .reply, .agenda, .items, .files, .web: true
         default: false
@@ -186,6 +188,7 @@ extension Assistant {
             outcome = await execute(plan, prompt: stepPrompt, rawPrompt: parts.count == 1 ? rawPrompt : stepPrompt,
                                     enabled: enabled, picked: picked, status: status)
             let ms = Int(Date.now.timeIntervalSince(started) * 1000)
+            FixtureWorld.active?.recordAction(plan, outcome: outcome)
             done.insert(plan.action)
             if plan.action != .rispondi || parts.count > 1 {
                 trace?.steps.append(TraceStep(action: plan.action.rawValue, detail: Self.traceDetail(plan), result: Self.traceResult(outcome, error: lastError),

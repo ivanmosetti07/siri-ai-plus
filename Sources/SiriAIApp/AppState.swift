@@ -1311,6 +1311,7 @@ final class AppState {
         respondingConversationIDs.insert(conversation.id)
         independentTasks[conversation.id] = Task {
             if selection.isAuto { context.selection = await autoSelection(for: prompt, in: conversation, files: files, assistant: session) }
+            await Language.$scoped.withValue(session.language(for: prompt)) {
             await Self.$independentResponse.withValue(context) {
                 let shield = privacyShield(for: conversation, provider: context.selection.provider)
                 await PrivacyShield.$current.withValue(shield) {
@@ -1335,6 +1336,7 @@ final class AppState {
                     }
                 }
                 saveConversations()
+            }
             }
             independentTasks[conversation.id] = nil
             respondingConversationIDs.remove(conversation.id)
@@ -1996,7 +1998,7 @@ final class AppState {
             let route = await routeExternal(prompt)
             let wantsPlan = plan || (!handledByApp && !assistant.pointsAtScreen && (Assistant.isComplex(prompt) || route?.multiStep == true))
             if wantsPlan, await respondWithPlan(prompt) { return }
-            if !handledByApp, await respondWithTools(prompt, route: route) { return }
+            if !handledByApp, await respondWithTools(prompt, route: route, picked: sources) { return }
         }
         // Il pianificatore lavora sulla sola richiesta: il testo degli allegati entra nella risposta (preambolo).
         assistant.forcePlan = plan
@@ -2535,49 +2537,44 @@ final class AppState {
         var all: [String] = []
     }
 
+    /// Quanti dati e schede ha già mostrato un modello esterno in questa risposta: dopo un errore non si ricomincia da capo
+    /// con Apple Intelligence (le schede comparirebbero due volte).
+    @MainActor private final class ShownCounter {
+        var count = 0
+        /// Solo le schede da confermare (non i dati letti).
+        var cards = 0
+    }
+
+    /// Passi di un piano il cui sub-agent esterno ha preparato una scheda: risultano «da confermare», non «fatti».
+    private var stepsAwaitingConfirmation: Set<UUID> = []
+
     /// Percorso della CLI dentro l'app (ponte MCP per ChatGPT e Claude).
     private var bridgeHelper: String? {
         let path = Bundle.main.bundleURL.appending(path: "Contents/Helpers/siriai").path
         return FileManager.default.isExecutableFile(atPath: path) ? path : nil
     }
 
-    /// Risposta di Gemma, ds4, ChatGPT o Claude che usano gli strumenti dell'app. `false` se il modello non è disponibile.
-    /// Il sub-agent smistatore per i modelli esterni: sceglie dal catalogo degli strumenti dell'app solo quelli che servono.
-    /// nil se Apple Intelligence non c'è (allora il modello riceve tutti gli strumenti, come prima).
+    /// Il sub-agent smistatore per i modelli esterni (`Assistant.routeForExternal`, lo stesso dei banchi di prova).
     private func routeExternal(_ prompt: String) async -> ToolRoute? {
-        guard availabilityProblem == nil, assistant.routesTools else { return nil }
-        if Assistant.isSmallTalk(prompt) { return ToolRoute(decided: true) }
-        setThinking(String(localized: "Scelgo gli strumenti…"))
-        return await assistant.routeExternalTools(for: prompt, tools: ToolRegistry.tools(for: assistant.work, enabled: enabledSources))
+        await assistant.routeForExternal(prompt, enabled: enabledSources) { [weak self] status in
+            self?.setThinking(status)
+        }
     }
 
-    /// Gli strumenti per un modello esterno: quelli dello smistatore più quelli che le parole della richiesta nominano
-    /// (rete di sicurezza); il documento aperto al centro si può sempre modificare e il web si può sempre cercare.
+    /// Gli strumenti per un modello esterno (`Assistant.externalToolList`).
     private func externalTools(for prompt: String, route: ToolRoute?) -> [ToolSpec] {
-        let all = ToolRegistry.tools(for: assistant.work, enabled: Self.independentResponse?.allowedSources ?? enabledSources)
-        guard let route else { return all }
-        var tools = ToolRegistry.selecting(all, route: route, hints: assistant.toolHints(for: prompt))
-        if assistant.work.artifactKind != nil, let edit = all.first(where: { $0.name == "modifica_aperto" }), !tools.contains(edit) { tools.append(edit) }
-        // La ricerca sul web resta sempre: se il modello si accorge di non sapere (fatti recenti) può cercare da solo.
-        if let web = all.first(where: { $0.name == "cerca_web" }), !tools.contains(web) { tools.append(web) }
-        Agent.log("STRUMENTI AL MODELLO: \(tools.count) su \(all.count) · \(tools.map(\.name).joined(separator: ", "))")
-        return tools
+        assistant.externalToolList(for: prompt, route: route, enabled: Self.independentResponse?.allowedSources ?? enabledSources)
     }
 
-    private func respondWithTools(_ prompt: String, route: ToolRoute? = nil) async -> Bool {
+    /// Risposta di Gemma, ds4, ChatGPT o Claude che usano gli strumenti dell'app. `false` se il modello non è disponibile.
+    private func respondWithTools(_ prompt: String, route: ToolRoute? = nil, picked: Set<SourceKind> = []) async -> Bool {
         guard let conversation = out else { return false }
         let chosen = resolved(activeSelection)
         if chosen.provider == .gemma, await readyGemma(chosen) == nil { return false }
         let modelLabel = label(for: chosen)
-        assistant.beginExternal(prompt, model: modelLabel)
-        await assistant.prepareExternal(prompt)
         // La traccia va subito dopo la domanda, prima delle schede e della risposta.
         let traceIndex = (conversation.messages.lastIndex { if case .user = $0.content { true } else { false } } ?? conversation.messages.count - 1) + 1
-        let tools = externalTools(for: prompt, route: route)
-        if let route { assistant.noteRoute(route, chosen: tools.map(\.name)) }
-        let system = assistant.chatInstructions()
         let history = fitting(assistant.historyTurns, characters: contextBudget.historyCharacters)
-        let request = assistant.withContext(prompt)
         let box = ExternalText()
         let onText: ExternalAgent.TextUpdate = { [weak self] text in
             guard let self else { return }
@@ -2599,13 +2596,14 @@ final class AppState {
             }
         }
         let onStatus: ExternalAgent.StatusUpdate = { [weak self] status in self?.setThinking(status) }
+        let shown = ShownCounter()
         setThinking(String(localized: "\(modelLabel) sta lavorando…"))
         do {
-            guard let text = try await runExternal(chosen, system: system, history: history, prompt: request, tools: tools,
-                                                   onText: onText, onStatus: onStatus) else { return false }
-            if box.messageID == nil, box.all.isEmpty, !text.isEmpty { onText(text) }
+            guard let turn = try await assistant.respondExternally(prompt, selection: chosen, label: modelLabel, route: route, history: history,
+                                                                   picked: picked, hooks: externalHooks(onText: onText, onStatus: onStatus, shown: shown))
+            else { return false }
+            if box.messageID == nil, box.all.isEmpty, !turn.text.isEmpty { onText(turn.text) }
             conversation.messages.removeAll { if case .thinking = $0.content { true } else { false } }
-            assistant.finishExternal()
             if var trace = assistant.trace {
                 noteAuto(in: &trace)
                 if trace.isInteresting {
@@ -2613,13 +2611,20 @@ final class AppState {
                     conversation.messages.insert(Message(content: .trace(trace)), at: min(traceIndex, conversation.messages.count))
                 }
             }
-            updateExternalUsage(prompt: request, reply: (box.all + [box.text]).joined(separator: "\n"))
+            updateExternalUsage(prompt: turn.request, reply: (box.all + [box.text]).joined(separator: "\n"))
+            // Il modello ammette di non sapere e non ha cercato: si cerca sul web e si risponde con le fonti (come con Apple).
+            if !Task.isCancelled, let web = await assistant.unsureWebFallback(turn.text, request: prompt), case .web(let answer, let grounded) = web {
+                if turn.text.count < 220, let id = box.messageID { conversation.messages.removeAll { $0.id == id } }
+                append(.web(answer))
+                await stream(grounded)
+                log(icon: "globe", title: String(localized: "Ricerca sul web"), detail: answer.query, status: .done)
+            }
             return true
         } catch {
             conversation.messages.removeAll { if case .thinking = $0.content { true } else { false } }
             if Task.isCancelled { append(.notice(String(localized: "Risposta interrotta."))); return true }
-            // Ha già scritto qualcosa: si tiene quello e si segnala l'errore.
-            if box.messageID != nil || !box.all.isEmpty { append(.notice(error.localizedDescription)); return true }
+            // Ha già scritto qualcosa o mostrato schede: si tiene quello e si segnala l'errore (niente seconda risposta da capo).
+            if box.messageID != nil || !box.all.isEmpty || shown.count > 0 { append(.notice(error.localizedDescription)); return true }
             if error is PrivacyError {
                 append(.notice(String(localized: "Non ho inviato niente a \(modelLabel): \(error.localizedDescription). Rispondo con Apple Intelligence sul Mac.")))
                 appleOnly = true
@@ -2631,13 +2636,33 @@ final class AppState {
         }
     }
 
-    /// Esegue lo strumento chiesto dal modello: i dati tornano al modello, le bozze diventano schede da confermare.
-    private func runExternalTool(_ name: String, arguments: JSONValue) async -> String {
-        Agent.log("STRUMENTO: \(name) \(arguments.compactString.prefix(160))")
-        let result = await assistant.runTool(name, arguments: arguments, enabled: Self.independentResponse?.allowedSources ?? enabledSources, allowedMCP: { [mcp] in mcp.runsFreely($0) }) { [weak self] status in
-            self?.setThinking(status)
-        }
-        guard let outcome = result.outcome else { return result.text }
+    /// Gli effetti sull'interfaccia degli strumenti chiamati da un modello esterno. Le chiamate del ponte MCP (ChatGPT, Claude)
+    /// arrivano da fuori della richiesta: la risposta indipendente in corso (chat affiancata, chat rapida) si riporta dentro,
+    /// così schede e dati finiscono nella conversazione che risponde.
+    private func externalHooks(onText: @escaping ExternalAgent.TextUpdate, onStatus: @escaping ExternalAgent.StatusUpdate,
+                               shown: ShownCounter? = nil) -> ExternalHooks {
+        let response = Self.independentResponse
+        return ExternalHooks(
+            status: onStatus, text: onText,
+            show: { [weak self] name, outcome in
+                guard let self else { return nil }
+                shown?.count += 1
+                if !Assistant.isObservation(outcome) { shown?.cards += 1 }
+                return Self.$independentResponse.withValue(response) { self.showToolOutcome(outcome, tool: name) }
+            },
+            callConnector: { [weak self] draft in
+                guard let self else { throw MCPError.notRunning }
+                shown?.count += 1
+                return try await Self.$independentResponse.withValue(response) { try await self.runFreeConnector(draft) }
+            },
+            runsFreely: { [mcp] tool in mcp.runsFreely(tool) },
+            enabled: response?.allowedSources ?? enabledSources,
+            bridgeHelper: bridgeHelper)
+    }
+
+    /// Mostra l'esito di uno strumento chiamato da un modello esterno: i dati letti come schede, le bozze come schede da confermare.
+    /// Restituisce il testo per il modello se la scheda non si può mostrare (permesso di scrittura mancante).
+    private func showToolOutcome(_ outcome: Outcome, tool name: String) -> String? {
         switch outcome {
         case .agenda(let agenda, _): append(.agenda(agenda))
         case .items(let items, _): append(.items(items))
@@ -2647,27 +2672,20 @@ final class AppState {
             memoryRevision += 1
             projectRevision += 1
             log(icon: "brain", title: String(localized: "Memoria aggiornata"), detail: fact, status: .done)
-        case .mcpCall(let draft) where mcp.runsFreely(draft.tool):
-            // Lettura (o strumento consentito dall'utente): si esegue e il risultato, reso leggibile, torna al modello.
-            let card = MCPCallCardModel(draft)
-            append(.mcp(card))
-            card.status = .running
-            let started = Date.now
-            do {
-                let text = try await mcp.call(draft.tool, arguments: draft.arguments)
-                card.result = String(text.prefix(4000))
-                card.status = .done
-                Agent.log("CONNETTORE: \(draft.tool.serverName) · \(draft.tool.name) → \(text.count) caratteri in \(Int(Date.now.timeIntervalSince(started) * 1000)) ms")
-                return ConnectorResult.readable(text, limit: contextBudget.scaled(3000))
-            } catch {
-                card.status = .failed
-                card.error = error.localizedDescription
-                Agent.log("CONNETTORE ERRORE: \(draft.tool.serverName) · \(draft.tool.name) → \(error.localizedDescription.prefix(200))")
-                return String(localized: "Errore: \(error.localizedDescription)")
-            }
         case .document(let draft):
             present(ArtifactModel(kind: .pages, title: draft.title, content: .document(ArtifactFactory.document(from: draft))),
                     intro: String(localized: "Ecco il documento, aperto al centro."))
+        case .sheet(let draft):
+            present(ArtifactModel(kind: .numbers, title: draft.title, content: .sheet(Spreadsheet(from: draft))),
+                    intro: String(localized: "Ecco il foglio, con formule e grafico collegati ai dati."))
+        case .deck(let draft):
+            present(ArtifactModel(kind: .keynote, title: draft.title, content: .deck(Deck(from: draft))),
+                    intro: String(localized: "Ho preparato la presentazione: puoi modificare testi, posizioni e ordine delle slide."))
+        case .image(let prompt, let style):
+            // L'immagine si crea mentre il modello continua: la scheda si riempie da sola.
+            let card = ImageCardModel(prompt: prompt, style: style ?? "animazione")
+            append(.image(card))
+            Task { await self.generate(card) }
         case .artifactEdit(let edit):
             applyArtifactEdit(edit)
         default:
@@ -2688,7 +2706,27 @@ final class AppState {
                 flash(.waiting)
             }
         }
-        return result.text
+        return nil
+    }
+
+    /// Una chiamata a un connettore che parte senza conferma (lettura o strumento consentito), con la sua scheda.
+    private func runFreeConnector(_ draft: MCPCallDraft) async throws -> String {
+        let card = MCPCallCardModel(draft)
+        append(.mcp(card))
+        card.status = .running
+        let started = Date.now
+        do {
+            let text = try await mcp.call(draft.tool, arguments: draft.arguments)
+            card.result = String(text.prefix(4000))
+            card.status = .done
+            Agent.log("CONNETTORE: \(draft.tool.serverName) · \(draft.tool.name) → \(text.count) caratteri in \(Int(Date.now.timeIntervalSince(started) * 1000)) ms")
+            return text
+        } catch {
+            card.status = .failed
+            card.error = error.localizedDescription
+            Agent.log("CONNETTORE ERRORE: \(draft.tool.serverName) · \(draft.tool.name) → \(error.localizedDescription.prefix(200))")
+            throw error
+        }
     }
 
     /// Con un modello esterno l'anello mostra quanto della sua finestra occupano istruzioni, conversazione e ultima richiesta.
@@ -2739,7 +2777,7 @@ final class AppState {
     /// Memoria di fine turno (vedi `Assistant.memoryFromTurn`): rizzo-flow decide se c'è qualcosa da ricordare e se è nuovo,
     /// un doppione o l'aggiornamento di un ricordo; si salva da solo e compare «Ricordato: …» con Annulla (scelta di Ivan del 27/9).
     private func rememberInBackground(_ prompt: String, in conversation: Conversation, assistant: Assistant) {
-        guard MemoryStore.shared.enabled else { return }
+        guard MemoryStore.shared.enabled, assistant.trace?.steps.contains(where: { $0.action == "ricorda" }) != true else { return }
         let known = MemoryStore.shared.relevant(to: prompt, limit: 5)
         let previousReply = Self.turns(of: conversation).last { $0.role == .assistant }?.text
         let language = assistant.language(for: prompt)
@@ -2805,51 +2843,11 @@ final class AppState {
         }
     }
 
-    /// Una chiamata al modello esterno scelto con gli strumenti di Siri AI+: Gemma e ds4 direttamente, ChatGPT e Claude
-    /// attraverso il ponte MCP (un gateway locale per la durata della chiamata). nil con Apple Intelligence.
+    /// Una chiamata al modello esterno scelto con gli strumenti di Siri AI+ (`Assistant.runExternalModel`). nil con Apple Intelligence.
     private func runExternal(_ chosen: ModelSelection, system: String, history: [ChatTurn], prompt: String, tools: [ToolSpec],
                              onText: @escaping ExternalAgent.TextUpdate, onStatus: @escaping ExternalAgent.StatusUpdate) async throws -> String? {
-        let shield = PrivacyShield.current
-        let call: ExternalAgent.ToolCall = { [weak self] name, arguments in
-            guard let self else { return "" }
-            guard let shield else { return await self.runExternalTool(name, arguments: arguments) }
-            // Lo strumento gira sul Mac con i valori veri; al modello torna il risultato anonimizzato. Le pagine web sono
-            // pubbliche: solo i dati già noti della chat diventano segnaposto (così non rivelano chi c'è dietro).
-            let result = await self.runExternalTool(name, arguments: shield.reveal(arguments))
-            if ["cerca_web", "leggi_pagina"].contains(name) { return shield.mask(result) }
-            do {
-                return try await shield.protect(result)
-            } catch {
-                return String(localized: "Errore: il risultato non è stato inviato perché \(error.localizedDescription).")
-            }
-        }
-        switch chosen.provider {
-        case .gemma, .ds4:
-            let local = chosen.provider == .gemma
-            return try await ExternalAgent.openAI(base: local ? ExternalEngine.gemmaURL : ExternalEngine.ds4URL, model: local ? "gemma" : "ds4",
-                                                  system: system, history: history, prompt: prompt, tools: tools, thinking: chosen.effort == "on",
-                                                  call: call, onText: onText, onStatus: onStatus)
-        case .chatgpt, .claude:
-            var bridge: ExternalAgent.Bridge?
-            var gateway: ToolGateway?
-            if let helper = bridgeHelper, !tools.isEmpty {
-                let server = try ToolGateway(tools: tools) { name, arguments in
-                    let text = await call(name, arguments)
-                    return (text, Self.isErrorText(text))
-                }
-                let url = try await server.start()
-                gateway = server
-                bridge = ExternalAgent.Bridge(helper: helper, gateway: url, token: server.token)
-            }
-            defer { gateway?.stop() }
-            return chosen.provider == .chatgpt
-                ? try await ExternalAgent.codex(system: system, history: history, prompt: prompt, bridge: bridge, model: chosen.model,
-                                                effort: chosen.effort, onText: onText, onStatus: onStatus)
-                : try await ExternalAgent.claude(system: system, history: history, prompt: prompt, bridge: bridge, model: chosen.model,
-                                                 effort: chosen.effort, onText: onText, onStatus: onStatus)
-        case .apple:
-            return nil
-        }
+        try await assistant.runExternalModel(chosen, system: system, history: history, prompt: prompt, tools: tools,
+                                             hooks: externalHooks(onText: onText, onStatus: onStatus))
     }
 
     /// Compito complesso con un modello esterno: il modello scrive la catena di pensieri e i passi, i sub-agent (lo stesso modello,
@@ -2904,12 +2902,20 @@ final class AppState {
         // La versione scelta per questo passo (ChatGPT e Claude), altrimenti quella della chat.
         let chosen = step.subAgent ?? chosen
         if chosen.provider == .gemma, await readyGemma(chosen) == nil { return (String(localized: "Errore: Gemma non è pronta."), nil) }
+        // Un Assistant per passo: i passi in parallelo non si scambiano dati letti o errori.
+        let agent = Assistant()
+        agent.isSubAgent = true
+        agent.work = assistant.work
+        agent.budget = assistant.budget
+        agent.textWriter = assistant.textWriter
+        agent.textWriterName = assistant.textWriterName
+        agent.beginExternal(step.instruction, model: label(for: chosen))
         // Anche ogni sub-agent riceve solo gli strumenti del suo passo, scelti dallo smistatore.
-        let route = availabilityProblem == nil && assistant.routesTools
-            ? await assistant.routeExternalTools(for: step.instruction, tools: ToolRegistry.tools(for: assistant.work, enabled: Self.independentResponse?.allowedSources ?? enabledSources))
-            : nil
-        let tools = externalTools(for: step.instruction, route: route)
-        let system = assistant.chatInstructions() + "\n\n" + Assistant.subAgentRule
+        let enabled = Self.independentResponse?.allowedSources ?? enabledSources
+        let route = await agent.routeForExternal(step.instruction, enabled: enabled) { _ in }
+        let tools = agent.externalToolList(for: step.instruction, route: route, enabled: enabled)
+        agent.offeredTools = Set(tools.map(\.name))
+        let system = agent.chatInstructions() + "\n\n" + Assistant.subAgentRule
         let request = step.instruction + (previous.isEmpty ? "" : String(localized: "\n\nRisultati dei passi precedenti:\n\(previous.prefix(12_000))"))
         let box = ExternalText()
         let onText: ExternalAgent.TextUpdate = { text in
@@ -2917,8 +2923,11 @@ final class AppState {
         }
         let title = step.title
         let onStatus: ExternalAgent.StatusUpdate = { [weak self] status in self?.setThinking(String(localized: "Sub-agent «\(title)»: \(status)")) }
+        let shown = ShownCounter()
         do {
-            let text = try await runExternal(chosen, system: system, history: [], prompt: request, tools: tools, onText: onText, onStatus: onStatus) ?? ""
+            let text = try await agent.runExternalModel(chosen, system: system, history: [], prompt: request, tools: tools,
+                                                        hooks: externalHooks(onText: onText, onStatus: onStatus, shown: shown)) ?? ""
+            if shown.cards > 0 { stepsAwaitingConfirmation.insert(step.id) }
             let streamed = (box.all + [box.text]).filter { !$0.isEmpty }.joined(separator: "\n")
             let result = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? streamed : text
             return (result.isEmpty ? String(localized: "Errore: nessun risultato.") : result, nil)
@@ -2961,6 +2970,9 @@ final class AppState {
                 if let outcome {
                     card.plan.steps[index].status = "conferma"
                     await present(outcome, prompt: card.plan.steps[index].instruction)
+                } else if stepsAwaitingConfirmation.remove(card.plan.steps[index].id) != nil {
+                    // Il sub-agent ha preparato una scheda (già mostrata): il passo aspetta la conferma dell'utente.
+                    card.plan.steps[index].status = "conferma"
                 } else {
                     card.plan.steps[index].status = Self.isErrorText(text) ? "errore" : "fatto"
                 }

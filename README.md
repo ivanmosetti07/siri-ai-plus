@@ -161,6 +161,17 @@ I'm convinced that 70% of people can already do most of their everyday tasks wit
 
 Every chat remembers its model. Whatever model answers, the tools for each request are picked on your Mac, for free: first by rizzo-flow (below), then by Apple Intelligence when rizzo-flow isn't sure.
 
+**The same 30 tasks for every model.** To check that each model uses the right tool or connector at the right moment (and none when it isn't needed), Siri AI+ has a bench that gives every model the same 30 made-up requests: calendar, reminders, mail, messages, notes, files, the web, two fake connectors, even an email with hidden instructions for the assistant. It only uses invented data (a fake «Mario Rossi»), never your calendar or your mail: `./bin/siriai --banco-strumenti --provider apple|gemma|chatgpt|claude|auto`. Before and after the fixes of September 28, 2026:
+
+| Model | Before | After |
+|---|---|---|
+| Apple Intelligence | 26/30 | 30/30 |
+| Auto | 25/30 | 30/30 |
+| ChatGPT (GPT-6-Luna, low reasoning) | 25/30 | 29/30 |
+| Claude (Sonnet, low reasoning) | 27/30 | 29/30 |
+
+Gemma 4 isn't in the table yet: that day my 16 GB Mac didn't have the memory to run it next to Apple Intelligence.
+
 ### ⚡ Fast decisions, thanks to rizzo-flow
 
 Most of what an assistant decides before answering is a closed question: which app should I look in? Which action? Which model? Does this file contain personal data? Is this worth remembering? Siri AI+ used to ask a small generative model, one question at a time. Now it asks [rizzo-flow](https://github.com/rizzo-ai-academy/rizzo-flow), the open source *System One* by Simone Rizzo ([@simone-rizzo](https://github.com/simone-rizzo)) and Rizzo AI Academy: a local model that doesn't write a single word, it just reads the probability of each answer. It takes a few tenths of a second, and when it isn't sure, Siri AI+ decides as before.
@@ -432,6 +443,17 @@ Sono convinto che il 70% delle persone possa già fare la maggior parte delle at
 | **Auto** ✨ | Sceglie a ogni richiesta | 🔒/🛡️ Come il modello che sceglie | Apple Intelligence per le cose semplici, Gemma per quelle private, medie o lunghe, ChatGPT (o Claude) per ragionamenti difficili e codice. Il perché di ogni scelta è in «Come ho lavorato» |
 
 Ogni chat ricorda il suo modello. Qualunque modello risponda, gli strumenti per ogni richiesta si scelgono sul Mac e gratis: prima con rizzo-flow (qui sotto), poi con Apple Intelligence quando rizzo-flow non è sicuro.
+
+**Gli stessi 30 compiti per ogni modello.** Per controllare che ogni modello usi lo strumento o il connettore giusto al momento giusto (e nessuno quando non serve), Siri AI+ ha un banco di prova che fa a ogni modello le stesse 30 richieste inventate: calendario, promemoria, posta, messaggi, note, file, web, due connettori finti e perfino un'email con istruzioni nascoste per l'assistente. Usa solo dati inventati (un finto «Mario Rossi»), mai il tuo calendario o la tua posta: `./bin/siriai --banco-strumenti --provider apple|gemma|chatgpt|claude|auto`. Prima e dopo le correzioni del 28 settembre 2026:
+
+| Modello | Prima | Dopo |
+|---|---|---|
+| Apple Intelligence | 26/30 | 30/30 |
+| Auto | 25/30 | 30/30 |
+| ChatGPT (GPT-6-Luna, ragionamento basso) | 25/30 | 29/30 |
+| Claude (Sonnet, ragionamento basso) | 27/30 | 29/30 |
+
+Gemma 4 non è ancora in tabella: quel giorno il mio Mac da 16 GB non aveva la memoria per farla girare insieme ad Apple Intelligence.
 
 ### ⚡ Decisioni rapide, grazie a rizzo-flow
 

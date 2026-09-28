@@ -221,9 +221,13 @@ extension Assistant {
                 // Come nell'app: le letture partono da sole, una scrittura resta una scheda da confermare (mai eseguita qui).
                 guard let caller = connectorCaller else { return HeadlessAnswer(text: "[scheda:connettore \(draft.tool.name)]", outcome: kind, usedWeb: false) }
                 let run = await runConnector(draft, confirmed: false, freely: { $0.isReadOnly }, call: caller) { [weak self] event in
-                    if case .calling(let call) = event { self?.connectorCalls.append(Self.callLabel(call)) }
+                    if case .calling(let call) = event {
+                        self?.connectorCalls.append(Self.callLabel(call))
+                        FixtureWorld.active?.recordConnector(call, held: false)
+                    }
                 }
                 if let pending = run.pending {
+                    FixtureWorld.active?.recordConnector(pending, held: true)
                     return HeadlessAnswer(text: "[scheda:connettore \(Self.callLabel(pending)) \(pending.arguments.compactString.prefix(200))]",
                                           outcome: "scheda:connettore", usedWeb: false)
                 }
@@ -254,6 +258,8 @@ extension Assistant {
 public enum Evaluation {
     /// Connettori finti già avviati (uno per nome), condivisi tra le domande del banco.
     static var connections: [String: MCPConnection] = [:]
+    /// File in cui i connettori finti scrivono ogni chiamata ricevuta (`CONNETTORI_REGISTRO`): prova che le scritture non partono.
+    static var connectorLog: URL?
 
     /// Avvia (una volta) i connettori finti chiesti dal caso e ne restituisce gli strumenti.
     static func testConnectors(_ names: [String], folder: URL?) async -> [(MCPConnection, [MCPToolInfo])] {
@@ -264,6 +270,7 @@ public enum Evaluation {
                 var config = MCPServerConfig(name: ["crm": "Demo CRM", "catalogo": "Demo OS"][name] ?? name, transport: .stdio)
                 config.command = "python3"
                 config.args = [script.path]
+                if let connectorLog { config.env["CONNETTORI_REGISTRO"] = connectorLog.path }
                 let connection = MCPConnection(config: config)
                 do {
                     try await connection.start()
@@ -322,6 +329,72 @@ public enum Evaluation {
         try JSONDecoder().decode([EvalCase].self, from: Data(contentsOf: url))
     }
 
+    /// L'assistente di un caso, preparato come nell'app: documento aperto, progetto di prova, schermo, connettori finti,
+    /// modello che scrive i testi, immagine o documento allegati. `connectors` sostituisce quelli del caso (banco degli strumenti).
+    static func prepare(_ test: EvalCase, provider: ResponseProvider, web: Bool, folder: URL?, connectors: [String]? = nil) async -> Assistant {
+        let assistant = Assistant()
+        var work = WorkContext()
+        work.webEnabled = web
+        // Come nell'app: tipo, titolo e un estratto di ciò che è aperto al centro.
+        if let open = test.artifact {
+            let content = open["contenuto"] ?? ""
+            work.artifactKind = open["tipo"] ?? "documento"
+            work.artifactTitle = open["titolo"] ?? "Senza titolo"
+            work.artifactSummary = String(content.prefix(900))
+            work.artifactText = content
+            work.fullArtifactContextOnApple = provider == .apple
+            switch work.artifactKind {
+            case "presentazione": work.openDeck = testDeck(content, title: work.artifactTitle ?? "")
+            case "foglio": work.openSheet = testSheet(content)
+            default: work.openDocument = DocumentOutline(plain: content)
+            }
+        }
+        if test.inProject, let root = testProject() {
+            work.projectName = root.lastPathComponent
+            work.projectRoot = root
+            work.projectMemory = ProjectFiles(root: root).memoryFacts()
+            // Come nell'app: la sintesi delle istruzioni (AGENTS.md, CLAUDE.md) per Apple Intelligence.
+            if provider == .apple {
+                work.agents = await assistant.condense(agents: ProjectGuide.shared(for: root).instructions(limit: 12_000))
+            }
+        }
+        work.screen = test.screen.flatMap(testScreen)
+        let names = connectors ?? test.connectors
+        if !names.isEmpty {
+            let connected = await testConnectors(names, folder: folder)
+            work.mcpTools = connected.flatMap(\.1)
+            // Come nell'app: le istruzioni che ogni servizio dà su come usarlo.
+            for (connection, _) in connected {
+                if let instructions = await connection.instructions, !instructions.isEmpty { work.mcpInstructions[connection.config.name] = instructions }
+            }
+            let byServer = Dictionary(uniqueKeysWithValues: connected.compactMap { connection, tools in tools.first.map { ($0.serverID, connection) } })
+            assistant.connectorCaller = { tool, arguments in
+                guard let connection = byServer[tool.serverID] else { throw MCPError.notRunning }
+                return try await connection.call(tool.name, arguments: arguments)
+            }
+        }
+        assistant.work = work
+        assistant.updateScreen()
+        assistant.budget = provider == .apple ? ContextBudget.apple : ContextBudget.of(provider)
+        // Con un altro modello scelto i testi dentro le azioni li scrive lui, come nell'app.
+        assistant.textWriter = ExternalEngine.writer(for: provider)
+        assistant.textWriterName = provider == .apple ? nil : provider.label
+        // Immagine allegata come nell'app: descritta per le azioni e per i modelli esterni, guardata da Apple Intelligence.
+        if let path = test.image, let folder {
+            let url = folder.appending(path: path)
+            if provider != .apple || assistant.asksForAction(test.turns.last ?? ""), let description = await assistant.describeImage(url) {
+                assistant.work.attachments = "Immagine «\(url.lastPathComponent)» (descritta da Apple Intelligence):\n\(description)"
+            }
+            assistant.work.images = provider == .apple ? [url] : []
+        }
+        // Documento allegato come nell'app: il suo testo accompagna la richiesta.
+        if let path = test.attachment, let folder, let text = try? String(contentsOf: folder.appending(path: path), encoding: .utf8) {
+            let name = (path as NSString).lastPathComponent
+            assistant.work.attachments = Language.t("Allegato «\(name)»:\n", "Attachment «\(name)»:\n") + String(text.prefix(assistant.budget.scaled(1200)))
+        }
+        return assistant
+    }
+
     /// Esegue le domande con la pipeline completa. Ogni caso parte da una conversazione nuova.
     public static func run(_ cases: [EvalCase], provider: ResponseProvider = .apple, web: Bool = true, folder: URL? = nil,
                            progress: (String) -> Void = { print($0) }) async -> [EvalResult] {
@@ -329,64 +402,10 @@ public enum Evaluation {
         let enabled: Set<SourceKind> = [.calendar, .reminders, .mail, .notes, .files, .messages]
         var results: [EvalResult] = []
         for (index, test) in cases.enumerated() {
-            let assistant = Assistant()
-            var work = WorkContext()
-            work.webEnabled = web
-            // Come nell'app: tipo, titolo e un estratto di ciò che è aperto al centro.
-            if let open = test.artifact {
-                let content = open["contenuto"] ?? ""
-                work.artifactKind = open["tipo"] ?? "documento"
-                work.artifactTitle = open["titolo"] ?? "Senza titolo"
-                work.artifactSummary = String(content.prefix(900))
-                work.artifactText = content
-                work.fullArtifactContextOnApple = provider == .apple
-                switch work.artifactKind {
-                case "presentazione": work.openDeck = testDeck(content, title: work.artifactTitle ?? "")
-                case "foglio": work.openSheet = testSheet(content)
-                default: work.openDocument = DocumentOutline(plain: content)
-                }
-            }
-            if test.inProject, let root = testProject() {
-                work.projectName = root.lastPathComponent
-                work.projectRoot = root
-                work.projectMemory = ProjectFiles(root: root).memoryFacts()
-                // Come nell'app: la sintesi delle istruzioni (AGENTS.md, CLAUDE.md) per Apple Intelligence.
-                if provider == .apple {
-                    work.agents = await assistant.condense(agents: ProjectGuide.shared(for: root).instructions(limit: 12_000))
-                }
-            }
-            work.screen = test.screen.flatMap(testScreen)
-            if !test.connectors.isEmpty {
-                let connected = await testConnectors(test.connectors, folder: folder)
-                work.mcpTools = connected.flatMap(\.1)
-                let byServer = Dictionary(uniqueKeysWithValues: connected.compactMap { connection, tools in tools.first.map { ($0.serverID, connection) } })
-                assistant.connectorCaller = { tool, arguments in
-                    guard let connection = byServer[tool.serverID] else { throw MCPError.notRunning }
-                    return try await connection.call(tool.name, arguments: arguments)
-                }
-            }
-            assistant.work = work
-            assistant.updateScreen()
-            assistant.budget = provider == .apple ? ContextBudget.apple : ContextBudget.of(provider)
-            // Con un altro modello scelto i testi dentro le azioni li scrive lui, come nell'app.
-            assistant.textWriter = ExternalEngine.writer(for: provider)
-            assistant.textWriterName = provider == .apple ? nil : provider.label
+            let assistant = await prepare(test, provider: provider, web: web, folder: folder)
             let started = Date.now
             var answer = HeadlessAnswer(text: "", outcome: "", usedWeb: false)
             var action = ""
-            // Immagine allegata come nell'app: descritta per le azioni e per i modelli esterni, guardata da Apple Intelligence.
-            if let path = test.image, let folder {
-                let url = folder.appending(path: path)
-                if provider != .apple || assistant.asksForAction(test.turns.last ?? ""), let description = await assistant.describeImage(url) {
-                    assistant.work.attachments = "Immagine «\(url.lastPathComponent)» (descritta da Apple Intelligence):\n\(description)"
-                }
-                assistant.work.images = provider == .apple ? [url] : []
-            }
-            // Documento allegato come nell'app: il suo testo accompagna la richiesta.
-            if let path = test.attachment, let folder, let text = try? String(contentsOf: folder.appending(path: path), encoding: .utf8) {
-                let name = (path as NSString).lastPathComponent
-                assistant.work.attachments = Language.t("Allegato «\(name)»:\n", "Attachment «\(name)»:\n") + String(text.prefix(assistant.budget.scaled(1200)))
-            }
             // Con i connettori finti il banco è chiuso su sé stesso: niente Mail, Calendario o Note veri, solo i connettori e il web.
             let sources = test.connectors.isEmpty ? enabled : []
             for turn in test.turns {
@@ -553,7 +572,7 @@ public enum Evaluation {
     /// Segnaposto per le date relative: `{{data:+45:d MMMM}}` (oggi + 45 giorni), `{{giorni:12-25}}` (giorni che mancano).
     /// Mesi e giorni nella lingua in uso; in inglese "d MMMM" vale in tutti e due gli ordini ("7 November", "November 7").
     static func expand(_ pattern: String, now: Date) -> String {
-        guard let regex = try? NSRegularExpression(pattern: #"\{\{(data|giorni):([^}]*)\}\}"#) else { return pattern }
+        guard let regex = try? NSRegularExpression(pattern: #"\{\{(data|giorni|giorno):([^}]*)\}\}"#) else { return pattern }
         var result = pattern
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
@@ -562,7 +581,15 @@ public enum Evaluation {
                   let argRange = Range(match.range(at: 2), in: pattern) else { continue }
             let arg = String(pattern[argRange])
             var values: [String] = []
-            if pattern[kindRange] == "data" {
+            if pattern[kindRange] == "giorno" {
+                // Il giorno come lo capiscono le regole dell'app («venerdì», «dopodomani»), nel formato delle bozze: 2026-10-02.
+                if let date = Language.$scoped.withValue(.it, operation: { DateExpressions.days(in: arg, now: now).first?.date }) {
+                    let formatter = DateFormatter()
+                    formatter.locale = Locale(identifier: "en_US_POSIX")
+                    formatter.dateFormat = "yyyy-MM-dd"
+                    values = [formatter.string(from: date)]
+                }
+            } else if pattern[kindRange] == "data" {
                 let parts = arg.split(separator: ":", maxSplits: 1).map(String.init)
                 let offset = Int(parts.first ?? "0") ?? 0
                 let format = parts.count > 1 ? parts[1] : "d MMMM"
@@ -640,12 +667,26 @@ public enum Evaluation {
             args.removeSubrange(index...(index + 1))
             return value
         }
-        let provider = value("--provider").flatMap(ResponseProvider.init(rawValue:)) ?? .apple
+        let providerName = value("--provider") ?? "apple"
+        guard let provider = ResponseProvider(rawValue: providerName), provider != .chatgpt, provider != .claude else {
+            // Qui le risposte finali di ChatGPT e Claude le scriverebbe Apple Intelligence: il loro banco è quello degli strumenti.
+            print("❌ --eval prova Apple Intelligence e Gemma: per \(providerName) usa --banco-strumenti (Support/eval/strumenti-modelli.json).")
+            return 1
+        }
         let only = value("--solo")
         let out = URL(fileURLWithPath: value("--out") ?? "output/valutazioni")
         let web = !args.contains("--senza-web")
         args.removeAll { $0 == "--senza-web" }
         let file = URL(fileURLWithPath: args.first ?? "Support/eval/qualita.json")
+        // Dati isolati prima di ogni altro accesso: cartella temporanea, utente inventato, calendario, email, note, messaggi
+        // e file del mondo di prova (il web resta quello vero: i banchi delle risposte lo usano).
+        let root = BenchIsolation.start(label: "eval")
+        if let world = try? FixtureWorld(file: file.deletingLastPathComponent().appending(path: "mondo-prova.json")) {
+            world.realWeb = true
+            FixtureWorld.active = world
+            Assistant.userNameOverride = world.userName
+        }
+        print("Dati di prova in \(root.path)")
         guard var cases = try? load(file) else {
             print("❌ Non riesco a leggere \(file.path)")
             return 1

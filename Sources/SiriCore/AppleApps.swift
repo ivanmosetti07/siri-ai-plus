@@ -172,6 +172,8 @@ public enum AppleScript {
     /// Esegue lo script. Se il compito viene annullato (per esempio si esce dalla sezione) o passa `timeout`,
     /// `osascript` si ferma: niente richieste lente che continuano in sottofondo.
     static func run(_ source: String, app: String, timeout: TimeInterval = 120) async throws -> String {
+        // Banco di prova: Mail, Note e Messaggi veri non si toccano mai.
+        if let refused = FixtureWorld.refuse("AppleScript verso \(app)") { throw refused }
         let running = Running()
         // I messaggi d'errore nascono su una coda di GCD, fuori dal compito: la lingua della richiesta si prende qui.
         let language = Language.current
@@ -258,6 +260,7 @@ public enum NotesService {
 
     /// Note recenti o che contengono `query` nel titolo o nel testo.
     public static func search(_ query: String?, limit: Int = 12) async throws -> AppItems {
+        if let world = FixtureWorld.active { return world.notesSearch(query, limit: limit) }
         let needle = query ?? ""
         let script = """
         set sep to character id 31
@@ -314,6 +317,7 @@ public enum NotesService {
 
     /// Legge testo e HTML originale: l'HTML è la versione usata per evitare di sovrascrivere modifiche esterne.
     public static func snapshot(id: String) async throws -> Snapshot {
+        if let world = FixtureWorld.active { return try world.noteSnapshot(id: id) }
         // Nomi delle variabili diversi dalle proprietà di Note: AppleScript non distingue maiuscole e minuscole
         // («plainText» sarebbe la proprietà «plaintext» della nota, e Note proverebbe a cambiarla).
         let script = """
@@ -438,13 +442,23 @@ public enum NotesService {
 // MARK: - Mail (lettura)
 
 public enum MailReader {
+    /// Il testo cercato nell'oggetto e nel mittente: di una parola sola si toglie la vocale finale, così singolare e plurale si
+    /// trovano a vicenda («commercialista» trova «Studio Neri Commercialisti», «fattura» trova «Fatture di settembre»).
+    public static func searchTerm(_ query: String) -> String {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 6, !trimmed.contains(" "), let last = trimmed.lowercased().last, "aeiouàèéìòù".contains(last) else { return trimmed }
+        return String(trimmed.dropLast())
+    }
+
     /// Ultime email in arrivo, o quelle con `query` nell'oggetto o nel mittente.
     public static func inbox(query: String?, unreadOnly: Bool = false, limit: Int = 12, account: String? = SpaceScope.current.mailAccount) async throws -> AppItems {
+        if let world = FixtureWorld.active { return world.mailInbox(query: query, unreadOnly: unreadOnly, limit: limit) }
         let selection: String
         if unreadOnly {
             selection = "(messages of theBox whose read status is false)"
         } else if let query, !query.isEmpty {
-            selection = "(messages of theBox whose subject contains \(AppleScript.quote(query)) or sender contains \(AppleScript.quote(query)))"
+            let term = AppleScript.quote(searchTerm(query))
+            selection = "(messages of theBox whose subject contains \(term) or sender contains \(term))"
         } else {
             selection = "(messages 1 thru \(limit) of theBox)"
         }
@@ -507,6 +521,7 @@ public enum MailReader {
 
     /// Account configurati in Mail (per scegliere quello di ogni spazio).
     public static func accounts() async -> [String] {
+        if FixtureWorld.active != nil { return [] }
         let output = (try? await AppleScript.run("tell application \"Mail\" to return name of every account", app: "Mail")) ?? ""
         return output.components(separatedBy: ", ").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
     }
@@ -523,6 +538,7 @@ public enum MailReader {
 
     /// Email in arrivo di una persona o su un argomento (o le ultime), dalla più recente.
     public static func find(person: String?, subject: String?, limit: Int = 5, account: String? = SpaceScope.current.mailAccount) async throws -> [MailMessage] {
+        if let world = FixtureWorld.active { return world.mailFind(person: person, subject: subject, limit: limit) }
         let selection: String
         if let person, !person.isEmpty {
             selection = "(messages of theBox whose sender contains \(AppleScript.quote(person)))"
@@ -582,6 +598,7 @@ public enum MailReader {
 
     /// Un'email con il testo completo.
     public static func message(id: String) async throws -> MailMessage {
+        if let world = FixtureWorld.active { return try world.mailMessage(id: id) }
         let script = """
         set sep to character id 31
         tell application "Mail"
@@ -688,6 +705,7 @@ public enum MailComposer {
 public enum FileSearch {
     /// Cerca nella cartella Inizio con Spotlight (nome e contenuto), escludendo Libreria e cartelle nascoste.
     public static func search(_ query: String, limit: Int = 15) async throws -> AppItems {
+        if let world = FixtureWorld.active { return world.fileSearch(query, limit: limit) }
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let output = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
@@ -726,6 +744,7 @@ public enum FileSearch {
 
     /// Testo di un file (txt, md, pdf, rtf, docx…), riusando il lettore dei progetti.
     public static func read(_ path: String, maxChars: Int = 2400) throws -> String {
+        if let world = FixtureWorld.active { return try world.fileRead(path, maxChars: maxChars) }
         let url = URL(fileURLWithPath: path)
         return try ProjectFiles(root: url.deletingLastPathComponent()).read(url.lastPathComponent, maxChars: maxChars)
     }
@@ -742,6 +761,7 @@ public enum MessagesService {
 
     /// Ultimi messaggi (serve l'accesso completo al disco), eventualmente di una persona o con un testo.
     public static func recent(matching query: String?, limit: Int = 25) throws -> AppItems {
+        if let world = FixtureWorld.active { return world.messages(matching: query, limit: limit) }
         guard canRead else { throw AppleAppError.fullDiskAccess }
         var db: OpaquePointer?
         guard sqlite3_open_v2(database.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
@@ -822,6 +842,7 @@ public enum Contacts {
 
     /// Numeri ed email di chi si chiama così.
     public static func handles(for name: String) -> [String] {
+        if let world = FixtureWorld.active { return world.contactHandles(name) }
         guard authorized, name.count >= 2 else { return [] }
         let keys = [CNContactPhoneNumbersKey, CNContactEmailAddressesKey] as [CNKeyDescriptor]
         let contacts = lock.withLock { (try? store.unifiedContacts(matching: CNContact.predicateForContacts(matchingName: name), keysToFetch: keys)) ?? [] }
@@ -834,6 +855,7 @@ public enum Contacts {
     public static func emails(for name: String) -> [(name: String, address: String)] {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         if trimmed.contains("@") { return [(trimmed, trimmed)] }
+        if let world = FixtureWorld.active { return world.contactEmails(trimmed) }
         guard authorized, trimmed.count >= 2 else { return [] }
         let keys = [CNContactGivenNameKey, CNContactFamilyNameKey, CNContactEmailAddressesKey] as [CNKeyDescriptor]
         let contacts = lock.withLock { (try? store.unifiedContacts(matching: CNContact.predicateForContacts(matchingName: trimmed), keysToFetch: keys)) ?? [] }
@@ -851,6 +873,7 @@ public enum Contacts {
     }
 
     static func name(for handle: String) -> String? {
+        if let world = FixtureWorld.active { return world.contactName(handle) }
         guard authorized, !handle.isEmpty else { return nil }
         let keys = [CNContactGivenNameKey, CNContactFamilyNameKey] as [CNKeyDescriptor]
         let predicate = handle.contains("@") ? CNContact.predicateForContacts(matchingEmailAddress: handle)

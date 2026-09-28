@@ -56,6 +56,7 @@ public final class ConversationIndex: @unchecked Sendable {
 
     /// Parole della domanda (anche con desinenze diverse), più pertinenti per prime.
     public func search(_ query: String, limit: Int = 6, excluding: String? = nil) -> [Hit] {
+        if let world = FixtureWorld.active { return world.conversations(query, limit: limit) }
         let skipped = Language.isEnglish ? Self.englishStopwords : Self.stopwords
         let words = MemoryStore.normalize(query).split(separator: " ").filter { $0.count >= 3 && !skipped.contains(String($0)) }
         guard !words.isEmpty else { return [] }

@@ -70,8 +70,12 @@ extension Assistant {
                          + turnFacts.map { "- \($0)" }.joined(separator: "\n"), at: 0)
         }
         if let risk = RiskyDomain.detect(prompt), !isSubAgent { lines.append(risk.advice) }
-        // Fatti che cambiano, senza dati letti: meglio ammettere di non sapere (l'app poi cerca sul web) che inventare.
-        if !isSubAgent, !groundedAnswer, Self.isTimeSensitive(prompt) {
+        // Fatti che cambiano, senza dati letti: con la ricerca sul web tra gli strumenti si cerca; altrimenti meglio ammettere di
+        // non sapere (l'app poi cerca sul web) che inventare.
+        if offeredTools?.contains("cerca_web") == true, !groundedAnswer, Self.isTimeSensitive(prompt) {
+            lines.append(t("È una domanda su fatti che cambiano: cerca il dato aggiornato con cerca_web prima di rispondere, invece di rispondere a memoria.",
+                           "This is a question about facts that change: look up the updated figure with cerca_web before answering, instead of answering from memory."))
+        } else if !isSubAgent, !groundedAnswer, Self.isTimeSensitive(prompt) {
             lines.append(t("È una domanda su fatti che cambiano: se non conosci con certezza il dato aggiornato, scrivi «Non ho informazioni aggiornate».",
                            "This is a question about facts that change: if you don't know the updated figure for sure, write «I don't have up-to-date information»."))
         }

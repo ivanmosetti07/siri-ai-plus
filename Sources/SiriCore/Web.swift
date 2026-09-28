@@ -59,6 +59,7 @@ public enum Web {
 
     /// DuckDuckGo, con un secondo tentativo e Bing come riserva (DuckDuckGo a volte risponde vuoto a ricerche ravvicinate).
     public static func search(_ query: String, limit: Int = 6) async throws -> [WebSource] {
+        if let world = FixtureWorld.active, !world.realWeb { return world.webSearch(query, limit: limit) }
         var lastError: Error = WebError.nothing
         for attempt in 0..<2 {
             do {
@@ -157,6 +158,7 @@ public enum Web {
 
     /// Scarica una pagina e ne estrae il testo leggibile (articolo o contenuto principale).
     public static func fetch(_ url: URL, maxChars: Int = 12_000) async throws -> Page {
+        if let world = FixtureWorld.active, !world.realWeb { return world.webFetch(url) }
         let data: Data
         let response: URLResponse
         var request = URLRequest(url: url)
