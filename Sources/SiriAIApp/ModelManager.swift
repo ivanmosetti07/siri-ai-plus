@@ -14,6 +14,8 @@ final class ModelManager {
     /// Server di Gemma avviato dall'app: si ferma solo lui, mai altri llama-server dell'utente.
     @ObservationIgnored private var gemmaProcess: Process?
     private static var gemmaPIDFile: URL { AppPaths.support("gemma-server.pid") }
+    /// Gli argomenti con cui l'app ha acceso il suo server di Gemma (per riaccenderlo quando cambiano).
+    private static var gemmaArgumentsFile: URL { AppPaths.support("gemma-server.args") }
     var gemmaRunning = false
     /// Versione di Gemma caricata nel server locale.
     var gemmaLoaded: String?
@@ -246,25 +248,45 @@ final class ModelManager {
         Task { await refresh() }
     }
 
+    /// Il PID del server avviato dall'app (anche in una sessione precedente), se è ancora un llama-server.
+    private func ownGemmaPID() -> Int32? {
+        guard let text = try? String(contentsOf: Self.gemmaPIDFile, encoding: .utf8), let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines))
+        else { return nil }
+        var buffer = [CChar](repeating: 0, count: 4096)
+        return proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 && String(cString: buffer).hasSuffix("llama-server") ? pid : nil
+    }
+
     /// Ferma il server avviato dall'app (anche in una sessione precedente, grazie al file del PID).
     private func stopOwnGemmaServer() {
         if let process = gemmaProcess, process.isRunning { process.terminate() }
         gemmaProcess = nil
-        if let text = try? String(contentsOf: Self.gemmaPIDFile, encoding: .utf8), let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)) {
-            // Solo se quel PID è ancora un llama-server.
-            var buffer = [CChar](repeating: 0, count: 4096)
-            if proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0, String(cString: buffer).hasSuffix("llama-server") { kill(pid, SIGTERM) }
-        }
+        if let pid = ownGemmaPID() { kill(pid, SIGTERM) }
         try? FileManager.default.removeItem(at: Self.gemmaPIDFile)
+        try? FileManager.default.removeItem(at: Self.gemmaArgumentsFile)
+    }
+
+    /// Gli argomenti con cui l'app accende Gemma.
+    private func gemmaArguments(_ variant: GemmaVariant) -> [String] {
+        ["-m", variant.localURL.path, "--port", "8091", "--host", "127.0.0.1", "-c", String(DeviceProfile.gemmaContext), "--jinja",
+         "--cache-ram", String(DeviceProfile.gemmaPromptCache)]
+    }
+
+    /// Il server acceso dall'app in una sessione precedente con altri argomenti: quello di una versione senza il limite alla
+    /// cache dei prompt (fino a 8 GB) resterebbe acceso così fino al riavvio del Mac.
+    private func ownGemmaServerIsOutdated(_ arguments: [String]) -> Bool {
+        guard ownGemmaPID() != nil else { return false }
+        return (try? String(contentsOf: Self.gemmaArgumentsFile, encoding: .utf8)) != arguments.joined(separator: "\n")
     }
 
     /// Avvia (o riavvia con un'altra versione) il server locale di Gemma e attende che sia pronto.
     func ensureGemma(_ variant: GemmaVariant) async -> Bool {
         if gemmaLoaded == variant.id, await ExternalEngine.gemmaRunning() { return true }
         guard variant.isDownloaded else { return false }
+        let arguments = gemmaArguments(variant)
         // Server già acceso con lo stesso modello (da un avvio precedente o da un'altra finestra dell'app): si riusa.
-        // Spegnerlo per riaccenderlo costava 30 secondi e interrompeva chi lo stava usando.
-        if await ExternalEngine.gemmaRunning(), await ExternalEngine.gemmaModelPath() == variant.localURL.path {
+        // Spegnerlo per riaccenderlo costava 30 secondi e interrompeva chi lo stava usando. Quello acceso dall'app con altri
+        // argomenti si riaccende una volta.
+        if await ExternalEngine.gemmaRunning(), await ExternalEngine.gemmaModelPath() == variant.localURL.path, !ownGemmaServerIsOutdated(arguments) {
             gemmaLoaded = variant.id
             return true
         }
@@ -273,11 +295,17 @@ final class ModelManager {
         guard let llamaPath else { return false }
         jobs["gemma-start"] = String(localized: "Carico \(variant.label)…")
         stopOwnGemmaServer()
+        // Il server fermato libera la porta in qualche istante: si aspetta che smetta di rispondere (al massimo 5 secondi).
         try? await Task.sleep(for: .milliseconds(400))
+        var waited = 0
+        while waited < 23, await ExternalEngine.gemmaRunning() {
+            try? await Task.sleep(for: .milliseconds(200))
+            waited += 1
+        }
         // Avvio diretto con gli argomenti separati: nessun problema di spazi o apostrofi nei percorsi.
         let process = Process()
         process.executableURL = URL(fileURLWithPath: llamaPath)
-        process.arguments = ["-m", variant.localURL.path, "--port", "8091", "--host", "127.0.0.1", "-c", String(DeviceProfile.gemmaContext), "--jinja"]
+        process.arguments = arguments
         let logURL = FileManager.default.temporaryDirectory.appending(path: "gemma-server.log")
         FileManager.default.createFile(atPath: logURL.path, contents: nil)
         if let log = try? FileHandle(forWritingTo: logURL) { process.standardOutput = log; process.standardError = log }
@@ -285,6 +313,7 @@ final class ModelManager {
             try process.run()
             gemmaProcess = process
             try? String(process.processIdentifier).write(to: Self.gemmaPIDFile, atomically: true, encoding: .utf8)
+            try? arguments.joined(separator: "\n").write(to: Self.gemmaArgumentsFile, atomically: true, encoding: .utf8)
         } catch {
             jobs["gemma-start"] = nil
             errors["gemma-start"] = String(localized: "llama-server non si avvia: \(error.localizedDescription)")

@@ -2585,6 +2585,13 @@ final class AppState {
                 box.text = ""
                 return
             }
+            // Testo vuoto: il modello rimedia a una risposta che raccontava un'azione mai fatta, il messaggio in corso sparisce.
+            if text.isEmpty {
+                if let id = box.messageID { conversation.messages.removeAll { $0.id == id } }
+                box.messageID = nil
+                box.text = ""
+                return
+            }
             box.text = text
             conversation.messages.removeAll { if case .thinking = $0.content { true } else { false } }
             if let id = box.messageID, let index = conversation.messages.firstIndex(where: { $0.id == id }) {
@@ -2603,6 +2610,8 @@ final class AppState {
                                                                    picked: picked, hooks: externalHooks(onText: onText, onStatus: onStatus, shown: shown))
             else { return false }
             if box.messageID == nil, box.all.isEmpty, !turn.text.isEmpty { onText(turn.text) }
+            // «Ho impostato il promemoria» con la scheda ancora da confermare: l'avviso subito sotto.
+            if let note = turn.note { append(.notice(note)) }
             conversation.messages.removeAll { if case .thinking = $0.content { true } else { false } }
             if var trace = assistant.trace {
                 noteAuto(in: &trace)

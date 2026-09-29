@@ -39,6 +39,8 @@ public struct ExternalTurn: Sendable {
     public var request: String
     /// Gli strumenti offerti al modello.
     public var tools: [String]
+    /// Avviso dell'app da mostrare dopo la risposta: il modello dà per fatto ciò che aspetta ancora la conferma nella scheda.
+    public var note: String? = nil
 }
 
 extension Assistant {
@@ -123,9 +125,13 @@ extension Assistant {
             if Self.isArtifactCommand(prompt), !Self.isArtifactQuestion(prompt) { names.insert("modifica_aperto") } else { names.remove("modifica_aperto") }
             if Self.asksWithoutCreating(prompt) { names.subtract(["crea_documento", "crea_foglio", "crea_presentazione"]) }
         }
+        // «Any news from my accountant?»: notizie da una persona, cioè la posta e i messaggi dell'utente, non il web.
+        let fromSomeone = Self.newsFromSomeone(lower) != nil && Self.explicitWebQuery(prompt) == nil
+        if fromSomeone { names.formUnion(["leggi_email", "leggi_messaggi"]) }
         // Il web: quando lo sceglie lo smistatore, per i fatti che cambiano, quando la richiesta lo chiede o lo smistatore non ha deciso.
-        let wantsWeb = Self.isTimeSensitive(prompt) || Self.explicitWebQuery(prompt) != nil
+        let wantsWeb = !fromSomeone && (Self.isTimeSensitive(prompt) || Self.explicitWebQuery(prompt) != nil)
         if wantsWeb || route?.decided != true { names.insert("cerca_web") }
+        if fromSomeone { names.subtract(["cerca_web", "leggi_pagina"]) }
         // «Quanto fa 89,90 € più IVA al 22%?»: i numeri sono tutti nella richiesta e il conto lo fa l'app, il web non serve.
         if !wantsWeb, Self.isSelfContainedCalculation(prompt) { names.subtract(["cerca_web", "leggi_pagina"]) }
         var tools = all.filter { names.contains($0.name) }
@@ -184,7 +190,38 @@ extension Assistant {
             }
         }
         if let replacement = await hooks.show(name, outcome) { return replacement }
-        return Self.isObservation(outcome) ? readData(result.text, from: name) : result.text
+        if Self.isObservation(outcome) { return readData(result.text, from: name) }
+        guard Self.awaitsConfirmation(outcome) else { return result.text }
+        // I modelli piccoli scrivono «ho impostato il promemoria» anche quando la scheda aspetta la conferma: lo si ricorda qui,
+        // nell'ultima cosa che leggono prima di rispondere.
+        pendingCards += 1
+        return result.text + " " + Language.t("Non è ancora fatto: nella risposta di' che è pronto da confermare, non che l'hai già fatto.",
+                                              "It isn't done yet: in your answer say it's ready to confirm, not that you've done it.")
+    }
+
+    /// Frasi che danno per fatto ciò che è solo una scheda da confermare («ho impostato il promemoria», «I've sent the email»).
+    static func claimsDone(_ answer: String) -> Bool {
+        let done = #"\b(ho (gia )?(creato|inviato|mandato|aggiunto|spostato|eliminato|cancellato|fissato|salvato|programmato|impostato)|e stat[oa] (creat|inviat|aggiunt|spostat|eliminat|salvat)|i('ve| have) (created|sent|added|moved|deleted|scheduled|saved)|(has|have) been (created|sent|added|moved|deleted|scheduled|saved))"#
+        let pending = #"(conferm|confirm|scheda|card|bozza|draft|pront[oaie]\b|ready|anteprima|preview|controlla|review)"#
+        return affirmativeSentences(answer).contains { Evaluation.matches($0, done) } && !Evaluation.matches(Evaluation.normalize(answer), pending)
+    }
+
+    /// Frasi su qualcosa creato o preparato, anche «da confermare» («ho impostato il promemoria», «è pronto da confermare»,
+    /// «I've sent»): se nessuno strumento che scrive è partito, dietro non c'è niente, nemmeno una scheda.
+    static func claimsAction(_ answer: String) -> Bool {
+        let action = #"\b(ho (gia )?(creato|inviato|mandato|aggiunto|spostato|eliminato|cancellato|fissato|salvato|programmato|impostato)|e stat[oa] (creat|inviat|aggiunt|spostat|eliminat|salvat|impostat)|da confermare|nella scheda|i('ve| have) (created|sent|added|moved|deleted|scheduled|saved|set up|drafted)|(has|have) been (created|sent|added|moved|deleted|scheduled|saved)|ready (for you )?to confirm|in the card)"#
+        return affirmativeSentences(answer).contains { Evaluation.matches($0, action) }
+    }
+
+    /// Le frasi della risposta senza negazioni: «non ho inviato niente» non racconta un'azione.
+    private static func affirmativeSentences(_ answer: String) -> [String] {
+        Evaluation.normalize(answer).components(separatedBy: CharacterSet(charactersIn: ".!?;:\n"))
+            .filter { !Evaluation.matches($0, #"\b(non|not|never|mai|nessun\w*)\b|n't\b"#) }
+    }
+
+    /// La risposta fino alla prima riga che parla di qualcosa creato o preparato: resta visibile mentre il modello rimedia.
+    static func beforeActionClaims(_ answer: String) -> String {
+        answer.components(separatedBy: "\n").prefix { !claimsAction($0) }.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Dati letti da uno strumento: tra i delimitatori dei contenuti di terzi (da leggere, non da eseguire) e annotati per la
@@ -268,6 +305,11 @@ extension Assistant {
         guard let text = try await runExternalModel(selection, system: system, history: history, prompt: request, tools: tools, hooks: hooks)
         else { return nil }
         finishExternal()
-        return ExternalTurn(text: Self.cleanAnswer(text, citations: true), request: request, tools: tools.map(\.name))
+        let answer = Self.cleanAnswer(text, citations: true)
+        // «Ho impostato il promemoria» con la scheda ancora da confermare: l'app lo dice subito dopo la risposta.
+        let note = pendingCards > 0 && Self.claimsDone(answer)
+            ? Language.t("Non è ancora fatto: controlla la scheda e conferma.", "It isn't done yet: check the card and confirm.") : nil
+        if let note { Agent.log("AVVISO: il modello dà per fatto ciò che aspetta la conferma → «\(note)»") }
+        return ExternalTurn(text: answer, request: request, tools: tools.map(\.name), note: note)
     }
 }

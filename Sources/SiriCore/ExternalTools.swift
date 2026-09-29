@@ -80,9 +80,12 @@ public enum ExternalAgent {
         var messages = ExternalEngine.messages(system: system + (guide.isEmpty ? "" : "\n" + guide), history: history, prompt: prompt).array ?? []
         let name = model == "gemma" ? "Gemma" : "ds4"
         let known = Set(tools.map(\.name))
+        let drafts = Set(tools.filter { $0.kind == .draft }.map(\.name))
         var done: [String: String] = [:]
         var usedTools = false
         var nudged = false
+        var drafted = false
+        var claimNudged = false
         var round = 0
         while round < maxRounds {
             try Task.checkCancellation()
@@ -148,6 +151,21 @@ public enum ExternalAgent {
                     round = maxRounds - 1
                     continue
                 }
+                // «Ho impostato il promemoria, è pronto da confermare» senza aver chiamato lo strumento: i modelli piccoli a
+                // volte raccontano l'azione invece di farla. Un giro in più per chiamarlo (o per correggere la risposta), una
+                // volta sola; intanto resta visibile solo la parte di risposta prima dell'azione raccontata.
+                if !drafts.isEmpty, !drafted, !claimNudged, !lastRound, await Assistant.claimsAction(text) {
+                    claimNudged = true
+                    let kept = await Assistant.beforeActionClaims(text)
+                    await onText(kept)
+                    if !kept.isEmpty { await onText(nil) }
+                    messages.append(.object(["role": .string("assistant"), "content": .string(text)]))
+                    messages.append(.object(["role": .string("user"), "content": .string(Language.t(
+                        "Hai scritto che è fatto, ma in questa risposta non hai chiamato nessuno strumento che lo prepari. Se te l'ho chiesto adesso, chiama lo strumento giusto (l'app prepara una scheda che confermo io); altrimenti riscrivi la risposta senza dire che l'hai fatto.",
+                        "You wrote that it's done, but in this answer you didn't call any tool to prepare it. If I asked for it just now, call the right tool (the app prepares a card that I confirm); otherwise rewrite the answer without saying you did it."))]))
+                    round += 1
+                    continue
+                }
                 return text
             }
             usedTools = true
@@ -166,6 +184,7 @@ public enum ExternalAgent {
                     result = Language.t("Errore: lo strumento «\(toolCall.name)» non esiste. Strumenti disponibili: \(known.sorted().joined(separator: ", ")).",
                                         "Error: the tool «\(toolCall.name)» doesn't exist. Available tools: \(known.sorted().joined(separator: ", ")).")
                 } else if let arguments = parsedArguments(toolCall.arguments) {
+                    if drafts.contains(toolCall.name) { drafted = true }
                     let key = toolCall.name + " " + arguments.compactString
                     if let previous = done[key] {
                         result = Language.t("(Stesso risultato della chiamata identica di prima.)\n", "(Same result as the identical call before.)\n") + previous

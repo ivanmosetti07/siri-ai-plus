@@ -34,6 +34,17 @@ public enum DeviceProfile {
         }
     }
 
+    /// Cache dei prompt del server di Gemma, in MiB (`--cache-ram`). llama.cpp di serie ne tiene fino a 8 GB: su un Mac da 16 GB
+    /// il server arrivava a 9 GB e Apple Intelligence, che sceglie gli strumenti, restava senza memoria («error 15»).
+    public static var gemmaPromptCache: Int {
+        switch memoryGB {
+        case ..<12: 0
+        case ..<24: 1_024
+        case ..<48: 4_096
+        default: 8_192
+        }
+    }
+
     /// ds4 richiede almeno 96 GB di memoria unificata su Apple Silicon.
     public static var supportsDS4: Bool { memoryGB >= 96 }
 }

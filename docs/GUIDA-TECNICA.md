@@ -144,11 +144,14 @@ Le prove riproducibili del ciclo di coding sono in [EVALS-CODING.md](EVALS-CODIN
 - **«Come ho lavorato»**: sopra la risposta, gli strumenti usati con parametri, esiti, tempi e modello.
 - **Strumenti per tutti i modelli**: Gemma e ds4 con il tool calling OpenAI; ChatGPT e Claude con un ponte MCP (la CLI dell'app, dentro il bundle, parla con un gateway locale protetto da token). Ciò che scrive o invia resta una scheda da confermare. Claude risponde con le istruzioni dell'app al posto di quelle di Claude Code, senza i suoi strumenti né le impostazioni personali.
 - **Lo strumento giusto al momento giusto (modelli esterni)**: la strada di Gemma, ds4, ChatGPT e Claude sta in SiriCore (`Assistant+External.swift`: `routeForExternal`, `externalToolList`, `respondExternally`, `runExternalModel`), la stessa per l'app e per il banco; gli effetti sull'interfaccia passano da `ExternalHooks`.
-  - **Quali strumenti:** nessuno per saluti, testi da elaborare e «rispondi solo»; `cerca_web` solo per le cose attuali, le ricerche chieste o quando lo smistatore non ha deciso; `modifica_aperto` solo per i comandi sul documento aperto (le domande si rispondono dal testo); un connettore nominato o del suo campo porta tutti i suoi strumenti; con le finestre piccole (Gemma, ds4) al massimo 12 strumenti e descrizioni dei connettori di 160 caratteri.
+  - **Quali strumenti:** nessuno per saluti, testi da elaborare e «rispondi solo»; `cerca_web` solo per le cose attuali, le ricerche chieste o quando lo smistatore non ha deciso, mai per le notizie da una persona («Any news from my accountant?», `newsFromSomeone`: posta e messaggi); `modifica_aperto` solo per i comandi sul documento aperto (le domande si rispondono dal testo); un connettore nominato o del suo campo porta tutti i suoi strumenti; con le finestre piccole (Gemma, ds4) al massimo 12 strumenti e descrizioni dei connettori di 160 caratteri.
   - **Istruzioni dagli strumenti offerti** (`ExternalAgent.toolGuide`): quando leggere, quando cercare sul web, che le scritture sono una scheda «pronta da confermare», i prossimi giorni con le date; le istruzioni dei server dei connettori offerti (700 caratteri, fra i delimitatori). Descrizioni degli strumenti nella lingua della richiesta, firma con il nome dell'utente.
   - **Gli strumenti di Apple anche per gli altri:** `agenda` con `cerca` (un evento per nome, dal mese scorso ai prossimi sei mesi), `completa_promemoria`, `crea_foglio`, `crea_presentazione`, `genera_immagine`, `elimina_file` (Cestino, con scheda).
   - **ChatGPT isolato:** Codex parte con `--disable` di shell, app e connettori dell'account, memorie, browser, computer use, generazione di immagini, sub-agent e hook, e senza la sua ricerca web (`ExternalAgent.codexIsolation`): usa solo gli strumenti dell'app, dietro lo scudo della privacy e le schede. Nomi del ponte al massimo di 50 caratteri, con un suffisso univoco se servono (Claude ne accetta 64 con il prefisso).
   - **Ciclo di Gemma** (`ExternalAgent.openAI`): temperatura 0,2 con gli strumenti; argomenti illeggibili → richiesta di correzione invece di `{}`; strumento sconosciuto → l'elenco di quelli veri; la stessa chiamata due volte → lo stesso risultato; all'ultimo giro niente esecuzioni; risposta vuota → un giro in più.
+  - **Memoria di Gemma:** il server parte con `--cache-ram` secondo la memoria del Mac (`DeviceProfile.gemmaPromptCache`: niente sotto i 12 GB, 1 GB fino a 24, 4 GB fino a 48, poi 8). Di serie llama.cpp tiene fino a 8 GB di cache dei prompt: su un Mac da 16 GB il server di Gemma arrivava a 9 GB, lo swap a 16 GB, e Apple Intelligence, che sceglie gli strumenti anche per Gemma, restava senza memoria («error 15»). Il server di rizzo-flow parte già senza cache (`-cram 0`). Il server di Gemma resta acceso anche quando l'app si chiude o si aggiorna: l'app salva gli argomenti con cui l'ha acceso (`gemma-server.args`, accanto al PID) e, se sono cambiati, lo riaccende una volta. Quelli accesi da altri non li tocca.
+  - **«Fatto» solo quando è fatto:** quando uno strumento prepara una scheda da confermare (`Assistant.awaitsConfirmation`), il risultato ricorda al modello che non è ancora fatto. Se la risposta dice lo stesso «ho impostato il promemoria» (`Assistant.claimsDone`), sotto compare l'avviso «Non è ancora fatto: controlla la scheda e conferma» (`ExternalTurn.note`). Documenti, fogli, presentazioni e immagini invece l'app li crea e li apre subito: lì «ho creato il foglio» è vero.
+  - **Azioni raccontate ma mai fatte** (Gemma e ds4): a volte il modello scrive «ho impostato il promemoria, è pronto da confermare» senza aver chiamato nessuno strumento che scrive, quindi senza scheda. Il ciclo se ne accorge (`Assistant.claimsAction`), lascia visibile la parte di risposta prima dell'azione raccontata e dà al modello un giro in più: chiama lo strumento o correggi la risposta.
   - **Ponte MCP:** le chiamate di ChatGPT e Claude tengono lingua, spazio e scudo della privacy della richiesta, e nelle chat affiancate e rapide le schede arrivano nella chat giusta.
   - **Come Apple:** risposta incerta senza ricerca → ricerca sul web con le fonti; dopo un errore con schede già mostrate niente seconda risposta con Apple; i risultati degli strumenti fra i delimitatori, e una scrittura «Consenti sempre» dopo letture con istruzioni sospette torna a chiedere conferma.
 - **Il giorno detto vale più di quello calcolato** (`Assistant.weekCorrection`): «ricordami venerdì», «giovedì alle 15». Se la richiesta nomina un solo giorno e il modello sceglie lo stesso giorno della settimana ma in un'altra settimana (con due venerdì nel calendario il modello piccolo a volte prende il secondo), la data torna a quella calcolata dall'app. «Venerdì prossimo» resta al modello. Vale per Apple e per gli strumenti degli altri modelli.
@@ -198,7 +201,7 @@ Lo stesso banco misura tutti i modelli (Apple Intelligence, Gemma, ChatGPT, Clau
 - **Campi dei casi:** `strumenti` (`a|b` = uno dei due, `mcp:<etichetta>` per i connettori), `in_ordine`, `vieta_strumenti`, `nessuno_strumento`, `massimo_chiamate`, `argomenti` (espressioni regolari sui campi delle bozze, con `{{giorno:venerdì}}` e `{{data:+1:yyyy-MM-dd}}`), `schede`, `regole` (deve decidere l'app, con qualunque modello).
 - **Controlli su ogni caso:** niente scritture arrivate ai connettori, niente «fatto» con schede in sospeso, niente delimitatori `<<< >>>` ricopiati, niente errori, zero accessi bloccati.
 - **Misure:** casi superati, strumento giusto, silenzio giusto, connettore usato quando serve, argomenti corretti, chiamate inutili, chiamate per caso, tempo mediano e al 90%, chiamate al cloud.
-- **Apple Intelligence con poca memoria** risponde «SensitiveContentAnalysisML error 15»: lo smistamento ripiega sulle parole chiave e il giro non vale. Prima di un giro serve almeno il 30% di memoria libera (`memory_pressure`); con Gemma accesa ne resta poca su un Mac da 16 GB.
+- **Apple Intelligence con poca memoria** risponde «SensitiveContentAnalysisML error 15»: lo smistamento ripiega sulle parole chiave e il giro non vale. Prima di un giro serve almeno il 25-30% di memoria libera (`memory_pressure`), e dopo il giro il registro della cartella del banco non deve contenere l'errore. Su un Mac da 16 GB con Gemma accesa capita che un giro non valga: si rifà.
 
 ```bash
 ./bin/siriai --banco-strumenti --provider apple --etichetta dopo
@@ -220,6 +223,7 @@ Altre opzioni: `--solo <id o categoria>`, `--ferma-dopo-errori N`, `--web-reale`
 | Auto (cloud: GPT-6-Luna, basso) | 25 → 30 | 24 → 25 | 4 → 3 | 9,8 → 4,6 s |
 | ChatGPT (GPT-6-Luna, basso) | 25 → 29 | 21 → 24 | 6 → 4 | 17,0 → 15,2 s |
 | Claude (Sonnet, basso) | 27 → 29 | 23 → 25 | 5 → 4 | 15,5 → 8,7 s |
+| Gemma 4 E4B (sul Mac, ragionamento spento) | 21 → 30 | 18 → 25 | 3 → 3 | 18,3 → 22,7 s |
 | Solo smistamento (strumenti offerti) | 23 → 29 | | | |
 
 - **Auto** ha scelto sempre Apple Intelligence (difficoltà al massimo 1,4): in questi casi il cloud non è mai servito.
@@ -231,9 +235,13 @@ Altre opzioni: `--solo <id o categoria>`, `--ferma-dopo-errori N`, `--web-reale`
   - `crea_foglio` e `genera_immagine` anche per i modelli esterni;
   - «usa cerca_web» al posto di «di' che non hai informazioni aggiornate»;
   - «l'ultima email della banca» si legge invece di scriverne una.
-- **Non misurati:**
-  - Gemma: con Gemma accesa e le altre app aperte la memoria libera scendeva all'8% e Apple Intelligence dava l'errore 15;
-  - ds4: serve un Mac con almeno 96 GB.
+- **Gemma** (misurata la sera, con il server acceso come fa l'app):
+  - con la 2.3 faceva 27 su 30, 28 dopo aver corretto una regola del banco: fogli, documenti, presentazioni e immagini non sono schede da confermare (l'app li crea e li apre subito), quindi «ho creato il foglio» è vero;
+  - i casi rimasti e le correzioni: a «Any news from my accountant?» cercava sul web (ora le notizie da una persona vanno solo a posta e messaggi); diceva «ho impostato il promemoria» con la scheda da confermare (ora il risultato dello strumento lo ricorda e, se serve, compare l'avviso); una volta ha raccontato un promemoria «pronto da confermare» senza chiamare lo strumento (ora un giro in più: da allora il caso è passato 4 volte su 4);
+  - con queste correzioni 30 su 30; Claude e ChatGPT, riprovati sui due casi toccati, passano;
+  - tempi non confrontabili: il giro «dopo» è stato fatto con la macchina virtuale aperta e la memoria libera fra il 6 e il 43%;
+  - la prima prova si è fermata perché il server di Gemma arrivava a 9 GB: è la cache dei prompt di llama.cpp, ora limitata (vedi «Memoria di Gemma» in «Harness»).
+- **Non misurato:** ds4, serve un Mac con almeno 96 GB.
 - **Banchi di sempre di Apple** dopo le correzioni, ora isolati sul mondo inventato:
 
   | Banco | Esito | Rispetto a prima |

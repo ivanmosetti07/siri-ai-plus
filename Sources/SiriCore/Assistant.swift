@@ -326,6 +326,8 @@ public final class Assistant {
     /// Ciò che gli strumenti hanno letto in questa richiesta: prima di una scrittura consentita per sempre si controlla
     /// che non contenga istruzioni per l'assistente.
     var turnReads: [String] = []
+    /// Le schede preparate per un modello esterno in questa richiesta che aspettano la conferma dell'utente.
+    var pendingCards = 0
     /// Le chiamate fatte ai connettori fuori dall'app («list_tasks», «execute_read_tool:invoices_list»), per i controlli.
     public var connectorCalls: [String] = []
     /// Ultima richiesta resa autonoma (per le ricerche di ripiego sul web).

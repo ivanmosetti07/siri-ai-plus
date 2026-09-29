@@ -61,6 +61,7 @@ extension Assistant {
         folderInstructionsSent = []
         offeredTools = nil
         turnReads = []
+        pendingCards = 0
     }
 
     /// I conti fatti dall'app compaiono in «Come ho lavorato» (senza la riga "Oggi è…", ovvia).
@@ -104,6 +105,15 @@ extension Assistant {
         case .reply, .agenda, .items, .files, .web: true
         default: false
         }
+    }
+
+    /// Schede che l'app crea e apre subito, senza conferma: documenti, fogli, presentazioni e immagini.
+    public static let cardsWithoutConfirmation: Set<String> = ["documento", "foglio", "presentazione", "immagine"]
+
+    /// Esiti che aspettano la conferma dell'utente in una scheda (evento, promemoria, email, messaggio, connettore…).
+    public static func awaitsConfirmation(_ outcome: Outcome) -> Bool {
+        let kind = kind(of: outcome)
+        return kind.hasPrefix("scheda:") && !cardsWithoutConfirmation.contains(String(kind.dropFirst("scheda:".count)))
     }
 
     /// Verbi che aprono una nuova parte della richiesta ("cosa ho domani *e scrivi* un'email…").

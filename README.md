@@ -169,8 +169,9 @@ Every chat remembers its model. Whatever model answers, the tools for each reque
 | Auto | 25/30 | 30/30 |
 | ChatGPT (GPT-6-Luna, low reasoning) | 25/30 | 29/30 |
 | Claude (Sonnet, low reasoning) | 27/30 | 29/30 |
+| Gemma 4 (E4B, on your Mac) | 21/30 | 30/30 |
 
-Gemma 4 isn't in the table yet: that day my 16 GB Mac didn't have the memory to run it next to Apple Intelligence.
+Measuring Gemma also turned up a memory hog: llama.cpp keeps up to 8 GB of prompt cache by default, so on my 16 GB Mac Gemma's server grew to 9 GB and left Apple Intelligence (which picks the tools, even for Gemma) without memory. Siri AI+ now sizes that cache to your Mac: 1 GB with 16 GB.
 
 ### ⚡ Fast decisions, thanks to rizzo-flow
 
@@ -452,8 +453,9 @@ Ogni chat ricorda il suo modello. Qualunque modello risponda, gli strumenti per 
 | Auto | 25/30 | 30/30 |
 | ChatGPT (GPT-6-Luna, ragionamento basso) | 25/30 | 29/30 |
 | Claude (Sonnet, ragionamento basso) | 27/30 | 29/30 |
+| Gemma 4 (E4B, sul Mac) | 21/30 | 30/30 |
 
-Gemma 4 non è ancora in tabella: quel giorno il mio Mac da 16 GB non aveva la memoria per farla girare insieme ad Apple Intelligence.
+Misurare Gemma ha scovato anche uno spreco di memoria: llama.cpp di serie tiene fino a 8 GB di cache dei prompt, così sul mio Mac da 16 GB il server di Gemma arrivava a 9 GB e lasciava senza memoria Apple Intelligence, che sceglie gli strumenti anche per Gemma. Ora Siri AI+ dimensiona quella cache sul tuo Mac: 1 GB con 16 GB.
 
 ### ⚡ Decisioni rapide, grazie a rizzo-flow
 

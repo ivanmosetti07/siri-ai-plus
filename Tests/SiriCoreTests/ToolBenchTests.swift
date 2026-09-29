@@ -75,6 +75,11 @@ import Testing
         let held = call("mcp:create_task", card: "connettore")
         #expect(failures(test, [held], answer: "Ti ho preparato il task: confermalo nella scheda.").isEmpty)
         #expect(failures(test, [held], answer: "Ho creato il task su Demo CRM.").contains { $0.hasPrefix("dice «fatto»") })
+        // Con l'avviso dell'app sotto la risposta l'utente sa che manca la conferma.
+        #expect(failures(test, [held], answer: "Ho creato il task su Demo CRM.\n\nNon è ancora fatto: controlla la scheda e conferma.").isEmpty)
+        // Un foglio l'app lo crea e lo apre subito: «ho creato il foglio» è vero.
+        let sheet = try decode(#"{"id":"x","domanda":"q","strumenti":["crea_foglio"],"schede":["foglio"]}"#)
+        #expect(failures(sheet, [call("crea_foglio", card: "foglio")], answer: "Ho creato il foglio «Spese del mese».").isEmpty)
         #expect(failures(test, [held], log: ["Demo CRM · create_task"]).contains { $0.hasPrefix("scrittura arrivata al connettore") })
         #expect(failures(test, [held], blocked: ["AppleScript verso Mail"]).contains { $0.hasPrefix("accessi ai dati veri bloccati") })
     }

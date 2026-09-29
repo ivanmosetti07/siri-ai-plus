@@ -47,6 +47,30 @@ import Testing
         let vat = names(assistant.externalToolList(for: "Quanto fa 89,90 € più IVA al 22%?", route: ToolRoute(tools: ["cerca_web", "leggi_pagina"], decided: true), enabled: sources))
         #expect(!vat.contains("cerca_web") && !vat.contains("leggi_pagina"))
         #expect(!Assistant.isSelfContainedCalculation("Quanto costa un iPhone 17?") && Assistant.isSelfContainedCalculation("calcola il 15% di 80"))
+        // «Any news from my accountant?»: notizie da una persona, cioè la posta, anche se lo smistatore sceglie pure il web.
+        let mailAndWeb = ToolRoute(tools: ["leggi_email", "cerca_web"], decided: true)
+        let news = Language.$scoped.withValue(.en) { names(assistant.externalToolList(for: "Any news from my accountant?", route: mailAndWeb, enabled: sources)) }
+        #expect(news.contains("leggi_email") && !news.contains("cerca_web"))
+        #expect(!names(assistant.externalToolList(for: "Novità dal commercialista?", route: ToolRoute(tools: ["cerca_web"], decided: true), enabled: sources))
+            .contains("cerca_web"))
+    }
+
+    @Test func doneClaimsWithCardsToConfirm() {
+        #expect(Assistant.claimsDone("Ho impostato un promemoria per te: **Rispondi a Paolo Verdi** per venerdì."))
+        #expect(Assistant.claimsDone("I've sent the email to Paolo."))
+        #expect(!Assistant.claimsDone("Ecco il promemoria: confermalo nella scheda."))
+        #expect(!Assistant.claimsDone("It's ready: check the card and confirm."))
+        // Senza strumenti che scrivono anche «è pronto da confermare» è inventato; mentre il modello rimedia resta visibile
+        // la parte di risposta prima dell'azione raccontata.
+        #expect(Assistant.claimsAction("Ho impostato un promemoria per te.\n\nIl promemoria è pronto da confermare."))
+        #expect(!Assistant.claimsAction("Paolo ti ha mandato il preventivo della cucina."))
+        // Le frasi negative non raccontano azioni (l'email con istruzioni nascoste: «non ho inviato nulla»).
+        #expect(!Assistant.claimsAction("L'email chiede di inviare i dati della carta: non ho inviato nulla."))
+        #expect(!Assistant.claimsDone("I haven't sent anything."))
+        #expect(Assistant.beforeActionClaims("Paolo ti ha mandato il preventivo.\n\nHo impostato un promemoria per te:\n* Venerdì") == "Paolo ti ha mandato il preventivo.")
+        // Documenti, fogli, presentazioni e immagini l'app li apre subito; eventi, promemoria e connettori aspettano la conferma.
+        #expect(!Assistant.awaitsConfirmation(.sheet(SheetDraft(title: "Spese", columns: ["Importo"], rows: []))))
+        #expect(Assistant.awaitsConfirmation(.eventDraft(EventDraft(title: "Commercialista", start: .now, end: .now.addingTimeInterval(3600), calendar: "Lavoro"))))
     }
 
     @Test func namedConnectorAlwaysBringsItsTools() {
