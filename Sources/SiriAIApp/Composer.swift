@@ -73,12 +73,19 @@ struct Composer: View {
                 Button {
                     showPicker.toggle()
                 } label: {
-                    HStack(spacing: 5) {
-                        if state.picked.isEmpty {
+                    // Con poco spazio resta l'icona (con il numero delle fonti scelte), mai una parola tagliata.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 5) {
+                            if state.picked.isEmpty {
+                                Image(systemName: "square.stack.3d.up").font(.system(size: 12, weight: .medium))
+                                if !compact { Text("Fonti").font(DS.Fonts.caption).fixedSize() }
+                            } else {
+                                Text("\(state.picked.count) fonti").font(DS.Fonts.caption).fixedSize()
+                            }
+                        }
+                        HStack(spacing: 3) {
                             Image(systemName: "square.stack.3d.up").font(.system(size: 12, weight: .medium))
-                            if !compact { Text("Fonti").font(DS.Fonts.caption) }
-                        } else {
-                            Text("\(state.picked.count) fonti").font(DS.Fonts.caption)
+                            if !state.picked.isEmpty { Text("\(state.picked.count)").font(DS.Fonts.caption).fixedSize() }
                         }
                     }
                     .foregroundStyle(.secondary)

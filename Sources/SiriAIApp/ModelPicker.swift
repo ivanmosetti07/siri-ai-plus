@@ -19,27 +19,12 @@ struct ModelPicker: View {
     var body: some View {
         let chosen = state.resolved(current)
         Button { open.toggle() } label: {
-            HStack(spacing: 6) {
-                if chosen.isAuto { AutoGlyph(size: 17) } else { ModelGlyph(provider: chosen.provider, size: 17) }
-                Text(state.shortLabel(for: chosen))
-                    .font(DS.Fonts.caption)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: compact ? 130 : 200, alignment: .leading)
-                    .fixedSize(horizontal: true, vertical: false)
-                if let effort = state.effortBadge(for: chosen) {
-                    Text(effort)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1.5)
-                        .background(Color.primary.opacity(0.07), in: Capsule())
-                        .fixedSize()
-                }
-                if showsTools, chosen.provider != .apple, state.externalTools {
-                    Image(systemName: "wrench.and.screwdriver").font(.system(size: 9)).foregroundStyle(.secondary)
-                }
-                Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).foregroundStyle(.tertiary)
+            // Nelle chat strette (affiancate, pannello, finestra piccola) il pulsante si accorcia invece di uscire dallo spazio:
+            // prima tutto, poi solo il nome, poi solo l'icona (il nome completo resta nel suggerimento).
+            ViewThatFits(in: .horizontal) {
+                label(chosen, name: true, extras: true)
+                label(chosen, name: true, extras: false)
+                label(chosen, name: false, extras: false)
             }
             .padding(.leading, 4)
             .padding(.trailing, 7)
@@ -58,6 +43,32 @@ struct ModelPicker: View {
         }
         .help(Language.t("Modello: \(state.label(for: chosen))", "Model: \(state.label(for: chosen))"))
         .accessibilityLabel(Language.t("Modello: \(state.label(for: chosen))", "Model: \(state.label(for: chosen))"))
+    }
+
+    /// Il contenuto del pulsante: icona, nome (se `name`), ragionamento e strumenti (se `extras`), freccia.
+    private func label(_ chosen: ModelSelection, name: Bool, extras: Bool) -> some View {
+        HStack(spacing: 6) {
+            if chosen.isAuto { AutoGlyph(size: 17) } else { ModelGlyph(provider: chosen.provider, size: 17) }
+            if name {
+                Text(state.shortLabel(for: chosen))
+                    .font(DS.Fonts.caption)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+            if extras, let effort = state.effortBadge(for: chosen) {
+                Text(effort)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1.5)
+                    .background(Color.primary.opacity(0.07), in: Capsule())
+                    .fixedSize()
+            }
+            if extras, showsTools, chosen.provider != .apple, state.externalTools {
+                Image(systemName: "wrench.and.screwdriver").font(.system(size: 9)).foregroundStyle(.secondary)
+            }
+            Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).foregroundStyle(.tertiary)
+        }
     }
 }
 
@@ -265,16 +276,24 @@ struct ModelPickerPanel: View {
         if let version, !version.efforts.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 Text(provider == .gemma ? Language.t("Ragionamento prima di rispondere", "Thinking before answering") : Language.t("Quanto ragiona", "Reasoning effort")).font(DS.Fonts.micro).foregroundStyle(.secondary)
-                Picker(Language.t("Ragionamento", "Reasoning"), selection: Binding(
-                    get: { current.effort ?? version.defaultEffort ?? version.efforts[0] },
-                    set: { choose(ModelSelection(provider, model: version.id, effort: $0), true) })) {
-                    ForEach(version.efforts, id: \.self) { effort in
-                        Text(ModelCatalog.effortLabel(effort)).tag(effort)
+                // Pillole che vanno a capo come le versioni: con 5-6 livelli il controllo a segmenti troncava «Molto alto».
+                let effort = current.effort ?? version.defaultEffort ?? version.efforts[0]
+                FlowLayout(spacing: 6) {
+                    ForEach(version.efforts, id: \.self) { level in
+                        let on = level == effort
+                        Button { choose(ModelSelection(provider, model: version.id, effort: level), true) } label: {
+                            Text(ModelCatalog.effortLabel(level))
+                                .font(.system(size: 11.5, weight: on ? .semibold : .regular))
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 4)
+                                .foregroundStyle(on ? Color.white : Color.primary)
+                                .background(on ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color.primary.opacity(0.07)), in: Capsule())
+                                .contentShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(on ? .isSelected : [])
                     }
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .controlSize(.small)
                 Text(effortHint(provider)).font(DS.Fonts.micro).foregroundStyle(.tertiary).fixedSize(horizontal: false, vertical: true)
             }
             .padding(.leading, 38)
