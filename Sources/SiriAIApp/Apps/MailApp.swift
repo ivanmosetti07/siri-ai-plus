@@ -188,7 +188,7 @@ struct MailAppView: View {
             if !accounts.isEmpty { MailIndex.configure(accounts: accounts) }
         }
         do {
-            mailboxes = fast ? try MailIndex.mailboxes() : try await MailStore.mailboxes()
+            mailboxes = fast ? try await Self.offMain { try MailIndex.mailboxes() } : try await MailStore.mailboxes()
             error = nil
         } catch {
             self.error = error.localizedDescription
@@ -201,7 +201,8 @@ struct MailAppView: View {
         defer { loading = false }
         do {
             if fast {
-                let page = try MailIndex.messages(in: box, limit: pageSize, search: search)
+                let (box, limit, search) = (box, pageSize, search)
+                let page = try await Self.offMain { try MailIndex.messages(in: box, limit: limit, search: search) }
                 messages = page.items
                 total = page.total
                 if AppTesting.selectFirst, selectedID == nil { selectedID = messages.first?.id }
@@ -227,9 +228,16 @@ struct MailAppView: View {
     }
 
     private func refreshQuietly() async {
-        guard let page = try? MailIndex.messages(in: box, limit: pageSize, search: search) else { return }
+        let (box, limit, search) = (box, pageSize, search)
+        guard let page = try? await Self.offMain({ try MailIndex.messages(in: box, limit: limit, search: search) }) else { return }
         if page.items != messages { messages = page.items; total = page.total }
-        if let boxes = try? MailIndex.mailboxes(), boxes != mailboxes { mailboxes = boxes }
+        if let boxes = try? await Self.offMain({ try MailIndex.mailboxes() }), boxes != mailboxes { mailboxes = boxes }
+    }
+
+    /// L'indice di Mail (anche centinaia di MB, con il conteggio dei messaggi) si legge fuori dal thread principale:
+    /// con la sezione aperta l'aggiornamento ogni 20 secondi faceva scattare l'interfaccia.
+    private static func offMain<T: Sendable>(_ work: @escaping @Sendable () throws -> T) async throws -> T {
+        try await Task.detached(priority: .userInitiated, operation: work).value
     }
 
     private func perform(_ action: MailStore.Action, on message: MailSummary) {

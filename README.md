@@ -106,7 +106,7 @@ I'm convinced that 70% of people can already do most of their everyday tasks wit
   - The chat picks the right service even when you don't name it ("which clients are paused?"), chains the calls that catalog-style services need, and turns their JSON into something the model can read.
 - 🧠 **A harness built for small models.**
   - A sub-agent picks the right tools for every request.
-  - Complex tasks become plans that sub-agents run in parallel.
+  - Complex tasks become plans that sub-agents run in parallel. With Apple Intelligence the plan is on by default for every real request (you can turn it off from the «+» menu or in Settings › Sub-agents).
   - Sub-agents compact long conversations.
   - Code, not the model, does exact math (dates, times, totals).
 
@@ -390,7 +390,7 @@ Sono convinto che il 70% delle persone possa già fare la maggior parte delle at
   - La chat sceglie il servizio giusto anche se non lo nomini («quali clienti sono in pausa?»), concatena le chiamate che servono ai servizi «a catalogo» e trasforma il loro JSON in qualcosa che il modello riesce a leggere.
 - 🧠 **Un harness pensato per i modelli piccoli.**
   - Un sub-agent sceglie gli strumenti giusti per ogni richiesta.
-  - I compiti complessi diventano piani eseguiti dai sub-agent in parallelo.
+  - I compiti complessi diventano piani eseguiti dai sub-agent in parallelo. Con Apple Intelligence il piano è acceso di serie per ogni richiesta vera (lo togli dal menu «+» o in Impostazioni › Sub-agent).
   - I sub-agent compattano le conversazioni lunghe.
   - I conti esatti (date, orari, totali) li fa il codice, non il modello.
 

@@ -397,11 +397,15 @@ private struct AgentSettings: View {
             }
             .frame(maxWidth: 260)
         }
+        SettingsGroup(title: String(localized: "Piano con i sub-agent"),
+                      footnote: String(localized: "Con Apple Intelligence ogni richiesta diventa un compito a passi: un piano, i sub-agent (anche in parallelo) e la risposta finale. Restano fuori saluti, comandi che l'app decide da sola, testi da elaborare, seguiti della conversazione e richieste con allegati. Dal menu «+» lo togli per una richiesta. Con gli altri modelli il piano parte da solo per i compiti complessi.")) {
+            Toggle("Acceso di serie con Apple Intelligence", isOn: Binding(get: { state.applePlanByDefault }, set: { state.applePlanByDefault = $0 }))
+        }
         SettingsGroup(title: String(localized: "Sub-agent a ogni richiesta"),
                       footnote: String(localized: "Lavorano con Apple Intelligence sul Mac, in sessioni loro: gratis, privati, qualunque modello risponda nella chat.")) {
             Label("Smistatore: legge la richiesta e sceglie solo gli strumenti che servono (calendario, email, file, web, connettori…), così al modello che risponde non arrivano le descrizioni di tutti gli altri e la sua finestra di contesto resta per la conversazione e i dati. Dice anche se il compito va diviso in passi.",
                   systemImage: "arrow.triangle.branch")
-            Label("Piano con i sub-agent: parte da solo per i compiti complessi con ogni modello; con Apple Intelligence parte sempre (un passo per le richieste semplici, più passi in parallelo per quelle complesse). I passaggi sono in «Come ho lavorato».",
+            Label("Piano con i sub-agent: con Apple Intelligence acceso di serie (vedi sopra), con gli altri modelli parte da solo per i compiti complessi. I passaggi sono in «Come ho lavorato».",
                   systemImage: "list.bullet.clipboard")
             Label("Compattazione: quando la conversazione esce dalla finestra del modello, un sub-agent la riassume (se è lunga altri sub-agent la leggono a pezzi in parallelo) e al modello arrivano il riassunto e gli ultimi scambi.",
                   systemImage: "rectangle.compress.vertical")

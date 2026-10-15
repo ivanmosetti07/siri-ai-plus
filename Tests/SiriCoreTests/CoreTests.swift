@@ -119,6 +119,17 @@ import Testing
         store.add("Il mio colore preferito è il verde", source: "utente")
         #expect(store.relevant(to: "quando fisso le riunioni?", limit: 1).first?.text.contains("riunioni") == true)
     }
+
+    /// Le note di attività scritte dall'app entrano solo quando si chiede cosa si è fatto: «ma è giovedì» pescava
+    /// «Il giovedì 24 settembre hai fatto: …» per il nome del giorno.
+    @Test func activityNotesOnlyForWhatIDid() {
+        let store = MemoryStore(url: FileManager.default.temporaryDirectory.appending(path: "mem-\(UUID().uuidString).json"))
+        store.add("Il giovedì 24 settembre hai fatto: documento creato; immagine creata.", source: "attività")
+        store.add("Preferisco le riunioni al mattino", source: "utente")
+        #expect(!store.relevant(to: "ma è giovedì").contains { MemoryStore.isActivity($0) })
+        #expect(store.relevant(to: "cosa ho fatto giovedì?").first.map(MemoryStore.isActivity) == true)
+        #expect(MemoryStore.asksAboutActivity("What did I do last week?") && !MemoryStore.asksAboutActivity("quali sono le mie attività di oggi?"))
+    }
 }
 
 @Suite @MainActor struct WebTests {

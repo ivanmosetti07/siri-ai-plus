@@ -16,10 +16,10 @@ struct Composer: View {
     var body: some View {
         @Bindable var state = state
         VStack(alignment: .leading, spacing: 10) {
-            if !state.picked.isEmpty || !state.attachments.isEmpty || state.planNext {
+            if !state.picked.isEmpty || !state.attachments.isEmpty || state.planChosen {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
-                        if state.planNext {
+                        if state.planChosen {
                             Chip(label: String(localized: "Piano con sub-agent"), leading: AnyView(Image(systemName: "list.bullet.clipboard").font(.system(size: 11)))) {
                                 state.planNext = false
                             }
@@ -56,7 +56,7 @@ struct Composer: View {
                 }
                 .accessibilityElement(children: .combine)
             }
-            TextField(state.planNext ? String(localized: "Descrivi il compito: lo divido in passi e lo affido ai sub-agent…") : placeholder,
+            TextField(state.planChosen ? String(localized: "Descrivi il compito: lo divido in passi e lo affido ai sub-agent…") : placeholder,
                       text: $state.input, axis: .vertical)
                 .textFieldStyle(.plain)
                 .font(.system(size: 14))
@@ -154,6 +154,7 @@ extension Composer {
             Button { begin(String(localized: "Genera un'immagine di ")) } label: { Label("Crea un'immagine", systemImage: "photo.on.rectangle.angled") }
             Button { begin(String(localized: "Cerca sul web ")) } label: { Label("Cerca sul web", systemImage: "globe") }
             // Come «Ricerca approfondita» in ChatGPT: la prossima richiesta diventa un compito a passi, con qualunque modello.
+            // Con Apple Intelligence è acceso di serie (Impostazioni › Sub-agent): toglierlo vale per la prossima richiesta.
             Toggle(isOn: Bindable(state).planNext) { Label("Piano con sub-agent", systemImage: "list.bullet.clipboard") }
             Divider()
             Button { state.newArtifact(.pages) } label: { Label("Nuovo documento", systemImage: "doc.richtext") }

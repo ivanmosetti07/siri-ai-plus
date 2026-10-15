@@ -3169,6 +3169,16 @@
         }
       }
     },
+    "Acceso di serie con Apple Intelligence": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On by default with Apple Intelligence"
+          }
+        }
+      }
+    },
     "Accesso completo al disco": {
       "localizations": {
         "en": {
@@ -7371,6 +7381,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "With Apple Intelligence, your Mac understands the request and picks the tools. The other models, if the option is on, use the same app tools on their own (calendar, email, files, web, connectors): anything they create or send is always a card for you to confirm. Each chat remembers its model: for ChatGPT and Claude, choose the version and reasoning from the menu below the text field."
+          }
+        }
+      }
+    },
+    "Con Apple Intelligence ogni richiesta diventa un compito a passi: un piano, i sub-agent (anche in parallelo) e la risposta finale. Restano fuori saluti, comandi che l'app decide da sola, testi da elaborare, seguiti della conversazione e richieste con allegati. Dal menu «+» lo togli per una richiesta. Con gli altri modelli il piano parte da solo per i compiti complessi.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "With Apple Intelligence every request becomes a step-by-step task: a plan, the sub-agents (in parallel too) and the final answer. Greetings, commands the app handles on its own, texts to rework, follow-ups in the conversation and requests with attachments are left out. Turn it off for one request from the «+» menu. With the other models the plan starts on its own for complex tasks."
           }
         }
       }
@@ -17274,12 +17294,22 @@
         }
       }
     },
-    "Piano con i sub-agent: parte da solo per i compiti complessi con ogni modello; con Apple Intelligence parte sempre (un passo per le richieste semplici, più passi in parallelo per quelle complesse). I passaggi sono in «Come ho lavorato».": {
+    "Piano con i sub-agent": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Plan with sub-agents: it starts automatically for complex tasks with any model; with Apple Intelligence it always starts (one step for simple requests, several parallel steps for complex ones). The steps are in “How I worked”."
+            "value": "Plan with sub-agents"
+          }
+        }
+      }
+    },
+    "Piano con i sub-agent: con Apple Intelligence acceso di serie (vedi sopra), con gli altri modelli parte da solo per i compiti complessi. I passaggi sono in «Come ho lavorato».": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plan with sub-agents: on by default with Apple Intelligence (see above); with the other models it starts on its own for complex tasks. The steps are in “How I worked”."
           }
         }
       }

@@ -106,13 +106,15 @@ extension Assistant {
     /// Il messaggio si capisce solo con quelli di prima: pronomi e dimostrativi («lui», «quella»), verbi con il pronome
     /// attaccato («rendilo», «fanne»), riferimenti a un elenco («il secondo», «in tutto») o frammenti brevi senza soggetto
     /// («In che anno è nato?», «Quante once sono?», «Ora in spagnolo»). Saluti e ringraziamenti no.
-    nonisolated public static func dependsOnConversation(_ prompt: String) -> Bool {
+    /// `strongOnly`: solo i segnali sicuri (pronomi, «e…», «ma…», «il secondo»), non le domande brevi senza argomento
+    /// («Che devo fare oggi?» sta in piedi da sola).
+    nonisolated public static func dependsOnConversation(_ prompt: String, strongOnly: Bool = false) -> Bool {
         let lower = " \(prompt.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)) "
         let words = lower.split(separator: " ").count
         guard words <= 14 else { return false }
         if lower.range(of: #"^ (ciao|grazie|ok|okay|perfetto|va bene|buongiorno|buonasera|buonanotte|salve|sì|si|no|bene|ottimo)\b[\s!.,]*$"#,
                        options: .regularExpression) != nil { return false }
-        if Language.isEnglish { return dependsOnConversationInEnglish(lower, words: words, prompt: prompt) }
+        if Language.isEnglish { return dependsOnConversationInEnglish(lower, words: words, prompt: prompt, strongOnly: strongOnly) }
         let strong = [" lui ", " lei ", " loro ", " esso ", " essa ", " questo ", " questa ", " quello ", " quella ", " quelli ", " quelle ",
                       " stesso ", " stessa ", "fallo", "falla", "rendilo", "rendila", "rifallo", "rifalla", "riscrivilo", "riscrivila",
                       "traducilo", "traducila", "spiegalo", "spiegala", "mandalo", "mandala", "approfondisci", "continua",
@@ -125,6 +127,7 @@ extension Assistant {
         if strong.contains(where: lower.contains) { return true }
         let trimmed = lower.trimmingCharacters(in: .whitespaces)
         if words <= 5, ["e ", "ma ", "ora ", "adesso ", "invece "].contains(where: trimmed.hasPrefix) { return true }
+        if strongOnly { return false }
         // Messaggi brevi senza un argomento proprio (nessun nome, numero o parola che non sia generica): parole ambigue
         // («la», «ne», «anche») o domande di poche parole («In che anno è nato?», «Entro quando?»).
         guard words <= 6 else { return false }
@@ -137,7 +140,7 @@ extension Assistant {
     }
 
     /// Lo stesso controllo per i messaggi in inglese («and him?», «make it shorter», «the second one», «in total»).
-    nonisolated static func dependsOnConversationInEnglish(_ lower: String, words: Int, prompt: String) -> Bool {
+    nonisolated static func dependsOnConversationInEnglish(_ lower: String, words: Int, prompt: String, strongOnly: Bool = false) -> Bool {
         if lower.range(of: #"^ (hi|hello|hey|thanks|thank you|ok|okay|perfect|great|good|yes|no|sure|fine|cool)\b[\s!.,]*$"#,
                        options: .regularExpression) != nil { return false }
         let strong = [" he ", " she ", " they ", " him ", " her ", " them ", " it ", " its ", " this ", " that ", " these ", " those ",
@@ -149,6 +152,7 @@ extension Assistant {
         if strong.contains(where: lower.contains) { return true }
         let trimmed = lower.trimmingCharacters(in: .whitespaces)
         if words <= 5, ["and ", "but ", "now ", "what about", "how about", "instead "].contains(where: trimmed.hasPrefix) { return true }
+        if strongOnly { return false }
         guard words <= 6 else { return false }
         let hasName = prompt.split(separator: " ").dropFirst().contains { $0.first?.isUppercase == true && $0 != "I" }
         let hasNumber = prompt.contains { $0.isNumber }

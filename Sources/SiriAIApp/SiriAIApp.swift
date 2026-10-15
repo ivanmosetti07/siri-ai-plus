@@ -6,6 +6,8 @@ import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // I blocchi dell'interfaccia oltre 1,5 s finiscono nel registro, con una foto di cosa stava facendo l'app.
+        HangWatch.start()
         // Diagnostica: `open Siri AI+.app --args --selftest "prompt||prompt"` scrive gli esiti in ~/Library/Logs/Siri AI+.log.
         let args = CommandLine.arguments
         if let index = args.firstIndex(of: "--selftest"), index + 1 < args.count {

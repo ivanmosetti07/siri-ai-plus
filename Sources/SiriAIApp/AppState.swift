@@ -531,7 +531,26 @@ final class AppState {
     let voice = VoiceMode()
 
     /// Menu «+» › Piano con sub-agent: la prossima richiesta diventa un compito a passi (catena di pensieri e sub-agent).
-    var planNext = false
+    /// Con Apple Intelligence è acceso di serie (scelta di Ivan del 30/9, Impostazioni › Sub-agent); il menu lo cambia per una richiesta.
+    var planNext: Bool {
+        get { planChoice ?? planByDefault(for: current) }
+        set { planChoice = newValue == planByDefault(for: current) ? nil : newValue }
+    }
+    /// La scelta fatta nel menu «+» per la prossima richiesta (nil: quella di serie del modello della chat).
+    private var planChoice: Bool?
+    /// Il piano scelto a mano per la prossima richiesta (il chip sopra il campo di scrittura).
+    var planChosen: Bool { planChoice == true }
+    /// Piano con i sub-agent acceso di serie con Apple Intelligence (Impostazioni › Sub-agent).
+    var applePlanByDefault: Bool = UserDefaults.standard.object(forKey: "applePlanByDefault") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(applePlanByDefault, forKey: "applePlanByDefault") }
+    }
+
+    /// La chat risponde con Apple Intelligence (non Auto) e il piano di serie è acceso.
+    func planByDefault(for conversation: Conversation?) -> Bool {
+        guard applePlanByDefault, let conversation else { return false }
+        let selection = selectionOverride ?? conversation.model ?? defaultSelection(for: space(of: conversation))
+        return selection.provider == .apple && !selection.isAuto
+    }
     /// Prima di inviare a ChatGPT e Claude tutto si anonimizza sul Mac con rizzo-pii (Impostazioni › Modelli). Acceso di serie.
     var cloudPrivacy: Bool = UserDefaults.standard.object(forKey: "cloudPrivacy") as? Bool ?? true {
         didSet {
@@ -929,7 +948,7 @@ final class AppState {
             let prompts = args[index + 1].components(separatedBy: "||")
             for (number, prompt) in prompts.enumerated() {
                 // `--plan`: come «Piano con sub-agent» dal menu «+» (catena di pensieri e sub-agent anche per richieste semplici).
-                if args.contains("--plan") { planNext = true }
+                if args.contains("--plan") { planChoice = true }
                 send(prompt)
                 if number < prompts.count - 1 { while isResponding { try? await Task.sleep(for: .milliseconds(300)) } }
             }
@@ -1805,8 +1824,10 @@ final class AppState {
         saveConversations()
         picked = []
         attachments = []
-        let plan = planNext
-        planNext = false
+        // Il piano scelto nel menu «+» per questa richiesta; altrimenti quello di serie (Apple Intelligence), tranne per saluti,
+        // comandi decisi dall'app, testi da elaborare, seguiti della conversazione e richieste con allegati.
+        let plan = planChoice ?? (planByDefault(for: conversation) && files.isEmpty && !assistant.skipsDefaultPlan(prompt))
+        planChoice = nil
         if isResponding {
             let session = Assistant()
             session.restore(Array(Self.turns(of: conversation).dropLast()))
@@ -2652,7 +2673,10 @@ final class AppState {
                                shown: ShownCounter? = nil) -> ExternalHooks {
         let response = Self.independentResponse
         return ExternalHooks(
-            status: onStatus, text: onText,
+            // Le righe di ChatGPT e Claude arrivano da un altro thread, fuori dalla risposta in corso: stato e testo tornano
+            // nella chat giusta (quelli dei sub-agent di un Genius finivano nella chat aperta, come bolla «sta pensando»).
+            status: { status in Self.$independentResponse.withValue(response) { onStatus(status) } },
+            text: { text in Self.$independentResponse.withValue(response) { onText(text) } },
             show: { [weak self] name, outcome in
                 guard let self else { return nil }
                 shown?.count += 1
@@ -2749,7 +2773,10 @@ final class AppState {
 
     /// Lo scudo di una chat che risponde con ChatGPT o Claude: il dizionario è della conversazione e si salva con lei.
     /// nil con i modelli sul Mac (Apple Intelligence, Gemma, ds4) o se l'anonimizzazione è spenta.
-    private func privacyShield(for conversation: Conversation, provider: ResponseProvider) -> PrivacyShield? {
+    /// `response`: la risposta indipendente a cui appartiene lo scudo (chat affiancata, rapida, Genius), per mostrare il suo stato
+    /// nella chat giusta anche quando arriva da un altro thread.
+    private func privacyShield(for conversation: Conversation, provider: ResponseProvider,
+                               response: IndependentResponse? = AppState.independentResponse) -> PrivacyShield? {
         guard cloudPrivacy, provider == .chatgpt || provider == .claude else { return nil }
         let shield = PrivacyShield(vault: conversation.privacyVault ?? PIIVault(), destination: provider.name, labels: privacyLabels,
                                    chat: conversation.id)
@@ -2757,7 +2784,9 @@ final class AppState {
         shield.onVaultChange = { [weak self] vault in
             Task { @MainActor in self?.conversations.first { $0.id == id }?.privacyVault = vault }
         }
-        shield.onStatus = { [weak self] text in Task { @MainActor in self?.setThinking(text) } }
+        shield.onStatus = { [weak self] text in
+            Task { @MainActor in Self.$independentResponse.withValue(response) { self?.setThinking(text) } }
+        }
         return shield
     }
 
@@ -2859,6 +2888,12 @@ final class AppState {
                                              hooks: externalHooks(onText: onText, onStatus: onStatus))
     }
 
+    /// La chat che sta rispondendo ha il modello su Auto (le scelte fatte da Auto per la singola risposta non contano).
+    private var respondsWithAuto: Bool {
+        guard let conversation = out else { return false }
+        return (selectionOverride ?? conversation.model ?? defaultSelection(for: space(of: conversation))).isAuto
+    }
+
     /// Compito complesso con un modello esterno: il modello scrive la catena di pensieri e i passi, i sub-agent (lo stesso modello,
     /// ognuno con una conversazione nuova e gli strumenti) li svolgono anche in parallelo, poi il modello scrive la risposta finale.
     private func respondWithPlan(_ prompt: String) async -> Bool {
@@ -2884,9 +2919,10 @@ final class AppState {
         if plan == nil, availabilityProblem == nil { plan = try? await assistant.makeTaskPlan(for: prompt) }
         guard var plan, plan.steps.count >= 2 else { return false }
         Agent.log("PIANO DI LAVORO (\(modelLabel)): \(plan.steps.map(\.title))")
-        // ChatGPT e Claude: Apple Intelligence valuta la difficoltà dei passi e ognuno va alla versione adatta
+        // I sub-agent usano il modello scelto, con la sua versione e il suo ragionamento. Solo con Auto (scelta di Ivan del
+        // 30/9) Apple Intelligence valuta la difficoltà dei passi e ognuno va alla versione adatta di ChatGPT o Claude
         // (leggera per cercare e leggere, la più capace per le analisi difficili). Il passo finale lo scrive il modello della chat.
-        if SubAgentRouting.routes(chosen.provider) {
+        if SubAgentRouting.routes(chosen.provider), respondsWithAuto {
             setThinking(String(localized: "Apple Intelligence sceglie il modello per ogni passo…"))
             let difficulties = await assistant.stepDifficulties(for: plan)
             let gpt = ModelCatalog.chatGPT()
@@ -3497,7 +3533,7 @@ final class AppState {
         if chosen.isAuto { chosen = await autoSelection(for: work.skillTask ?? agent.goal, in: conversation, files: [], assistant: worker) }
         let context = IndependentResponse(conversation: conversation, assistant: worker, selection: chosen)
         context.allowedSources = enabled
-        let shield = privacyShield(for: conversation, provider: chosen.provider)
+        let shield = privacyShield(for: conversation, provider: chosen.provider, response: context)
         await Self.$independentResponse.withValue(context) {
         await PrivacyShield.$current.withValue(shield) {
         var runID = claimedRunID ?? UUID()

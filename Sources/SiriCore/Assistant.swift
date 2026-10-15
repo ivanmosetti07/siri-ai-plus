@@ -1789,6 +1789,19 @@ public final class Assistant {
                       events: eventItems, reminders: Array(inRange.prefix(30)), overdue: Array(overdue.prefix(15)))
     }
 
+    /// «oggi», «domani», «ieri» accanto alla data di un evento o di un promemoria: con un'agenda di più giorni il modello piccolo
+    /// scriveva «oggi, mercoledì 30» per un evento di giovedì («gio 2026-10-01 21:00»). nil per gli altri giorni.
+    nonisolated static func relativeDay(_ date: Date, now: Date = .now) -> String? {
+        let calendar = Calendar.current
+        guard let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: date)).day else { return nil }
+        switch days {
+        case 0: return Language.t("oggi", "today")
+        case 1: return Language.t("domani", "tomorrow")
+        case -1: return Language.t("ieri", "yesterday")
+        default: return nil
+        }
+    }
+
     /// Testo per il modello, con ID brevi registrati per le azioni successive.
     private func describe(_ agenda: Agenda) -> String {
         if agenda.showsEvents { recentEvents = agenda.events }
@@ -1801,14 +1814,16 @@ public final class Assistant {
                 let id = ids.register(event: e.identifier, start: e.start)
                 let when = e.isAllDay ? "\(Dates.format(e.start, time: false)), \(english ? "all day" : "tutto il giorno")"
                                       : "\(Dates.format(e.start))–\(Dates.format(e.end).suffix(5))"
-                return "[\(id)] «\(e.title)» (\(when), \(english ? "calendar" : "calendario") \(e.calendar))"
+                return "[\(id)] «\(e.title)» (\(Self.relativeDay(e.start).map { "\($0), " } ?? "")\(when), \(english ? "calendar" : "calendario") \(e.calendar))"
             }
             parts.append((english ? "EVENTS:\n" : "EVENTI:\n") + (lines.isEmpty ? none : lines.joined(separator: "\n")))
         }
         if agenda.showsReminders {
             func line(_ r: ReminderItem) -> String {
                 let id = ids.register(reminder: r.id)
-                let due = r.due.map { (english ? ", due " : ", scade ") + Dates.format($0, time: r.dueHasTime) } ?? ""
+                let due = r.due.map { date in
+                    (english ? ", due " : ", scade ") + (Self.relativeDay(date).map { "\($0), " } ?? "") + Dates.format(date, time: r.dueHasTime)
+                } ?? ""
                 return "[\(id)] «\(r.title)» (\(english ? "list" : "lista") \(r.list)\(due))"
             }
             parts.append((english ? "REMINDERS:\n" : "PROMEMORIA:\n") + (agenda.reminders.isEmpty ? none : agenda.reminders.map(line).joined(separator: "\n")))

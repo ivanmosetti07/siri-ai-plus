@@ -55,6 +55,28 @@ import Testing
             .contains("cerca_web"))
     }
 
+    /// Il piano con i sub-agent acceso di serie con Apple Intelligence: le richieste vere sì, saluti, testi, seguiti e comandi
+    /// già divisi dall'app no.
+    @Test func defaultPlanOnlyForRealRequests() {
+        let assistant = assistant()
+        for text in ["ciao", "ti sei bloccato?", "Riassumi questo testo: «Il progetto parte lunedì»", "e dopodomani?",
+                     "cosa ho domani e scrivi a Marco che arrivo tardi"] {
+            #expect(assistant.skipsDefaultPlan(text), "\(text)")
+        }
+        for text in ["Che devo fare oggi?", "Prepara la settimana guardando calendario, promemoria ed email"] {
+            #expect(!assistant.skipsDefaultPlan(text), "\(text)")
+        }
+    }
+
+    /// Nell'agenda di più giorni ogni evento dice se è oggi, domani o ieri: «gio 2026-10-01 21:00» diventava «oggi».
+    @Test func agendaDatesSayTodayOrTomorrow() {
+        let now = Date.now
+        #expect(Assistant.relativeDay(now, now: now) == "oggi")
+        #expect(Assistant.relativeDay(Calendar.current.date(byAdding: .day, value: 1, to: now)!, now: now) == "domani")
+        #expect(Assistant.relativeDay(Calendar.current.date(byAdding: .day, value: -1, to: now)!, now: now) == "ieri")
+        #expect(Assistant.relativeDay(Calendar.current.date(byAdding: .day, value: 3, to: now)!, now: now) == nil)
+    }
+
     @Test func doneClaimsWithCardsToConfirm() {
         #expect(Assistant.claimsDone("Ho impostato un promemoria per te: **Rispondi a Paolo Verdi** per venerdì."))
         #expect(Assistant.claimsDone("I've sent the email to Paolo."))

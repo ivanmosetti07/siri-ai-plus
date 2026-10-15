@@ -64,11 +64,24 @@ extension Assistant {
         let phrases = ["ciao", "salve", "buongiorno", "buonasera", "buonanotte", "grazie", "grazie mille", "ok", "okay", "va bene", "perfetto",
                        "ottimo", "benissimo", "bene", "come stai", "come va", "chi sei", "cosa sai fare", "sì", "si", "no", "d'accordo", "a dopo",
                        "ci sentiamo", "alla prossima", "bravo", "brava", "fantastico", "capito", "tutto chiaro",
+                       // Domande sull'assistente («ti sei bloccato?»): prima rileggevano l'agenda con altre date.
+                       "ti sei bloccato", "ti sei bloccata", "sei bloccato", "sei bloccata", "ci sei", "sei lì", "sei li", "sei ancora lì",
+                       "sei ancora li", "mi senti", "stai funzionando",
                        // In inglese.
                        "hi", "hello", "hey", "good morning", "good evening", "good night", "thanks", "thank you", "thanks a lot",
                        "all right", "alright", "perfect", "great", "fine", "good", "how are you", "how's it going", "who are you",
-                       "what can you do", "yes", "sure", "see you", "talk later", "bye", "cool", "awesome", "got it", "understood"]
+                       "what can you do", "yes", "sure", "see you", "talk later", "bye", "cool", "awesome", "got it", "understood",
+                       "are you stuck", "are you there", "you there", "still there", "are you still there"]
         return phrases.contains { text == $0 || text.hasPrefix($0 + " ") && text.count <= $0.count + 12 }
+    }
+
+    /// Richieste per cui il piano con i sub-agent acceso di serie (Apple Intelligence) non serve: saluti, comandi che l'app
+    /// decide da sola («sposta la riunione alle 16»), testi da elaborare, «rispondi solo…», l'elemento sullo schermo e i seguiti
+    /// della conversazione («e dopodomani?», «ma è giovedì»), che il pianificatore, con la sola richiesta, non capirebbe. Anche le
+    /// richieste che l'app sa già dividere in comandi («cosa ho domani e scrivi a Marco…»): ogni parte ha la sua scheda.
+    public func skipsDefaultPlan(_ prompt: String) -> Bool {
+        Self.isSmallTalk(prompt) || Self.isTextTask(prompt) || Self.isAnswerOnlyInstruction(prompt) || decidedByRules(prompt)
+            || pointsAtScreen || Self.dependsOnConversation(prompt, strongOnly: true) || Self.splitRequest(prompt).count > 1
     }
 
     /// Serve lo smistatore? No per i saluti, i testi da elaborare e i comandi che l'app decide da sola (sull'elemento sullo

@@ -9,7 +9,7 @@ import Testing
     }
 
     @Test func smallTalkNeedsNoTools() {
-        for text in ["ciao", "Ciao, come stai?", "grazie!", "ok", "Perfetto.", "buongiorno", "chi sei?"] {
+        for text in ["ciao", "Ciao, come stai?", "grazie!", "ok", "Perfetto.", "buongiorno", "chi sei?", "ti sei bloccato?", "ci sei?", "Are you stuck?"] {
             #expect(Assistant.isSmallTalk(text), "\(text)")
         }
         for text in ["cosa ho domani?", "no, intendevo domani", "come va il progetto drone24hours?", "ciao, mi prepari l'agenda di domani con le riunioni?"] {

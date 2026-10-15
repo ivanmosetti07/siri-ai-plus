@@ -132,12 +132,27 @@ public final class MemoryStore {
         reloadIfChanged()
         guard enabled, !facts.isEmpty else { return [] }
         let words = Self.keywords(query)
-        let scored = facts.enumerated().map { index, fact -> (MemoryFact, Double) in
+        // Le note automatiche di attività («Il giovedì 24 settembre hai fatto: …») servono solo a «cosa ho fatto giovedì?»:
+        // altrove un nome di giorno in comune le portava in cima («ma è giovedì» → una risposta sul 24 settembre).
+        let activity = Self.asksAboutActivity(query)
+        let scored = facts.enumerated().compactMap { index, fact -> (MemoryFact, Double)? in
+            if Self.isActivity(fact), !activity { return nil }
             let overlap = Double(Self.keywords(fact.text).intersection(words).count)
             let recency = 1.0 / Double(index + 2)
             return (fact, overlap * 2 + recency + (fact.source == "utente" ? 0.5 : 0))
         }
         return scored.sorted { $0.1 > $1.1 }.prefix(limit).map(\.0)
+    }
+
+    /// Una nota scritta dall'app con le attività di un giorno (fonte «attività», «activity» in inglese).
+    nonisolated static func isActivity(_ fact: MemoryFact) -> Bool { ["attività", "activity"].contains(fact.source) }
+
+    /// «Cosa ho fatto giovedì?», «su cosa ho lavorato ieri?», «what did I do last week?».
+    nonisolated static func asksAboutActivity(_ query: String) -> Bool {
+        let lower = query.lowercased()
+        // Non «le mie attività di oggi»: in italiano sono anche le cose da fare.
+        let pattern = #"\b(ho|hai|abbiamo|avevo) (fatto|lavorato|creato|combinato)\b|\bwhat (did|have) (i|we) (do|done|work|worked|made|create|created)\b|\bi (did|worked on|made|created)\b"#
+        return lower.range(of: pattern, options: .regularExpression) != nil
     }
 
     /// Istanze di prova e valutazioni: i ricordi valgono per la sessione ma non si scrivono nel file di Ivan.
